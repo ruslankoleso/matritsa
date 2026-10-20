@@ -1,0 +1,9 @@
+.git
+.superpowers
+node_modules
+web/node_modules
+web/dist
+e2e/node_modules
+data
+*.md
+docs

@@ -1,0 +1,100 @@
+name: matritsa
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: matritsa
+      POSTGRES_PASSWORD: matritsa
+      POSTGRES_DB: matritsa
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matritsa -d matritsa"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mock-bki:
+    build: { context: ., args: { CMD: mock-bki } }
+    environment:
+      HTTP_ADDR: ":8081"
+    ports:
+      - "8081:8081"   # demo: POST /mock/fail?on=true simulates an outage of the bureau
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mock-egrul:
+    build: { context: ., args: { CMD: mock-egrul } }
+    environment:
+      HTTP_ADDR: ":8082"
+    ports:
+      - "8082:8082"   # demo: POST /mock/fail?on=true simulates an outage of the registry
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: { context: ., args: { CMD: api } }
+    depends_on:
+      postgres: { condition: service_healthy }
+      mock-bki: { condition: service_healthy }
+      mock-egrul: { condition: service_healthy }
+    environment:
+      APP_ENV: dev
+      HTTP_ADDR: ":8080"
+      DATABASE_URL: postgres://matritsa:matritsa@postgres:5432/matritsa?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-demo-only-secret-change-me-0123456789abcdef}
+      PRODUCT_NAME: ${PRODUCT_NAME:-Матрица}
+      BKI_URL: http://mock-bki:8081
+      EGRUL_URL: http://mock-egrul:8082
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      SEED_ON_START: "true"
+    volumes:
+      - uploads:/data
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: { context: ., dockerfile: Dockerfile.web }
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Optional: a local open-weights model (profile "ai"). Start with:
+  #   AI_ENABLED=true docker compose --profile ai up -d && ./scripts/pull-model.sh
+  ollama:
+    profiles: ["ai"]
+    image: ollama/ollama:0.5.7
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ollama:
+  pgdata:
+  uploads:
