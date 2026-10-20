@@ -1,0 +1,830 @@
+openapi: 3.0.3
+info:
+  title: Матрица — умный кредитный кабинет
+  version: 1.0.0
+  description: |
+    API кредитного конвейера для малого бизнеса (прототип команды МАТРИЦА РУСИ).
+    Все суммы — в копейках (целые числа). Ставки — в базисных пунктах (1650 = 16,5 %).
+    Внешние системы (БКИ, ЕГРЮЛ), подписание и выдача смоделированы.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: reference
+  - name: client
+  - name: staff
+  - name: realtime
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Вход по логину и паролю
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Токены
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: Обновить токены
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Новые токены
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '401': { $ref: '#/components/responses/Error' }
+  /me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: Текущий пользователь
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /products:
+    get:
+      tags: [reference]
+      operationId: listProducts
+      summary: Каталог кредитных продуктов (публичный, для калькулятора)
+      security: []
+      responses:
+        '200':
+          description: Продукты
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Product' }
+  /company/lookup:
+    get:
+      tags: [reference]
+      operationId: lookupCompany
+      summary: Найти компанию по ИНН в (смоделированном) ЕГРЮЛ
+      parameters:
+        - { name: inn, in: query, required: true, schema: { type: string, example: '7701234501' } }
+      responses:
+        '200':
+          description: Сведения о компании
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyLookup' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /assistant/recommend:
+    post:
+      tags: [reference]
+      operationId: recommendProduct
+      summary: Подобрать продукт по описанию потребности (ИИ либо правила)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecommendRequest' }
+      responses:
+        '200':
+          description: Рекомендация
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recommendation' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /applications:
+    get:
+      tags: [client]
+      operationId: listApplications
+      summary: Мои заявки
+      responses:
+        '200':
+          description: Заявки
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ApplicationSummary' }
+    post:
+      tags: [client]
+      operationId: createApplication
+      summary: Создать черновик заявки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApplicationInput' }
+      responses:
+        '201':
+          description: Черновик
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '422': { $ref: '#/components/responses/Error' }
+  /applications/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    get:
+      tags: [client]
+      operationId: getApplication
+      summary: Заявка целиком
+      responses:
+        '200':
+          description: Заявка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [client]
+      operationId: updateApplication
+      summary: Изменить черновик (автосохранение шагов мастера)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApplicationInput' }
+      responses:
+        '200':
+          description: Заявка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /applications/{id}/submit:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema: { type: string, minLength: 8, maxLength: 80 }
+    post:
+      tags: [client]
+      operationId: submitApplication
+      summary: Подать заявку (повтор с тем же ключом возвращает тот же результат)
+      responses:
+        '200':
+          description: Заявка принята в работу
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /applications/{id}/documents:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [client]
+      operationId: uploadDocument
+      summary: Загрузить документ (PDF, PNG, JPEG до 5 МБ)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [kind, file]
+              properties:
+                kind: { type: string, example: bank_statement }
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Документ загружен
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '404': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /applications/{id}/respond:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [client]
+      operationId: respondToInfoRequest
+      summary: Ответить на запрос уточнения и вернуть заявку в обработку
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InfoResponse' }
+      responses:
+        '200':
+          description: Заявка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /applications/{id}/offer/accept:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [client]
+      operationId: acceptOffer
+      summary: Принять предложение, подписать (демо) — деньги выдаются условно
+      responses:
+        '200':
+          description: Заявка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /applications/{id}/offer/decline:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [client]
+      operationId: declineOffer
+      summary: Отказаться от предложения
+      responses:
+        '200':
+          description: Заявка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /applications/{id}/cancel:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [client]
+      operationId: cancelApplication
+      summary: Отозвать заявку
+      responses:
+        '200':
+          description: Заявка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Application' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /applications/{id}/timeline:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    get:
+      tags: [client]
+      operationId: getTimeline
+      summary: История заявки человеческим языком
+      responses:
+        '200':
+          description: События
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TimelineEntry' }
+        '404': { $ref: '#/components/responses/Error' }
+  /feed:
+    get:
+      tags: [client]
+      operationId: getFeed
+      summary: Персональная лента предложений и подсказок
+      responses:
+        '200':
+          description: Карточки ленты
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FeedCard' }
+  /notifications:
+    get:
+      tags: [client]
+      operationId: listNotifications
+      summary: Уведомления внутри кабинета
+      responses:
+        '200':
+          description: Уведомления
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+  /notifications/{id}/read:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [client]
+      operationId: markNotificationRead
+      summary: Отметить уведомление прочитанным
+      responses:
+        '204': { description: Готово }
+
+  /events:
+    get:
+      tags: [realtime]
+      operationId: streamEvents
+      summary: Поток событий (Server-Sent Events). Токен допускается в ?access_token=
+      parameters:
+        - { name: access_token, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: text/event-stream; события status, notification, queue
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /staff/queue:
+    get:
+      tags: [staff]
+      operationId: getQueue
+      summary: Очередь заявок (сначала ожидающие решения сотрудника)
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string }, description: Поиск по названию или ИНН }
+      responses:
+        '200':
+          description: Очередь
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Queue' }
+        '403': { $ref: '#/components/responses/Error' }
+  /staff/applications/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    get:
+      tags: [staff]
+      operationId: getStaffApplication
+      summary: Карточка заявки для сотрудника
+      responses:
+        '200':
+          description: Карточка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffApplication' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/applications/{id}/claim:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [staff]
+      operationId: claimApplication
+      summary: Взять заявку в работу
+      responses:
+        '200':
+          description: Карточка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffApplication' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /staff/applications/{id}/decision:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [staff]
+      operationId: makeDecision
+      summary: Принять решение по заявке
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200':
+          description: Карточка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffApplication' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /staff/applications/{id}/explanation:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    get:
+      tags: [staff]
+      operationId: getExplanation
+      summary: Пояснение решения простым языком (ИИ либо шаблон)
+      parameters:
+        - { name: audience, in: query, schema: { type: string, enum: [staff, client], default: staff } }
+      responses:
+        '200':
+          description: Пояснение
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Explanation' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ApplicationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Ошибка
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: validation_failed }
+        message: { type: string, example: Проверьте введённые данные }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, example: client1 }
+        password: { type: string, example: demo1234 }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken, role, fullName]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        role: { type: string, enum: [client, staff] }
+        fullName: { type: string }
+    Me:
+      type: object
+      required: [id, login, role, fullName]
+      properties:
+        id: { type: string, format: uuid }
+        login: { type: string }
+        role: { type: string, enum: [client, staff] }
+        fullName: { type: string }
+        company: { $ref: '#/components/schemas/Company' }
+
+    DocRequirement:
+      type: object
+      required: [kind, title, why, required]
+      properties:
+        kind: { type: string }
+        title: { type: string }
+        why: { type: string }
+        required: { type: boolean }
+    Product:
+      type: object
+      required: [id, title, description, hint, minAmount, maxAmount, minTerm, maxTerm, baseRateBp, autoApproveLimit, documents]
+      properties:
+        id: { type: string, enum: [working_capital, equipment, overdraft, express] }
+        title: { type: string }
+        description: { type: string }
+        hint: { type: string }
+        minAmount: { type: integer, format: int64 }
+        maxAmount: { type: integer, format: int64 }
+        minTerm: { type: integer }
+        maxTerm: { type: integer }
+        baseRateBp: { type: integer }
+        autoApproveLimit: { type: integer, format: int64 }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/DocRequirement' }
+    Company:
+      type: object
+      required: [id, inn, name, kind, registeredAt, okved, director, address]
+      properties:
+        id: { type: string, format: uuid }
+        inn: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [ooo, ip] }
+        registeredAt: { type: string, format: date }
+        okved: { type: string }
+        director: { type: string }
+        address: { type: string }
+    CompanyLookup:
+      type: object
+      required: [inn, name, kind, status, registeredAt, okved, director, address]
+      properties:
+        inn: { type: string }
+        name: { type: string }
+        kind: { type: string, enum: [ooo, ip] }
+        status: { type: string, example: active }
+        registeredAt: { type: string, format: date }
+        okved: { type: string }
+        director: { type: string }
+        address: { type: string }
+    RecommendRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, maxLength: 1000, example: Нужно купить станок для мастерской }
+    Recommendation:
+      type: object
+      required: [productId, rationale, source]
+      properties:
+        productId: { type: string }
+        amount: { type: integer, format: int64 }
+        termMonths: { type: integer }
+        rationale: { type: string }
+        source: { type: string, enum: [ai, rules] }
+
+    ApplicationInput:
+      type: object
+      properties:
+        productId: { type: string }
+        amount: { type: integer, format: int64 }
+        termMonths: { type: integer }
+        purpose: { type: string, maxLength: 500 }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+    InfoResponse:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, maxLength: 1000 }
+        version: { type: integer }
+    Document:
+      type: object
+      required: [id, kind, filename, size, uploadedAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        filename: { type: string }
+        size: { type: integer, format: int64 }
+        uploadedAt: { type: string, format: date-time }
+    InfoRequest:
+      type: object
+      required: [text, requestedBy, at]
+      properties:
+        text: { type: string }
+        items:
+          type: array
+          items: { type: string }
+        requestedBy: { type: string, enum: [system, staff] }
+        at: { type: string, format: date-time }
+    Offer:
+      type: object
+      required: [amount, termMonths, rateBp, monthlyPayment, source, expiresAt]
+      properties:
+        amount: { type: integer, format: int64 }
+        termMonths: { type: integer }
+        rateBp: { type: integer }
+        monthlyPayment: { type: integer, format: int64 }
+        source: { type: string, enum: [auto, analyst, recommended] }
+        expiresAt: { type: string, format: date-time }
+        changes:
+          type: array
+          description: Что изменилось относительно заявки (для встречного предложения)
+          items: { type: string }
+    Rejection:
+      type: object
+      required: [reasons]
+      properties:
+        reasons:
+          type: array
+          items: { type: string }
+        comment: { type: string }
+    ApplicationSummary:
+      type: object
+      required: [id, productId, productTitle, amount, termMonths, status, statusMessage, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        productId: { type: string }
+        productTitle: { type: string }
+        amount: { type: integer, format: int64 }
+        termMonths: { type: integer }
+        status: { $ref: '#/components/schemas/Status' }
+        statusMessage: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Application:
+      allOf:
+        - $ref: '#/components/schemas/ApplicationSummary'
+        - type: object
+          required: [version, purpose, allowedActions, missingItems, company, documents, fields]
+          properties:
+            version: { type: integer }
+            purpose: { type: string }
+            fields:
+              type: object
+              additionalProperties: { type: string }
+            allowedActions:
+              type: array
+              description: Что клиент может сделать сейчас
+              items: { type: string, enum: [edit, submit, upload, respond, accept, decline, cancel] }
+            missingItems:
+              type: array
+              items: { type: string }
+            infoRequest: { $ref: '#/components/schemas/InfoRequest' }
+            offer: { $ref: '#/components/schemas/Offer' }
+            rejection: { $ref: '#/components/schemas/Rejection' }
+            company: { $ref: '#/components/schemas/Company' }
+            documents:
+              type: array
+              items: { $ref: '#/components/schemas/Document' }
+    Status:
+      type: string
+      enum: [DRAFT, SUBMITTED, INTAKE_CHECK, NEEDS_INFO, ENRICHMENT, SCORING, ANALYST_REVIEW, OFFER_MADE, REJECTED, SIGNING, DISBURSED, DECLINED_BY_CLIENT, EXPIRED, CANCELLED]
+    TimelineEntry:
+      type: object
+      required: [at, actor, event, fromStatus, toStatus, message]
+      properties:
+        at: { type: string, format: date-time }
+        actor: { type: string, description: 'system | client | staff' }
+        event: { type: string }
+        fromStatus: { type: string }
+        toStatus: { type: string }
+        comment: { type: string }
+        message: { type: string }
+    FeedCard:
+      type: object
+      required: [id, kind, title, body, priority]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [product, action, status, tip, upsell] }
+        title: { type: string }
+        body: { type: string }
+        priority: { type: integer }
+        productId: { type: string }
+        applicationId: { type: string }
+        ctaLabel: { type: string }
+        ctaHref: { type: string }
+    Notification:
+      type: object
+      required: [id, text, read, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        applicationId: { type: string, format: uuid }
+        text: { type: string }
+        read: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    Factor:
+      type: object
+      required: [key, title, points, max, note]
+      properties:
+        key: { type: string }
+        title: { type: string }
+        points: { type: integer }
+        max: { type: integer }
+        note: { type: string }
+    ScoringResult:
+      type: object
+      required: [score, grade, factors, hardStops, maxAffordableAmount, debtLoad]
+      properties:
+        score: { type: integer }
+        grade: { type: string, enum: [A, B, C, D, E] }
+        factors:
+          type: array
+          items: { $ref: '#/components/schemas/Factor' }
+        hardStops:
+          type: array
+          items: { type: string }
+        maxAffordableAmount: { type: integer, format: int64 }
+        debtLoad: { type: number }
+        payment: { type: integer, format: int64, description: Ежемесячный платёж по запрошенной сумме (по базовой ставке) }
+        pd: { type: number, description: Вероятность дефолта за год для класса заёмщика }
+        cumulativePd: { type: number, description: Вероятность дефолта за срок кредита }
+        lgd: { type: number, description: Доля потерь при дефолте (зависит от продукта) }
+        ead: { type: integer, format: int64, description: Сумма под риском на момент дефолта }
+        expectedLoss: { type: integer, format: int64, description: 'Ожидаемые потери EL = накопленный PD × LGD × EAD' }
+        expectedLossRate: { type: number, description: EL / EAD }
+        riskPremiumBp: { type: integer, description: 'Надбавка к ставке за риск, базисные пункты' }
+    BKIReport:
+      type: object
+      required: [hasHistory, activeLoans, totalDebt, maxOverdueDays, score]
+      properties:
+        hasHistory: { type: boolean }
+        activeLoans: { type: integer }
+        totalDebt: { type: integer, format: int64 }
+        maxOverdueDays: { type: integer }
+        score: { type: integer }
+    EGRULRecord:
+      type: object
+      required: [inn, name, status]
+      properties:
+        inn: { type: string }
+        name: { type: string }
+        status: { type: string }
+        registeredAt: { type: string, format: date-time }
+        okved: { type: string }
+        director: { type: string }
+        address: { type: string }
+        bankrupt: { type: boolean }
+    Enrichment:
+      type: object
+      required: [attempts]
+      properties:
+        egrul: { $ref: '#/components/schemas/EGRULRecord' }
+        bki: { $ref: '#/components/schemas/BKIReport' }
+        attempts: { type: integer }
+        lastError: { type: string }
+    QueueItem:
+      type: object
+      required: [id, companyName, inn, productTitle, amount, termMonths, status, updatedAt, waitingMinutes, manualCheck]
+      properties:
+        id: { type: string, format: uuid }
+        companyName: { type: string }
+        inn: { type: string }
+        productTitle: { type: string }
+        amount: { type: integer, format: int64 }
+        termMonths: { type: integer }
+        status: { $ref: '#/components/schemas/Status' }
+        grade: { type: string }
+        score: { type: integer }
+        updatedAt: { type: string, format: date-time }
+        waitingMinutes: { type: integer }
+        manualCheck: { type: boolean }
+        assignedTo: { type: string }
+    Queue:
+      type: object
+      required: [items, counts]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/QueueItem' }
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+    StaffApplication:
+      type: object
+      required: [application, events, allowedActions]
+      properties:
+        application: { $ref: '#/components/schemas/Application' }
+        scoring: { $ref: '#/components/schemas/ScoringResult' }
+        enrichment: { $ref: '#/components/schemas/Enrichment' }
+        recommended: { $ref: '#/components/schemas/Offer' }
+        reasons:
+          type: array
+          items: { type: string }
+        manualCheck: { type: boolean }
+        assignedTo: { type: string }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/TimelineEntry' }
+        allowedActions:
+          type: array
+          items: { type: string, enum: [approve, counter, request_info, reject] }
+        version: { type: integer }
+    DecisionRequest:
+      type: object
+      required: [action, version]
+      properties:
+        action: { type: string, enum: [approve, counter, request_info, reject] }
+        comment: { type: string, maxLength: 1000 }
+        version: { type: integer }
+        offer:
+          type: object
+          required: [amount, termMonths, rateBp]
+          properties:
+            amount: { type: integer, format: int64 }
+            termMonths: { type: integer }
+            rateBp: { type: integer }
+    Explanation:
+      type: object
+      required: [text, source]
+      properties:
+        text: { type: string }
+        source: { type: string, enum: [ai, rules] }
