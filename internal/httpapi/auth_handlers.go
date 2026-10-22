@@ -1,0 +1,83 @@
+package httpapi
+
+import (
+	"net/http"
+	"strings"
+
+	"matritsa/internal/auth"
+	"matritsa/internal/httpapi/gen"
+	"matritsa/internal/store/db"
+)
+
+// dummyHash makes unknown logins cost the same as wrong passwords (no user enumeration by timing).
+var dummyHash, _ = auth.HashPassword("not-a-real-password")
+
+func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
+	var req gen.LoginRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	login := strings.ToLower(strings.TrimSpace(req.Login))
+	if !s.LoginLimiter.Allowed(login) {
+		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "Слишком много попыток входа. Подождите минуту и попробуйте снова.")
+		return
+	}
+	user, err := s.Store.GetUserByLogin(r.Context(), login)
+	hash := dummyHash
+	if err == nil {
+		hash = user.PasswordHash
+	}
+	if !auth.CheckPassword(hash, req.Password) || err != nil {
+		s.LoginLimiter.Fail(login)
+		writeError(w, http.StatusUnauthorized, "invalid_credentials", "Неверный логин или пароль")
+		return
+	}
+	s.LoginLimiter.Reset(login)
+	s.issueTokens(w, r, user)
+}
+
+func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var req gen.RefreshRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	claims, err := s.Issuer.Parse(req.RefreshToken, auth.TypeRefresh)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid_token", "Сессия истекла, войдите снова")
+		return
+	}
+	user, err := s.Store.GetUser(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid_token", "Сессия истекла, войдите снова")
+		return
+	}
+	s.issueTokens(w, r, user)
+}
+
+func (s *Server) issueTokens(w http.ResponseWriter, r *http.Request, user db.User) {
+	access, refresh, err := s.Issuer.Issue(user.ID, user.Role)
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, gen.TokenPair{AccessToken: access, RefreshToken: refresh, Role: gen.TokenPairRole(user.Role), FullName: user.FullName})
+}
+
+func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {
+	claims, _ := auth.FromContext(r.Context())
+	user, err := s.Store.GetUser(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid_token", "Сессия истекла, войдите снова")
+		return
+	}
+	me := gen.Me{Login: user.Login, FullName: user.FullName, Role: gen.MeRole(user.Role)}
+	_ = me.Id.UnmarshalText([]byte(user.ID))
+	if user.CompanyID != nil {
+		co, err := s.Store.GetCompany(r.Context(), *user.CompanyID)
+		if err == nil {
+			c := toCompany(co)
+			me.Company = &c
+		}
+	}
+	writeJSON(w, http.StatusOK, me)
+}
