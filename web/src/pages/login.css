@@ -1,0 +1,22 @@
+.login { min-height: 100svh; display: grid; grid-template-columns: minmax(320px, 5fr) 7fr; background: var(--white); }
+.login-main { padding: clamp(24px, 4vw, 56px); display: flex; flex-direction: column; justify-content: center; max-width: 520px; width: 100%; margin: 0 auto; }
+.login-main h1 { font-size: clamp(30px, 3vw, 42px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.08; margin-top: 36px; }
+.login-main > p { margin-top: 12px; color: var(--ink-soft); font-size: 17px; max-width: 34ch; }
+.login-form { margin-top: 28px; display: grid; gap: 16px; }
+.login-error { background: var(--bad-bg); color: var(--bad); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 15px; font-weight: 500; }
+.login-back { margin-top: 28px; font-size: 15px; color: var(--ink-soft); }
+.login-demo { background: var(--tone-1); padding: clamp(24px, 4vw, 56px); display: flex; flex-direction: column; justify-content: center; border-top-left-radius: clamp(60px, 9vw, 140px); }
+.login-demo h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.login-demo > p { margin-top: 6px; color: var(--ink-soft); font-size: 15px; max-width: 52ch; }
+.demo-list { margin-top: 22px; display: grid; gap: 8px; }
+.demo-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 16px; border: 0; border-radius: var(--radius); background: var(--white); cursor: pointer; transition: transform 0.15s var(--ease), background-color 0.15s; }
+.demo-item:hover { transform: translateX(4px); background: var(--red-50); }
+.demo-item[data-hit='true'] { background: var(--red-100); }
+.demo-item b { display: block; font-size: 16px; font-weight: 600; }
+.demo-item span { display: block; margin-top: 2px; font-size: 14px; color: var(--ink-soft); line-height: 1.35; }
+.demo-item .go { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: 16px; }
+.demo-group { margin-top: 18px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+@media (max-width: 880px) {
+  .login { grid-template-columns: 1fr; }
+  .login-demo { border-top-left-radius: 56px; }
+}
