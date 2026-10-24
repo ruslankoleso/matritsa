@@ -40,7 +40,12 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("AI_ENABLED: %w", err)
 	}
 	c.AIEnabled = ai
-	seedStart, err := parseBool(get("SEED_ON_START", "true"))
+	// Demo users with a published password must not appear in a real environment by accident.
+	seedDefault := "true"
+	if c.Env == "prod" {
+		seedDefault = "false"
+	}
+	seedStart, err := parseBool(get("SEED_ON_START", seedDefault))
 	if err != nil {
 		return Config{}, fmt.Errorf("SEED_ON_START: %w", err)
 	}

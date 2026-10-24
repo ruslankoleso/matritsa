@@ -49,3 +49,21 @@ func TestLoad_BadBoolFails(t *testing.T) {
 		t.Fatal("invalid AI_ENABLED must fail")
 	}
 }
+
+func TestLoad_DemoDataIsOffInProdUnlessAsked(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SEED_ON_START", "")
+	c, err := Load()
+	if err != nil || !c.SeedOnStart {
+		t.Fatalf("dev loads demo data by default: %+v %v", c, err)
+	}
+	t.Setenv("APP_ENV", "prod")
+	t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+	if c, err = Load(); err != nil || c.SeedOnStart {
+		t.Fatalf("prod must not create demo users by default: %+v %v", c, err)
+	}
+	t.Setenv("SEED_ON_START", "true")
+	if c, err = Load(); err != nil || !c.SeedOnStart {
+		t.Fatalf("explicit request must be honoured: %+v %v", c, err)
+	}
+}

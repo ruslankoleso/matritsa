@@ -134,7 +134,7 @@ AI_ENABLED=true docker compose --profile ai up -d --build
 | `BKI_URL`, `EGRUL_URL` | `http://localhost:8081`, `http://localhost:8082` | адреса моков |
 | `AI_ENABLED` | `true` (в compose — `false`) | использовать ли открытую модель |
 | `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen2.5:1.5b` | модель |
-| `SEED_ON_START` | `true` | загрузить синтетические данные при старте (идемпотентно) |
+| `SEED_ON_START` | `true` (при `APP_ENV=prod` — `false`) | загрузить синтетические данные при старте (идемпотентно) |
 | `MOCK_LATENCY_MS` | `0` | задержка ответа мока |
 
 Остальное — в [.env.example](.env.example).
