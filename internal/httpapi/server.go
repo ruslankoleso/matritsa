@@ -55,7 +55,7 @@ func New(d Deps) *Server {
 // Handler assembles probes and the generated API router behind auth and role guards.
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.Recoverer, requestLog)
+	r.Use(middleware.RequestID, middleware.Recoverer, requestLog, timeoutExcept(requestTimeout, "/api/v1/events"))
 	r.Method("GET", "/healthz", Health(s.Store.Pool))
 	r.Method("GET", "/readyz", Ready(s.Store.Pool))
 
@@ -68,6 +68,26 @@ func (s *Server) Handler() http.Handler {
 		},
 	})
 	return r
+}
+
+// requestTimeout bounds an ordinary request (an upload of 5 MB on a slow link still fits).
+const requestTimeout = time.Minute
+
+// timeoutExcept gives every request a deadline, except the listed long-lived paths.
+func timeoutExcept(d time.Duration, paths ...string) func(http.Handler) http.Handler {
+	limit := middleware.Timeout(d)
+	return func(next http.Handler) http.Handler {
+		limited := limit(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, p := range paths {
+				if r.URL.Path == p {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			limited.ServeHTTP(w, r)
+		})
+	}
 }
 
 var publicPaths = map[string]bool{"/api/v1/auth/login": true, "/api/v1/auth/refresh": true, "/api/v1/products": true}
