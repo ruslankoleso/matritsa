@@ -33,9 +33,9 @@ func TestMockBKI_SeededINN_Deterministic(t *testing.T) {
 	}
 }
 
-func TestMockBKI_UnknownINN_NoHistory(t *testing.T) {
+func TestMockBKI_MalformedINN_NoHistory(t *testing.T) {
 	var rep integrations.BKIReport
-	rec := get(BKI(Options{}), "/bki/5000000000")
+	rec := get(BKI(Options{}), "/bki/5000000001")
 	if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &rep) != nil || rep.HasHistory {
 		t.Fatalf("unknown INN must return 200 with no history, got %d %s", rec.Code, rec.Body)
 	}
@@ -57,8 +57,8 @@ func TestMockEGRUL_Liquidated(t *testing.T) {
 	}
 }
 
-func TestMockEGRUL_UnknownINN_404(t *testing.T) {
-	if r := get(EGRUL(Options{}), "/egrul/5000000000"); r.Code != 404 {
+func TestMockEGRUL_MalformedINN_404(t *testing.T) {
+	if r := get(EGRUL(Options{}), "/egrul/5000000001"); r.Code != 404 {
 		t.Fatalf("want 404, got %d", r.Code)
 	}
 }
@@ -79,5 +79,25 @@ func TestMock_FailSwitch_Toggle(t *testing.T) {
 	opts.Fail.Set(false)
 	if r := get(h, "/bki/7701234501"); r.Code != 200 {
 		t.Fatalf("switch off → 200, got %d", r.Code)
+	}
+}
+
+func TestMocks_AnyValidINNGetsTheSameSyntheticCompany(t *testing.T) {
+	var reg integrations.EGRULRecord
+	var rep integrations.BKIReport
+	for i := 0; i < 2; i++ {
+		r := get(EGRUL(Options{}), "/egrul/5000000000")
+		if r.Code != 200 || json.Unmarshal(r.Body.Bytes(), &reg) != nil || reg.INN != "5000000000" || reg.Name == "" {
+			t.Fatalf("a valid unknown INN must resolve in the registry: %d %s", r.Code, r.Body)
+		}
+	}
+	first := reg
+	_ = json.Unmarshal(get(EGRUL(Options{}), "/egrul/5000000000").Body.Bytes(), &reg)
+	if reg.Name != first.Name {
+		t.Fatal("the registry record must be stable")
+	}
+	b := get(BKI(Options{}), "/bki/5000000000")
+	if b.Code != 200 || json.Unmarshal(b.Body.Bytes(), &rep) != nil {
+		t.Fatalf("bureau: %d %s", b.Code, b.Body)
 	}
 }

@@ -1,6 +1,7 @@
 package seed_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -95,5 +96,32 @@ func TestDemoCompanies_BigRequestIsHandledByAffordabilityNotByClass(t *testing.T
 	}
 	if d.Outcome != decision.Review || d.Recommended == nil || d.Recommended.Amount > res.MaxAffordableAmount {
 		t.Fatalf("expected a counter-offer within the affordable limit, got %+v", d)
+	}
+}
+
+// Companies that appear at sign-up must behave the way their hint says, for any INN of that kind.
+func TestSyntheticCompanies_ProduceTheOutcomeOfTheirKind(t *testing.T) {
+	want := map[seed.Archetype]decision.Outcome{
+		seed.Reliable: decision.AutoOffer, seed.Borderline: decision.Review, seed.Young: decision.Review,
+		seed.Indebted: decision.Review, seed.Liquidated: decision.Reject, seed.Overdue: decision.Reject,
+	}
+	seen := map[seed.Archetype]int{}
+	for n := int64(7_900_000_000); n < 7_900_020_000; n++ {
+		inn := fmt.Sprintf("%010d", n)
+		c, ok := seed.Synthesize(inn)
+		if !ok {
+			continue
+		}
+		a := seed.ArchetypeOf(inn)
+		seen[a]++
+		_, d := evaluate(t, c, products.WorkingCapital, 1_000_000*rub, 12)
+		if d.Outcome != want[a] {
+			t.Fatalf("%s (%s, %s): outcome %s, want %s", inn, a, c.Name, d.Outcome, want[a])
+		}
+	}
+	for a := range want {
+		if seen[a] < 20 {
+			t.Errorf("archetype %s is too rare in the sample: %d", a, seen[a])
+		}
 	}
 }

@@ -54,7 +54,15 @@ func admin(mux *http.ServeMux, o Options) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, map[string]string{"status": "ok"}) })
 }
 
-// BKI serves GET /bki/{inn}. Unknown INNs have no credit history (200, hasHistory=false).
+// known finds the company behind an INN: a demo company, or a synthetic one for any other valid INN.
+func known(inn string) (seed.Company, bool) {
+	if c, ok := seed.ByINN(inn); ok {
+		return c, true
+	}
+	return seed.Synthesize(inn)
+}
+
+// BKI serves GET /bki/{inn}. Malformed INNs have no credit history (200, hasHistory=false).
 func BKI(o Options) http.Handler {
 	mux := http.NewServeMux()
 	admin(mux, o)
@@ -62,7 +70,7 @@ func BKI(o Options) http.Handler {
 		if !o.gate(w, r) {
 			return
 		}
-		if c, ok := seed.ByINN(r.PathValue("inn")); ok && c.BKI != nil {
+		if c, ok := known(r.PathValue("inn")); ok && c.BKI != nil {
 			writeJSON(w, c.BKI)
 			return
 		}
@@ -71,7 +79,7 @@ func BKI(o Options) http.Handler {
 	return mux
 }
 
-// EGRUL serves GET /egrul/{inn}. Unknown INNs return 404.
+// EGRUL serves GET /egrul/{inn}. Malformed INNs return 404.
 func EGRUL(o Options) http.Handler {
 	mux := http.NewServeMux()
 	admin(mux, o)
@@ -80,7 +88,7 @@ func EGRUL(o Options) http.Handler {
 			return
 		}
 		inn := strings.TrimSpace(r.PathValue("inn"))
-		if c, ok := seed.ByINN(inn); ok {
+		if c, ok := known(inn); ok {
 			writeJSON(w, c.EGRUL())
 			return
 		}
