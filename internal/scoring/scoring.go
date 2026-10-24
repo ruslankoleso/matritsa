@@ -75,6 +75,10 @@ type Result struct {
 	ELRate        float64 `json:"expectedLossRate"` // EL / EAD
 	RiskPremiumBP int     `json:"riskPremiumBp"`    // rate surcharge over a grade-A borrower, basis points
 
+	// RepaidTotal is the sum of loans the borrower has already repaid in full, RepaidCoverage its share of the requested amount.
+	RepaidTotal    int64   `json:"repaidTotal"`
+	RepaidCoverage float64 `json:"repaidCoverage"`
+
 	Payment             int64    `json:"payment"`
 	DebtLoad            float64  `json:"debtLoad"`
 	MaxAffordableAmount int64    `json:"maxAffordableAmount"`
@@ -110,6 +114,13 @@ func Score(in Input, cfg Config) Result {
 	res.ExpectedLoss = int64(math.Round(float64(in.Amount) * res.ELRate))
 	if bp, ok := Premium(grade, in.LGD, cfg); ok {
 		res.RiskPremiumBP = bp
+	}
+
+	if in.BKI != nil {
+		res.RepaidTotal = in.BKI.TotalRepaid
+		if in.Amount > 0 {
+			res.RepaidCoverage = float64(in.BKI.TotalRepaid) / float64(in.Amount)
+		}
 	}
 
 	res.Payment = MonthlyPayment(in.Amount, in.RateBP, in.TermMonths)
@@ -320,8 +331,11 @@ type Metrics struct {
 	ELRate        float64 `json:"expectedLossRate"`
 	RiskPremiumBP int     `json:"riskPremiumBp"`
 	Payment       int64   `json:"payment"`
+
+	RepaidTotal    int64   `json:"repaidTotal"`
+	RepaidCoverage float64 `json:"repaidCoverage"`
 }
 
 func (r Result) Metrics() Metrics {
-	return Metrics{PD: r.PD, CumulativePD: r.CumulativePD, LGD: r.LGD, EAD: r.EAD, ExpectedLoss: r.ExpectedLoss, ELRate: r.ELRate, RiskPremiumBP: r.RiskPremiumBP, Payment: r.Payment}
+	return Metrics{PD: r.PD, CumulativePD: r.CumulativePD, LGD: r.LGD, EAD: r.EAD, ExpectedLoss: r.ExpectedLoss, ELRate: r.ELRate, RiskPremiumBP: r.RiskPremiumBP, Payment: r.Payment, RepaidTotal: r.RepaidTotal, RepaidCoverage: r.RepaidCoverage}
 }

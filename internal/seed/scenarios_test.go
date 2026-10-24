@@ -125,3 +125,19 @@ func TestSyntheticCompanies_ProduceTheOutcomeOfTheirKind(t *testing.T) {
 		}
 	}
 }
+
+// A good company with a thin repayment record is not approved automatically, however clean the class is.
+func TestDemoCompany1_WithoutRepaymentExperience_IsNotApprovedAutomatically(t *testing.T) {
+	c, _ := seed.ByINN("7701234501")
+	if _, d := evaluate(t, c, products.WorkingCapital, 1_000_000*rub, 12); d.Outcome != decision.AutoOffer {
+		t.Fatalf("the demo company with a real history must stay automatic: %s", d.Outcome)
+	}
+	thin := *c.BKI
+	thin.TotalRepaid = 100_000 * rub
+	thin.ClosedLoans = 1
+	c.BKI = &thin
+	res, d := evaluate(t, c, products.WorkingCapital, 1_000_000*rub, 12)
+	if res.Grade != "A" || d.Outcome != decision.Review {
+		t.Fatalf("class %s must stay A and the outcome must be a review, got %s", res.Grade, d.Outcome)
+	}
+}

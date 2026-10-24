@@ -12,6 +12,10 @@ type Config struct {
 	// MaxLoad is the highest share of average monthly revenue that all loan payments may take.
 	MaxLoad             float64
 	HardStopOverdueDays int
+	// MinRepaidCoverage is how much of the requested amount the borrower must already have repaid in other
+	// loans (repaid total / requested amount) for an automatic offer. It is checked next to the request and
+	// never changes the class of the borrower.
+	MinRepaidCoverage float64
 }
 
 func DefaultConfig() Config {
@@ -20,6 +24,7 @@ func DefaultConfig() Config {
 		PD:                  map[Grade]float64{GradeA: 0.01, GradeB: 0.03, GradeC: 0.06, GradeD: 0.12, GradeE: 0.25},
 		MaxLoad:             0.35,
 		HardStopOverdueDays: 90,
+		MinRepaidCoverage:   0.5,
 	}
 }
 

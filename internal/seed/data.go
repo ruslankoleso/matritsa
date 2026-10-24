@@ -57,7 +57,7 @@ func Companies() []Company {
 			MonthlyObligations: 80_000 * rub,
 			Revenue:            series(2_400_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 1_200_000 * rub, MaxOverdueDays: 0, Score: 790},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 1_200_000 * rub, MaxOverdueDays: 0, Score: 790, ClosedLoans: 3, TotalRepaid: 3_200_000 * rub},
 			Story:              "Надёжная пекарня: решение автоматически, без сотрудника",
 		},
 		{
@@ -67,7 +67,7 @@ func Companies() []Company {
 			MonthlyObligations: 200_000 * rub,
 			Revenue:            series(700_000*rub, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 3, TotalDebt: 3_400_000 * rub, MaxOverdueDays: 25, Score: 610},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 3, TotalDebt: 3_400_000 * rub, MaxOverdueDays: 25, Score: 610, ClosedLoans: 2, TotalRepaid: 1_500_000 * rub},
 			Story:              "Закредитованный ИП: сотрудник предлагает меньшую сумму (встречное предложение)",
 		},
 		{
@@ -87,7 +87,7 @@ func Companies() []Company {
 			MonthlyObligations: 0,
 			Revenue:            series(700_000*rub, []float64{1.0, 0.9, 1.1}, 12),
 			Status:             "liquidated",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 0, Score: 700},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 0, Score: 700, ClosedLoans: 2, TotalRepaid: 1_800_000 * rub},
 			Story:              "Ликвидированная компания: автоматический отказ с понятной причиной",
 		},
 		{
@@ -97,7 +97,7 @@ func Companies() []Company {
 			MonthlyObligations: 60_000 * rub,
 			Revenue:            series(600_000*rub, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 20, Score: 620},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 20, Score: 620, ClosedLoans: 1, TotalRepaid: 800_000 * rub},
 			Story:              "Пограничный случай: решение принимает сотрудник",
 		},
 		{
@@ -107,7 +107,7 @@ func Companies() []Company {
 			MonthlyObligations: 200_000 * rub,
 			Revenue:            series(1_500_000*rub, []float64{1.0, 0.7, 1.3, 0.9}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 9_000_000 * rub, MaxOverdueDays: 120, Score: 480},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 9_000_000 * rub, MaxOverdueDays: 120, Score: 480, ClosedLoans: 1, TotalRepaid: 2_000_000 * rub},
 			Story:              "Просрочка более 90 дней: отказ по жёсткому правилу",
 		},
 	}

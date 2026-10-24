@@ -443,11 +443,17 @@ type ApplicationSummary struct {
 
 // BKIReport defines model for BKIReport.
 type BKIReport struct {
-	ActiveLoans    int   `json:"activeLoans"`
+	ActiveLoans int `json:"activeLoans"`
+
+	// ClosedLoans Число кредитов, погашенных полностью
+	ClosedLoans    *int  `json:"closedLoans,omitempty"`
 	HasHistory     bool  `json:"hasHistory"`
 	MaxOverdueDays int   `json:"maxOverdueDays"`
 	Score          int   `json:"score"`
 	TotalDebt      int64 `json:"totalDebt"`
+
+	// TotalRepaid Сумма погашенных кредитов в копейках
+	TotalRepaid *int64 `json:"totalRepaid,omitempty"`
 }
 
 // Company defines model for Company.
@@ -764,11 +770,20 @@ type ScoringResult struct {
 	Lgd                 *float32 `json:"lgd,omitempty"`
 	MaxAffordableAmount int64    `json:"maxAffordableAmount"`
 
+	// MinRepaidCoverage Минимальное покрытие для автоматического решения
+	MinRepaidCoverage *float32 `json:"minRepaidCoverage,omitempty"`
+
 	// Payment Ежемесячный платёж по запрошенной сумме (по базовой ставке)
 	Payment *int64 `json:"payment,omitempty"`
 
 	// Pd Вероятность дефолта за год для класса заёмщика
 	Pd *float32 `json:"pd,omitempty"`
+
+	// RepaidCoverage Какую долю запрошенной суммы покрывает погашенное: погашено / запрошено
+	RepaidCoverage *float32 `json:"repaidCoverage,omitempty"`
+
+	// RepaidTotal Сумма кредитов, которые заёмщик уже погасил полностью
+	RepaidTotal *int64 `json:"repaidTotal,omitempty"`
 
 	// RiskPremiumBp Надбавка к ставке за риск, базисные пункты
 	RiskPremiumBp *int `json:"riskPremiumBp,omitempty"`

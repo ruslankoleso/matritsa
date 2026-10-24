@@ -15,7 +15,9 @@ var ErrNotFound = errors.New("not found in external source")
 type BKIReport struct {
 	HasHistory     bool  `json:"hasHistory"`
 	ActiveLoans    int   `json:"activeLoans"`
-	TotalDebt      int64 `json:"totalDebt"` // kopecks
+	TotalDebt      int64 `json:"totalDebt"`   // kopecks
+	ClosedLoans    int   `json:"closedLoans"` // loans already repaid in full
+	TotalRepaid    int64 `json:"totalRepaid"` // kopecks, the sum of those loans
 	MaxOverdueDays int   `json:"maxOverdueDays"`
 	Score          int   `json:"score"` // 300..850
 }

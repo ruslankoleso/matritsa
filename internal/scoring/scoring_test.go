@@ -289,3 +289,50 @@ func TestResult_PremiumFollowsGradeAndProduct(t *testing.T) {
 		t.Fatalf("grade A pays no premium on top of the base rate, got %d", res.RiskPremiumBP)
 	}
 }
+
+func TestScore_RepaymentExperience_IsMeasuredAgainstTheRequestedAmount(t *testing.T) {
+	in := baseInput()
+	in.BKI = &integrations.BKIReport{HasHistory: true, Score: 780, ClosedLoans: 3, TotalRepaid: 3_000_000 * 100}
+	in.Amount = 2_000_000 * 100
+	res := Score(in, DefaultConfig())
+	if res.RepaidTotal != 3_000_000*100 || res.RepaidCoverage != 1.5 {
+		t.Fatalf("repaid %d coverage %v", res.RepaidTotal, res.RepaidCoverage)
+	}
+	in.Amount = 6_000_000 * 100
+	if c := Score(in, DefaultConfig()).RepaidCoverage; c != 0.5 {
+		t.Fatalf("the same history covers a bigger request less: %v", c)
+	}
+}
+
+func TestScore_RepaymentExperience_DoesNotChangeTheGrade(t *testing.T) {
+	a := baseInput()
+	a.BKI = &integrations.BKIReport{HasHistory: true, Score: 780, TotalRepaid: 0}
+	b := a
+	b.BKI = &integrations.BKIReport{HasHistory: true, Score: 780, TotalRepaid: 50_000_000 * 100}
+	if Score(a, DefaultConfig()).Grade != Score(b, DefaultConfig()).Grade {
+		t.Fatal("the class describes the borrower; the repaid amount is checked next to the request, not inside the class")
+	}
+}
+
+func TestScore_RepaymentExperience_SafeWithoutBureauOrAmount(t *testing.T) {
+	in := baseInput()
+	in.BKI = nil
+	if c := Score(in, DefaultConfig()).RepaidCoverage; c != 0 {
+		t.Fatalf("no bureau: %v", c)
+	}
+	in.BKI = &integrations.BKIReport{HasHistory: true, TotalRepaid: 100}
+	in.Amount = 0
+	if c := Score(in, DefaultConfig()).RepaidCoverage; c != 0 {
+		t.Fatalf("no amount must not divide by zero: %v", c)
+	}
+}
+
+func TestMetrics_CarryTheRepaymentExperience(t *testing.T) {
+	in := baseInput()
+	in.BKI = &integrations.BKIReport{HasHistory: true, TotalRepaid: 1_000_000 * 100}
+	in.Amount = 2_000_000 * 100
+	m := Score(in, DefaultConfig()).Metrics()
+	if m.RepaidTotal != 1_000_000*100 || m.RepaidCoverage != 0.5 {
+		t.Fatalf("%+v", m)
+	}
+}

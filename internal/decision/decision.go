@@ -61,7 +61,9 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 		}}
 	}
 
-	if res.Grade == scoring.GradeA && amount <= p.AutoApproveLimit && amount <= res.MaxAffordableAmount {
+	cfg := scoring.DefaultConfig()
+	experienced := res.RepaidCoverage >= cfg.MinRepaidCoverage
+	if res.Grade == scoring.GradeA && amount <= p.AutoApproveLimit && amount <= res.MaxAffordableAmount && experienced {
 		offer, _ := MakeOffer(p, res.Grade, amount, term, "auto")
 		return Decision{Outcome: AutoOffer, Offer: &offer, Reasons: []string{"Низкий риск и сумма в пределах лимита: решение принято автоматически"}}
 	}
@@ -78,10 +80,15 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 	if recAmount > p.MaxAmount {
 		recAmount = p.MaxAmount
 	}
-	if res.Grade == scoring.GradeA {
-		reasons = append(reasons, "Сумма превышает лимит автоматического решения: требуется рассмотрение сотрудником")
-	} else {
+	if !experienced {
+		reasons = append(reasons, fmt.Sprintf("Недостаточный опыт погашения кредитов: погашено на %d ₽, это %d%% от запрошенной суммы (для автоматического решения нужно не менее %d%%)",
+			res.RepaidTotal/rub, int(res.RepaidCoverage*100), int(cfg.MinRepaidCoverage*100)))
+	}
+	switch {
+	case res.Grade != scoring.GradeA:
 		reasons = append(reasons, "Оценка риска в промежуточной зоне: решение принимает сотрудник банка")
+	case amount > p.AutoApproveLimit:
+		reasons = append(reasons, "Сумма превышает лимит автоматического решения: требуется рассмотрение сотрудником")
 	}
 	rec, _ := MakeOffer(p, res.Grade, recAmount, term, "recommended")
 	return Decision{Outcome: Review, Recommended: &rec, Reasons: reasons}

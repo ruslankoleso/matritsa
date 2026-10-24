@@ -87,6 +87,7 @@ func (s *Server) loadScoring(ctx context.Context, appID string) (*scoring.Result
 	var m scoring.Metrics // results stored before the expected-loss model have empty metrics
 	if json.Unmarshal(sr.Metrics, &m) == nil {
 		res.PD, res.CumulativePD, res.LGD, res.EAD, res.ExpectedLoss, res.ELRate, res.RiskPremiumBP, res.Payment = m.PD, m.CumulativePD, m.LGD, m.EAD, m.ExpectedLoss, m.ELRate, m.RiskPremiumBP, m.Payment
+		res.RepaidTotal, res.RepaidCoverage = m.RepaidTotal, m.RepaidCoverage
 	}
 	return &res, nil
 }
@@ -120,6 +121,8 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			Score: res.Score, Grade: gen.ScoringResultGrade(res.Grade), Factors: factors, HardStops: stops,
 			MaxAffordableAmount: res.MaxAffordableAmount, DebtLoad: float32(res.DebtLoad),
 		}
+		rt, rc, minRc := res.RepaidTotal, float32(res.RepaidCoverage), float32(scoring.DefaultConfig().MinRepaidCoverage)
+		card.Scoring.RepaidTotal, card.Scoring.RepaidCoverage, card.Scoring.MinRepaidCoverage = &rt, &rc, &minRc
 		if res.EAD > 0 {
 			pd, cum, lgd, rate, prem := float32(res.PD), float32(res.CumulativePD), float32(res.LGD), float32(res.ELRate), res.RiskPremiumBP
 			ead, el, pay := res.EAD, res.ExpectedLoss, res.Payment
@@ -134,7 +137,8 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			e.LastError = &le
 		}
 		if en.BKI != nil {
-			e.Bki = &gen.BKIReport{HasHistory: en.BKI.HasHistory, ActiveLoans: en.BKI.ActiveLoans, TotalDebt: en.BKI.TotalDebt, MaxOverdueDays: en.BKI.MaxOverdueDays, Score: en.BKI.Score}
+			closed, repaid := en.BKI.ClosedLoans, en.BKI.TotalRepaid
+			e.Bki = &gen.BKIReport{HasHistory: en.BKI.HasHistory, ActiveLoans: en.BKI.ActiveLoans, TotalDebt: en.BKI.TotalDebt, MaxOverdueDays: en.BKI.MaxOverdueDays, Score: en.BKI.Score, ClosedLoans: &closed, TotalRepaid: &repaid}
 		}
 		if en.EGRUL != nil {
 			g := en.EGRUL

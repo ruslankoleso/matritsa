@@ -709,3 +709,19 @@ func containsAction(xs []gen.StaffApplicationAllowedActions, x gen.StaffApplicat
 	}
 	return false
 }
+
+func TestStaffCard_ShowsRepaymentExperienceAgainstTheRequest(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client1", e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, true))
+	card := e.staffCard(app.Id.String())
+	s := card.Scoring
+	if s == nil || s.RepaidTotal == nil || s.RepaidCoverage == nil || s.MinRepaidCoverage == nil {
+		t.Fatalf("the card must carry the repayment figures: %+v", s)
+	}
+	if *s.RepaidTotal != 3_200_000*rub || *s.RepaidCoverage < 3.1 || *s.RepaidCoverage > 3.3 || *s.MinRepaidCoverage != 0.5 {
+		t.Fatalf("repaid %d coverage %v min %v", *s.RepaidTotal, *s.RepaidCoverage, *s.MinRepaidCoverage)
+	}
+	if card.Enrichment == nil || card.Enrichment.Bki == nil || card.Enrichment.Bki.ClosedLoans == nil || *card.Enrichment.Bki.ClosedLoans != 3 {
+		t.Fatalf("the bureau block must show the closed loans: %+v", card.Enrichment)
+	}
+}

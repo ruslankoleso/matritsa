@@ -132,8 +132,12 @@ func Synthesize(inn string) (Company, bool) {
 	}
 	base := int64(between(400, 900)) * 1000 * rub
 	pattern := []float64{1.0, 0.96, 1.04, 1.02, 0.97, 1.05}
-	history := func(score, loans, overdue int, debtShare float64) *integrations.BKIReport {
-		return &integrations.BKIReport{HasHistory: true, ActiveLoans: loans, TotalDebt: int64(float64(base) * debtShare), MaxOverdueDays: overdue, Score: score}
+	history := func(score, loans, overdue int, debtShare, repaidShare float64) *integrations.BKIReport {
+		closed := 0
+		if repaidShare > 0 {
+			closed = 1 + int(repaidShare)
+		}
+		return &integrations.BKIReport{HasHistory: true, ActiveLoans: loans, TotalDebt: int64(float64(base) * debtShare), MaxOverdueDays: overdue, Score: score, ClosedLoans: closed, TotalRepaid: int64(float64(base) * repaidShare)}
 	}
 
 	switch a {
@@ -142,12 +146,12 @@ func Synthesize(inn string) (Company, bool) {
 		base = int64(between(1500, 3500)) * 1000 * rub
 		c.MonthlyObligations = base * int64(between(3, 5)) / 100
 		c.Revenue = series(base, pattern, 12)
-		c.BKI = history(between(750, 820), 1, 0, 0.5)
+		c.BKI = history(between(750, 820), 1, 0, 0.5, float64(between(3, 6)))
 	case Borderline:
 		c.RegisteredAt = monthsAgo(between(24, 60))
 		c.MonthlyObligations = base * int64(between(11, 14)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12)
-		c.BKI = history(between(590, 640), 1, between(18, 30), 0.8)
+		c.BKI = history(between(590, 640), 1, between(18, 30), 0.8, float64(between(1, 2)))
 	case Young:
 		c.RegisteredAt = monthsAgo(between(3, 8))
 		start := base / 3
@@ -157,17 +161,17 @@ func Synthesize(inn string) (Company, bool) {
 		c.RegisteredAt = monthsAgo(between(36, 96))
 		c.MonthlyObligations = base * int64(between(16, 21)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12)
-		c.BKI = history(between(580, 625), 3, between(20, 40), 4.5)
+		c.BKI = history(between(580, 625), 3, between(20, 40), 4.5, 1)
 	case Liquidated:
 		c.RegisteredAt = monthsAgo(between(60, 120))
 		c.Status = "liquidated"
 		c.Revenue = series(base, []float64{1.0, 0.9, 1.1}, 12)
-		c.BKI = history(700, 0, 0, 0)
+		c.BKI = history(700, 0, 0, 0, 1)
 	case Overdue:
 		c.RegisteredAt = monthsAgo(between(36, 96))
 		c.MonthlyObligations = base * int64(between(12, 16)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.7, 1.3, 0.9}, 12)
-		c.BKI = history(between(470, 520), 4, between(95, 150), 5)
+		c.BKI = history(between(470, 520), 4, between(95, 150), 5, 1)
 	}
 	return c, true
 }

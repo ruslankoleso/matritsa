@@ -798,6 +798,9 @@ components:
         maxAffordableAmount: { type: integer, format: int64 }
         debtLoad: { type: number }
         payment: { type: integer, format: int64, description: Ежемесячный платёж по запрошенной сумме (по базовой ставке) }
+        repaidTotal: { type: integer, format: int64, description: "Сумма кредитов, которые заёмщик уже погасил полностью" }
+        repaidCoverage: { type: number, format: float, description: "Какую долю запрошенной суммы покрывает погашенное: погашено / запрошено" }
+        minRepaidCoverage: { type: number, format: float, description: "Минимальное покрытие для автоматического решения" }
         pd: { type: number, description: Вероятность дефолта за год для класса заёмщика }
         cumulativePd: { type: number, description: Вероятность дефолта за срок кредита }
         lgd: { type: number, description: Доля потерь при дефолте (зависит от продукта) }
@@ -814,6 +817,8 @@ components:
         totalDebt: { type: integer, format: int64 }
         maxOverdueDays: { type: integer }
         score: { type: integer }
+        closedLoans: { type: integer, description: "Число кредитов, погашенных полностью" }
+        totalRepaid: { type: integer, format: int64, description: "Сумма погашенных кредитов в копейках" }
     EGRULRecord:
       type: object
       required: [inn, name, status]
