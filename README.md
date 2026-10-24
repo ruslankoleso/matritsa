@@ -118,7 +118,7 @@ AI_ENABLED=true docker compose --profile ai up -d --build
 |---|---|---|
 | Go: юнит и интеграционные | `docker compose up -d postgres && go test ./... -race` | скоринг, решение, машина состояний, конвейер, HTTP API, SSE, ИИ-запасной режим |
 | Фронтенд | `cd web && npm ci && npm test` | форматы, маршрут статусов, валидация мастера, вход, калькулятор |
-| Сквозные (Playwright) | `cd e2e && npm ci && npx playwright test` (стек должен быть запущен) | 8 сценариев: конвейер, роли, смена аккаунта, профиль, регистрация |
+| Сквозные (Playwright) | `cd e2e && npm ci && npx playwright test` (стек должен быть запущен) | 14 сценариев: конвейер, роли, смена аккаунта, профиль, уведомления, меню, стартовое окно, приветствие, регистрация |
 | Быстрая проверка | `make smoke` | три сценария по HTTP |
 
 Интеграционным тестам нужен PostgreSQL на `localhost:5433` (его поднимает `docker compose up -d postgres`); адрес можно поменять переменной `TEST_DATABASE_URL`.
