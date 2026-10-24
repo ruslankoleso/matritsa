@@ -90,6 +90,19 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page).toHaveURL(/\/cabinet/)
   })
 
+  test('after switching accounts the previous person\'s company is not shown, and the brand leads home', async ({ page }) => {
+    await loginAs(page, /Смирнов/)
+    await expect(page.locator('.side-brand')).toContainText('Смирнов')
+    await page.getByRole('button', { name: 'Выйти' }).click()
+    await expect(page).toHaveURL(/\/login/)
+
+    await loginAs(page, /Старый порт/)
+    await expect(page.locator('.side-brand')).toContainText('Старый порт')
+    await expect(page.locator('.side-brand')).not.toContainText('Смирнов')
+    await page.locator('.side-brand').click()
+    await expect(page).toHaveURL(/\/cabinet$/)
+  })
+
   test('a new person signs up with a company INN, lands in the cabinet and can sign in again', async ({ page }) => {
     const login = `guest${Date.now().toString(36)}`
     const inn = randomINN()
