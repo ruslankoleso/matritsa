@@ -89,6 +89,7 @@ func (s *Server) loadScoring(ctx context.Context, appID string) (*scoring.Result
 		res.PD, res.CumulativePD, res.LGD, res.EAD, res.ExpectedLoss, res.ELRate, res.RiskPremiumBP, res.Payment = m.PD, m.CumulativePD, m.LGD, m.EAD, m.ExpectedLoss, m.ELRate, m.RiskPremiumBP, m.Payment
 		res.RepaidTotal, res.RepaidCoverage = m.RepaidTotal, m.RepaidCoverage
 		res.DSCR, res.MonthlyCashFlow, res.MaxAmountByLoad, res.MaxAmountByDSCR = m.DSCR, m.MonthlyCashFlow, m.MaxAmountByLoad, m.MaxAmountByDSCR
+		res.HasCoverFigures = m.V >= 2
 	}
 	return &res, nil
 }
@@ -122,13 +123,15 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			Score: res.Score, Grade: gen.ScoringResultGrade(res.Grade), Factors: factors, HardStops: stops,
 			MaxAffordableAmount: res.MaxAffordableAmount, DebtLoad: float32(res.DebtLoad),
 		}
-		rt, rc, minRc := res.RepaidTotal, float32(res.RepaidCoverage), float32(scoring.DefaultConfig().MinRepaidCoverage)
-		card.Scoring.RepaidTotal, card.Scoring.RepaidCoverage, card.Scoring.MinRepaidCoverage = &rt, &rc, &minRc
-		dscr, minDscr, cash := float32(res.DSCR), float32(scoring.DefaultConfig().MinDSCR), res.MonthlyCashFlow
-		byLoad, byDscr := res.MaxAmountByLoad, res.MaxAmountByDSCR
 		maxLoad := float32(scoring.DefaultConfig().MaxLoad)
 		card.Scoring.MaxLoad = &maxLoad
-		card.Scoring.Dscr, card.Scoring.MinDscr, card.Scoring.MonthlyCashFlow, card.Scoring.MaxAmountByLoad, card.Scoring.MaxAmountByDscr = &dscr, &minDscr, &cash, &byLoad, &byDscr
+		if res.HasCoverFigures {
+			rt, rc, minRc := res.RepaidTotal, float32(res.RepaidCoverage), float32(scoring.DefaultConfig().MinRepaidCoverage)
+			card.Scoring.RepaidTotal, card.Scoring.RepaidCoverage, card.Scoring.MinRepaidCoverage = &rt, &rc, &minRc
+			dscr, minDscr, cash := float32(res.DSCR), float32(scoring.DefaultConfig().MinDSCR), res.MonthlyCashFlow
+			byLoad, byDscr := res.MaxAmountByLoad, res.MaxAmountByDSCR
+			card.Scoring.Dscr, card.Scoring.MinDscr, card.Scoring.MonthlyCashFlow, card.Scoring.MaxAmountByLoad, card.Scoring.MaxAmountByDscr = &dscr, &minDscr, &cash, &byLoad, &byDscr
+		}
 		if res.EAD > 0 {
 			pd, cum, lgd, rate, prem := float32(res.PD), float32(res.CumulativePD), float32(res.LGD), float32(res.ELRate), res.RiskPremiumBP
 			ead, el, pay := res.EAD, res.ExpectedLoss, res.Payment

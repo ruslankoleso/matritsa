@@ -740,3 +740,28 @@ func TestStaffCard_ShowsBothCoverMeasuresAndTheirLimits(t *testing.T) {
 		t.Fatalf("affordable %d, by load %d, by DSCR %d", s.MaxAffordableAmount, *s.MaxAmountByLoad, *s.MaxAmountByDscr)
 	}
 }
+
+// A score stored before the cover measures existed must not show zeros as if they were results.
+func TestStaffCard_OldRecordWithoutCoverFigures_ShowsNoZeros(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+	id := app.Id.String()
+	row, err := e.s.GetScoringResult(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := `{"pd":0.06,"cumulativePd":0.116,"lgd":0.6,"ead":300000000,"expectedLoss":20000000,"expectedLossRate":0.07,"riskPremiumBp":300,"payment":15000000}`
+	if err := e.s.UpsertScoringResult(context.Background(), db.UpsertScoringResultParams{
+		ApplicationID: id, Score: row.Score, Grade: row.Grade, Factors: row.Factors, HardStops: row.HardStops,
+		MaxAffordable: row.MaxAffordable, DebtLoad: row.DebtLoad, Enrichment: row.Enrichment, Metrics: []byte(old),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s := e.staffCard(id).Scoring
+	if s == nil || s.Pd == nil {
+		t.Fatalf("the older expected-loss figures must still show: %+v", s)
+	}
+	if s.Dscr != nil || s.MonthlyCashFlow != nil || s.MaxAmountByDscr != nil || s.RepaidTotal != nil || s.RepaidCoverage != nil {
+		t.Fatalf("figures that were never calculated must be absent, not zero: dscr=%v cash=%v repaid=%v", s.Dscr, s.MonthlyCashFlow, s.RepaidTotal)
+	}
+}

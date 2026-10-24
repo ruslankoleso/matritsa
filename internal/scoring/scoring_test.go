@@ -163,7 +163,7 @@ func TestMonthlyPayment_ZeroRateAndTerm(t *testing.T) {
 	}
 }
 
-func TestMaxAffordable_KeepsLoadAtMost035(t *testing.T) {
+func TestMaxAffordable_KeepsLoadAtMost030(t *testing.T) {
 	in := baseInput()
 	res := Score(in, DefaultConfig())
 	max := res.MaxAmountByLoad
@@ -173,12 +173,12 @@ func TestMaxAffordable_KeepsLoadAtMost035(t *testing.T) {
 	avg := int64(2_000_000) * rub
 	pay := MonthlyPayment(max, in.RateBP, in.TermMonths)
 	load := float64(in.MonthlyObligations+pay) / float64(avg)
-	if load > 0.351 {
-		t.Fatalf("load at max affordable = %.3f, want <= 0.35", load)
+	if load > 0.301 {
+		t.Fatalf("load at max affordable = %.3f, want <= 0.30", load)
 	}
 	// and a bit more should break the threshold
 	pay2 := MonthlyPayment(max+max/20, in.RateBP, in.TermMonths)
-	if float64(in.MonthlyObligations+pay2)/float64(avg) <= 0.35 {
+	if float64(in.MonthlyObligations+pay2)/float64(avg) <= 0.30 {
 		t.Fatal("max affordable is not tight")
 	}
 }

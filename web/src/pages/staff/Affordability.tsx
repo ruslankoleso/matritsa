@@ -19,7 +19,7 @@ function Measure({ id, title, question, value, norm, ok }: { id: string; title: 
 
 /** The two coverage measures, each answering its own question, and the limit on the amount they give together. */
 export default function Affordability({ s }: { s: Scoring }) {
-  const maxLoad = s.maxLoad ?? 0.35
+  const maxLoad = s.maxLoad ?? 0.3
   const hasCover = s.dscr != null && s.minDscr != null
   const binding =
     s.maxAmountByLoad != null && s.maxAmountByDscr != null

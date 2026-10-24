@@ -5,7 +5,7 @@ import Affordability from './Affordability'
 
 type S = NonNullable<StaffApplication['scoring']>
 const base = {
-  score: 57, grade: 'C', factors: [], hardStops: [], debtLoad: 0.5, maxLoad: 0.35, maxAffordableAmount: 0,
+  score: 57, grade: 'C', factors: [], hardStops: [], debtLoad: 0.5, maxLoad: 0.3, maxAffordableAmount: 0,
   dscr: 0.9, minDscr: 1.25, monthlyCashFlow: 20000000, maxAmountByLoad: 0, maxAmountByDscr: 0,
 } as unknown as S
 
@@ -24,7 +24,7 @@ describe('Affordability', () => {
     view({ debtLoad: 0.5, dscr: 0.9 })
     const load = screen.getByRole('region', { name: 'Долговая нагрузка на выручку' })
     expect(within(load).getByText(/50\s?%/)).toBeInTheDocument()
-    expect(within(load).getByText(/не более 35\s?%/)).toBeInTheDocument()
+    expect(within(load).getByText(/не более 30\s?%/)).toBeInTheDocument()
     const cover = screen.getByRole('region', { name: 'Покрытие платежей денежным потоком' })
     expect(within(cover).getByText(/0,9/)).toBeInTheDocument()
     expect(within(cover).getByText(/не ниже 1,25/)).toBeInTheDocument()

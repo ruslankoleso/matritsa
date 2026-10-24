@@ -27,7 +27,7 @@ func DefaultConfig() Config {
 	return Config{
 		MaxAge: 15, MaxStability: 20, MaxExistingDebt: 20, MaxBKI: 25, MaxOverdue: 15, MaxOKVED: 5,
 		PD:                  map[Grade]float64{GradeA: 0.01, GradeB: 0.03, GradeC: 0.06, GradeD: 0.12, GradeE: 0.25},
-		MaxLoad:             0.35,
+		MaxLoad:             0.30,
 		HardStopOverdueDays: 90,
 		MinRepaidCoverage:   0.5,
 		MinDSCR:             1.25,

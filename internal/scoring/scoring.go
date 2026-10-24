@@ -90,6 +90,10 @@ type Result struct {
 	MonthlyCashFlow int64   `json:"monthlyCashFlow"`
 	MaxAmountByLoad int64   `json:"maxAmountByLoad"`
 	MaxAmountByDSCR int64   `json:"maxAmountByDscr"`
+
+	// HasCoverFigures is false for a record stored before the cover and repayment measures existed:
+	// its zeros mean "never calculated", not a result.
+	HasCoverFigures bool `json:"-"`
 }
 
 // Score evaluates the input. It never panics on empty or zero revenue.
@@ -357,9 +361,12 @@ type Metrics struct {
 	MonthlyCashFlow int64   `json:"monthlyCashFlow"`
 	MaxAmountByLoad int64   `json:"maxAmountByLoad"`
 	MaxAmountByDSCR int64   `json:"maxAmountByDscr"`
+
+	// V is the version of the figures: 2 added the cover and repayment measures.
+	V int `json:"v"`
 }
 
 func (r Result) Metrics() Metrics {
 	return Metrics{PD: r.PD, CumulativePD: r.CumulativePD, LGD: r.LGD, EAD: r.EAD, ExpectedLoss: r.ExpectedLoss, ELRate: r.ELRate, RiskPremiumBP: r.RiskPremiumBP, Payment: r.Payment, RepaidTotal: r.RepaidTotal, RepaidCoverage: r.RepaidCoverage,
-		DSCR: r.DSCR, MonthlyCashFlow: r.MonthlyCashFlow, MaxAmountByLoad: r.MaxAmountByLoad, MaxAmountByDSCR: r.MaxAmountByDSCR}
+		DSCR: r.DSCR, MonthlyCashFlow: r.MonthlyCashFlow, MaxAmountByLoad: r.MaxAmountByLoad, MaxAmountByDSCR: r.MaxAmountByDSCR, V: 2}
 }
