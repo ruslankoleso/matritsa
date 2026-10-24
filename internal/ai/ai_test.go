@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"matritsa/internal/decision"
+	"matritsa/internal/products"
 	"matritsa/internal/scoring"
 )
 
@@ -231,5 +232,96 @@ func TestExplain_Client_ExistingDebtIsPutInPlainWords(t *testing.T) {
 	}
 	if strings.Contains(text, "PD") || strings.Contains(text, "LGD") {
 		t.Fatalf("client text must not show risk jargon:\n%s", text)
+	}
+}
+
+// capture records the requests an Ollama server receives.
+func capture(t *testing.T, reply string) (*httptest.Server, *[]map[string]any) {
+	t.Helper()
+	var got []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		got = append(got, req)
+		_ = json.NewEncoder(w).Encode(map[string]any{"message": map[string]string{"role": "assistant", "content": reply}})
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &got
+}
+
+func TestOllama_JSONCallForcesJSONOutput_PlainCallDoesNot(t *testing.T) {
+	srv, got := capture(t, `{"ok":true}`)
+	o := NewOllama(srv.URL, "m")
+	if _, err := o.CompleteJSON(context.Background(), "s", "u"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.Complete(context.Background(), "s", "u"); err != nil {
+		t.Fatal(err)
+	}
+	if (*got)[0]["format"] != "json" {
+		t.Fatalf("a call that expects JSON must ask the model for JSON: %+v", (*got)[0])
+	}
+	if _, has := (*got)[1]["format"]; has {
+		t.Fatalf("a plain-text call must not force JSON: %+v", (*got)[1])
+	}
+}
+
+func TestOllama_TurnsOffThinking_SoTheAnswerIsShortAndClean(t *testing.T) {
+	srv, got := capture(t, "ok")
+	_, _ = NewOllama(srv.URL, "m").Complete(context.Background(), "s", "u")
+	if (*got)[0]["think"] != false {
+		t.Fatalf("thinking must be off: %+v", (*got)[0])
+	}
+}
+
+type jsonOnlyLLM struct {
+	fakeLLM
+	jsonCalls int
+}
+
+func (j *jsonOnlyLLM) CompleteJSON(ctx context.Context, s, u string) (string, error) {
+	j.jsonCalls++
+	return j.fakeLLM.Complete(ctx, s, u)
+}
+
+func TestRecommend_AsksForJSON_WhenTheModelCan(t *testing.T) {
+	l := &jsonOnlyLLM{fakeLLM: fakeLLM{reply: `{"productId":"express","amountRub":300000,"termMonths":6,"rationale":"Небольшая сумма и срочно"}`}}
+	rec, err := NewAssistant(l).Recommend(context.Background(), "срочно нужны 300 тысяч")
+	if err != nil || rec.Source != "ai" || l.jsonCalls != 1 {
+		t.Fatalf("%+v %v json calls %d", rec, err, l.jsonCalls)
+	}
+}
+
+// Small models quote badly in one predictable way: `"rationale\":\"text\"}`. The answer itself is fine,
+// so it is repaired instead of being thrown away.
+func TestRecommend_RepairsTheQuotingSlipOfSmallModels(t *testing.T) {
+	broken := `{"productId":"equipment","amountRub":2000000,"termMonths":18,"rationale\":\"Этот продукт предназначен для покупки оборудования и техники.\"}`
+	rec, err := NewAssistant(&fakeLLM{reply: broken}).Recommend(context.Background(), "купить станок за 2 млн")
+	if err != nil || rec.Source != "ai" || rec.ProductID != products.Equipment || rec.Amount != 2_000_000*rub || rec.TermMonths != 18 {
+		t.Fatalf("%+v %v", rec, err)
+	}
+	if !strings.Contains(rec.Rationale, "покупки оборудования") || strings.Contains(rec.Rationale, `\`) {
+		t.Fatalf("the explanation must come out clean: %q", rec.Rationale)
+	}
+}
+
+func TestRecommend_RepairDoesNotLetNonsenseThrough(t *testing.T) {
+	for _, reply := range []string{
+		`{"productId":"mortgage","amountRub":1000000,"termMonths":12,"rationale\":\"x\"}`, // unknown product
+		`{"productId":"express","amountRub":300000,"termMonths":6,"rationale\":\"\"}`,     // empty explanation
+		`not json at all \":\" }`,
+	} {
+		rec, _ := NewAssistant(&fakeLLM{reply: reply}).Recommend(context.Background(), "срочно 300 тысяч")
+		if rec.Source != "rules" {
+			t.Errorf("a bad answer must fall back to the rules: %q gave %+v", reply, rec)
+		}
+	}
+}
+
+func TestRecommend_ValidJSONIsNotTouched(t *testing.T) {
+	ok := `{"productId":"express","amountRub":300000,"termMonths":6,"rationale":"Сказано: \"срочно\" и мало"}`
+	rec, _ := NewAssistant(&fakeLLM{reply: ok}).Recommend(context.Background(), "срочно 300 тысяч")
+	if rec.Source != "ai" || !strings.Contains(rec.Rationale, `"срочно"`) {
+		t.Fatalf("a correct answer with its own escaped quotes must stay as it is: %+v", rec)
 	}
 }

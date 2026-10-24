@@ -49,7 +49,11 @@ func (a *Assistant) Recommend(ctx context.Context, text string) (Recommendation,
 }
 
 func (a *Assistant) fromModel(ctx context.Context, text string) (Recommendation, bool) {
-	reply, err := a.llm.Complete(ctx, systemPrompt, text)
+	complete := a.llm.Complete
+	if j, ok := a.llm.(JSONCompleter); ok {
+		complete = j.CompleteJSON // the answer is parsed as JSON, so ask for nothing else
+	}
+	reply, err := complete(ctx, systemPrompt, text)
 	if err != nil {
 		return Recommendation{}, false
 	}
@@ -64,7 +68,11 @@ func (a *Assistant) fromModel(ctx context.Context, text string) (Recommendation,
 		Rationale string  `json:"rationale"`
 	}
 	if json.Unmarshal([]byte(raw), &out) != nil {
-		return Recommendation{}, false
+		// Small models slip in one predictable way: `"rationale\":\"text\"}`. The content is fine, so one
+		// repair is tried; whatever it yields still goes through the checks below.
+		if json.Unmarshal([]byte(strings.ReplaceAll(raw, `\"`, `"`)), &out) != nil {
+			return Recommendation{}, false
+		}
 	}
 	p, ok := products.Get(products.ID(out.ProductID))
 	if !ok || strings.TrimSpace(out.Rationale) == "" {
