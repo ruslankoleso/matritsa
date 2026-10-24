@@ -91,6 +91,10 @@ func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	me := gen.Me{Login: user.Login, FullName: user.FullName, Role: gen.MeRole(user.Role)}
+	if user.ConsentedAt.Valid {
+		at := user.ConsentedAt.Time
+		me.ConsentedAt = &at
+	}
 	_ = me.Id.UnmarshalText([]byte(user.ID))
 	if user.CompanyID != nil {
 		co, err := s.Store.GetCompany(r.Context(), *user.CompanyID)

@@ -576,6 +576,7 @@ components:
         role: { type: string, enum: [client, staff] }
         fullName: { type: string }
         company: { $ref: '#/components/schemas/Company' }
+        consentedAt: { type: string, format: date-time, description: "Когда человек согласился на обработку данных при регистрации; у демонстрационных аккаунтов поля нет" }
 
     DocRequirement:
       type: object

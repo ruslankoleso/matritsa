@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/products"
@@ -173,5 +174,24 @@ func TestSignupLookupAndExamples_ArePublic(t *testing.T) {
 		if code, _ := e.do("GET", "/api/v1/auth/company?inn="+x.Inn, "", nil); code != 200 {
 			t.Errorf("example %s must be free to register: %d", x.Inn, code)
 		}
+	}
+}
+
+func TestMe_ShowsWhenConsentWasGiven_OnlyForSelfRegisteredAccounts(t *testing.T) {
+	e := newEnv(t)
+	_, raw := e.do("POST", "/api/v1/auth/register", "", signup("with-consent", freshINN(t, seed.Reliable)))
+	var tp gen.TokenPair
+	mustJSON(t, raw, &tp)
+	_, raw = e.do("GET", "/api/v1/me", tp.AccessToken, nil)
+	var me gen.Me
+	mustJSON(t, raw, &me)
+	if me.ConsentedAt == nil || time.Since(*me.ConsentedAt) > time.Minute {
+		t.Fatalf("a registered account must show when it consented: %+v", me.ConsentedAt)
+	}
+	_, raw = e.do("GET", "/api/v1/me", e.token("client1"), nil)
+	var demo gen.Me
+	mustJSON(t, raw, &demo)
+	if demo.ConsentedAt != nil {
+		t.Fatal("a demo account never consented")
 	}
 }

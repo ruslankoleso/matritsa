@@ -609,11 +609,14 @@ type LoginRequest struct {
 
 // Me defines model for Me.
 type Me struct {
-	Company  *Company           `json:"company,omitempty"`
-	FullName string             `json:"fullName"`
-	Id       openapi_types.UUID `json:"id"`
-	Login    string             `json:"login"`
-	Role     MeRole             `json:"role"`
+	Company *Company `json:"company,omitempty"`
+
+	// ConsentedAt Когда человек согласился на обработку данных при регистрации; у демонстрационных аккаунтов поля нет
+	ConsentedAt *time.Time         `json:"consentedAt,omitempty"`
+	FullName    string             `json:"fullName"`
+	Id          openapi_types.UUID `json:"id"`
+	Login       string             `json:"login"`
+	Role        MeRole             `json:"role"`
 }
 
 // MeRole defines model for Me.Role.
