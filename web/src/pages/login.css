@@ -20,3 +20,14 @@
   .login { grid-template-columns: 1fr; }
   .login-demo { border-top-left-radius: 56px; }
 }
+
+.login-tabs { margin-top: 18px; display: inline-flex; gap: 4px; padding: 4px; background: var(--tone-1); border-radius: 999px; width: fit-content; }
+.login-tabs button { border: 0; background: transparent; padding: 8px 18px; border-radius: 999px; font: inherit; font-size: 15px; font-weight: 500; color: var(--ink-soft); cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+.login-tabs button[aria-selected='true'] { background: var(--white); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.signup-step { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+.company-card { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--tone-1); }
+.company-card b { font-size: 16px; font-weight: 600; }
+.company-card span { font-size: 14px; color: var(--ink-soft); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.4; color: var(--ink-soft); cursor: pointer; }
+.check input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--red-500); flex: none; }
+.signup-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; }

@@ -1,6 +1,6 @@
 import type {
   Application, ApplicationInput, ApplicationSummary, ApiErrorBody, CompanyLookup, DecisionRequest, Document, Explanation,
-  FeedCard, Me, Notification, Product, Queue, Recommendation, StaffApplication, TimelineEntry,
+  FeedCard, Me, Notification, Product, Queue, Recommendation, RegisterRequest, RegistrationExample, StaffApplication, TimelineEntry,
 } from './types'
 
 const BASE = '/api/v1'
@@ -150,6 +150,9 @@ const q = (params: Record<string, string | undefined>) => {
 
 export const api = {
   login: (login: string, password: string) => request<Session>('POST', '/auth/login', { login, password }),
+  register: (body: RegisterRequest) => request<Session>('POST', '/auth/register', body),
+  signupCompany: (inn: string) => request<CompanyLookup>('GET', `/auth/company${q({ inn })}`),
+  registrationExamples: () => request<RegistrationExample[]>('GET', '/auth/registration-examples'),
   me: () => request<Me>('GET', '/me'),
   products: () => request<Product[]>('GET', '/products'),
   lookupCompany: (inn: string) => request<CompanyLookup>('GET', `/company/lookup${q({ inn })}`),

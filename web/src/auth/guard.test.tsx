@@ -6,7 +6,7 @@ import { RequireRole } from './RequireRole'
 
 function renderAt(path: string, auth: Partial<AuthValue>) {
   const value: AuthValue = {
-    session: null, login: async () => { throw new Error('unused') }, logout: () => {}, ...auth,
+    session: null, login: async () => { throw new Error('unused') }, register: async () => { throw new Error('unused') }, logout: () => {}, ...auth,
   }
   return render(
     <AuthContext.Provider value={value}>

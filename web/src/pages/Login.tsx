@@ -1,8 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { homeFor } from '../auth/RequireRole'
-import { ApiError } from '../api/client'
+import { ApiError, api } from '../api/client'
+import Register from './Register'
+import type { RegistrationExample } from '../api/types'
 import { Button } from '../design/Button'
 import { FloatField } from '../design/FloatField'
 import './login.css'
@@ -16,11 +18,37 @@ export const DEMO_CLIENTS = [
   { login: 'client6', inn: '7701234506', name: 'ООО «ТехноСтрой»', story: 'Просрочка более 90 дней: отказ по жёсткому правилу' },
 ]
 
+function Examples({ onPick }: { onPick: (inn: string) => void }) {
+  const [list, setList] = useState<RegistrationExample[]>([])
+  useEffect(() => {
+    api.registrationExamples().then(setList, () => setList([]))
+  }, [])
+  return (
+    <>
+      <h2 id="demo-h">Тестовые ИНН для регистрации</h2>
+      <p>Все компании синтетические. Выберите ИНН: по нему сразу будет видно, какой тип компании и какой исход заявки вас ждёт. Подойдёт и любой другой верный ИНН.</p>
+      <div className="demo-list">
+        {list.map((e) => (
+          <button type="button" key={e.inn} className="demo-item" onClick={() => onPick(e.inn)}>
+            <span style={{ margin: 0 }}>
+              <b>{e.name}</b>
+              <span>ИНН {e.inn} · {e.note}</span>
+            </span>
+            <span className="go" aria-hidden>→</span>
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 export default function Login() {
   const { login } = useAuth()
   const nav = useNavigate()
   const [params] = useSearchParams()
   const inn = params.get('inn') ?? ''
+  const [mode, setMode] = useState<'login' | 'register'>(params.get('mode') === 'register' ? 'register' : 'login')
+  const [signupInn, setSignupInn] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -57,18 +85,32 @@ export default function Login() {
           </span>
           Матрица
         </Link>
-        <h1>Вход в кабинет</h1>
-        <p>Для клиентов банка и сотрудников. Письма и SMS не нужны — только логин и пароль.</p>
-        <form className="login-form" onSubmit={onSubmit} noValidate>
-          {error && <div className="login-error" role="alert">{error}</div>}
-          <FloatField id="login" label="Логин" autoComplete="username" autoFocus value={name} onChange={setName} />
-          <FloatField id="password" label="Пароль" type="password" autoComplete="current-password" value={password} onChange={setPassword} />
-          <Button type="submit" size="lg" block busy={busy}>Войти</Button>
-        </form>
+        <h1>{mode === 'login' ? 'Вход в кабинет' : 'Создать аккаунт'}</h1>
+        <div className="login-tabs" role="tablist" aria-label="Вход или регистрация">
+          <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')}>Войти</button>
+          <button type="button" role="tab" aria-selected={mode === 'register'} onClick={() => setMode('register')}>Регистрация</button>
+        </div>
+        {mode === 'login' ? (
+          <>
+            <p>Для клиентов банка и сотрудников. Письма и SMS не нужны — только логин и пароль.</p>
+            <form className="login-form" onSubmit={onSubmit} noValidate>
+              {error && <div className="login-error" role="alert">{error}</div>}
+              <FloatField id="login" label="Логин" autoComplete="username" autoFocus value={name} onChange={setName} />
+              <FloatField id="password" label="Пароль" type="password" autoComplete="current-password" value={password} onChange={setPassword} />
+              <Button type="submit" size="lg" block busy={busy}>Войти</Button>
+            </form>
+          </>
+        ) : (
+          <>
+            <p>Для предпринимателей. Письма и SMS не нужны: аккаунт готов сразу.</p>
+            <Register inn={signupInn} onInnChange={setSignupInn} />
+          </>
+        )}
         <p className="login-back"><Link to="/">← На главную</Link></p>
       </main>
 
       <aside className="login-demo" aria-labelledby="demo-h">
+        {mode === 'register' ? <Examples onPick={setSignupInn} /> : <>
         <h2 id="demo-h">Демо-доступы для проверки</h2>
         <p>Все компании синтетические. У каждой своя история — так видно разные исходы: автоматическое решение, ручная проверка, отказ. Пароль у всех: demo1234.</p>
         {inn && DEMO_CLIENTS.some((c) => c.inn === inn) && (
@@ -98,6 +140,7 @@ export default function Login() {
             <span className="go" aria-hidden>→</span>
           </button>
         </div>
+        </>}
       </aside>
     </div>
   )

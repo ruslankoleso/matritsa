@@ -89,4 +89,47 @@ test.describe('credit pipeline, end to end', () => {
     await page.goto('/staff')
     await expect(page).toHaveURL(/\/cabinet/)
   })
+
+  test('a new person signs up with a company INN, lands in the cabinet and can sign in again', async ({ page }) => {
+    const login = `guest${Date.now().toString(36)}`
+    const inn = randomINN()
+    await page.goto('/login?mode=register')
+    await page.getByLabel('ФИО').fill('Иванов Иван Иванович')
+    await page.locator('#login').fill(login)
+    await page.locator('#password').fill('long-enough-1')
+    await page.getByRole('button', { name: 'Дальше' }).click()
+
+    await page.getByLabel('ИНН компании').fill(inn)
+    await expect(page.locator('.company-card')).toBeVisible()
+    const create = page.getByRole('button', { name: 'Создать аккаунт' })
+    await expect(create).toBeDisabled()
+    await page.getByRole('checkbox', { name: /Согласен на обработку данных/ }).check()
+    await create.click()
+    await expect(page).toHaveURL(/\/cabinet/)
+
+    // the same company cannot be registered twice
+    await page.evaluate(() => localStorage.clear())
+    await page.goto('/login?mode=register')
+    await page.getByLabel('ФИО').fill('Другой Человек')
+    await page.locator('#login').fill(`${login}x`)
+    await page.locator('#password').fill('long-enough-1')
+    await page.getByRole('button', { name: 'Дальше' }).click()
+    await page.getByLabel('ИНН компании').fill(inn)
+    await expect(page.getByText(/уже зарегистрирована/)).toBeVisible()
+
+    // and the new account signs in with its own password
+    await page.goto('/login')
+    await page.locator('#login').fill(login.toUpperCase())
+    await page.locator('#password').fill('long-enough-1')
+    await page.getByRole('button', { name: 'Войти', exact: true }).click()
+    await expect(page).toHaveURL(/\/cabinet/)
+  })
 })
+
+/** A valid 10-digit INN with a random body, so the test can run again on a database that remembers earlier runs. */
+function randomINN(): string {
+  const digits = [7, 8, ...Array.from({ length: 7 }, () => Math.floor(Math.random() * 10))]
+  const coef = [2, 4, 10, 3, 5, 9, 4, 6, 8]
+  const check = (digits.reduce((sum, d, i) => sum + d * coef[i], 0) % 11) % 10
+  return [...digits, check].join('')
+}
