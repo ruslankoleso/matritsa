@@ -149,7 +149,7 @@ func Synthesize(inn string) (Company, bool) {
 		c.BKI = history(between(750, 820), 1, 0, 0.5, float64(between(3, 6)))
 	case Borderline:
 		c.RegisteredAt = monthsAgo(between(24, 60))
-		c.MonthlyObligations = base * int64(between(11, 14)) / 100
+		c.MonthlyObligations = base * int64(between(5, 8)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12)
 		c.BKI = history(between(590, 640), 1, between(18, 30), 0.8, float64(between(1, 2)))
 	case Young:
@@ -159,7 +159,7 @@ func Synthesize(inn string) (Company, bool) {
 		c.BKI = &integrations.BKIReport{HasHistory: false}
 	case Indebted:
 		c.RegisteredAt = monthsAgo(between(36, 96))
-		c.MonthlyObligations = base * int64(between(16, 21)) / 100
+		c.MonthlyObligations = base * int64(between(9, 12)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12)
 		c.BKI = history(between(580, 625), 3, between(20, 40), 4.5, 1)
 	case Liquidated:

@@ -16,6 +16,11 @@ type Config struct {
 	// loans (repaid total / requested amount) for an automatic offer. It is checked next to the request and
 	// never changes the class of the borrower.
 	MinRepaidCoverage float64
+	// MinDSCR is the lowest cover of all loan payments by monthly cash flow (cash flow / payments).
+	MinDSCR float64
+	// OperatingMargin is the share of revenue left as cash flow before debt payments, by industry risk group
+	// (1 low risk .. 3 high). A simplification: the bank has revenue, not a cash flow statement.
+	OperatingMargin map[int]float64
 }
 
 func DefaultConfig() Config {
@@ -25,6 +30,8 @@ func DefaultConfig() Config {
 		MaxLoad:             0.35,
 		HardStopOverdueDays: 90,
 		MinRepaidCoverage:   0.5,
+		MinDSCR:             1.25,
+		OperatingMargin:     map[int]float64{1: 0.35, 2: 0.30, 3: 0.25},
 	}
 }
 

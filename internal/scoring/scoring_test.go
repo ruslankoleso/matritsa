@@ -1,6 +1,7 @@
 package scoring
 
 import (
+	"math"
 	"testing"
 
 	"matritsa/internal/integrations"
@@ -165,7 +166,7 @@ func TestMonthlyPayment_ZeroRateAndTerm(t *testing.T) {
 func TestMaxAffordable_KeepsLoadAtMost035(t *testing.T) {
 	in := baseInput()
 	res := Score(in, DefaultConfig())
-	max := res.MaxAffordableAmount
+	max := res.MaxAmountByLoad
 	if max <= 0 {
 		t.Fatal("expected positive affordable amount")
 	}
@@ -333,6 +334,98 @@ func TestMetrics_CarryTheRepaymentExperience(t *testing.T) {
 	in.Amount = 2_000_000 * 100
 	m := Score(in, DefaultConfig()).Metrics()
 	if m.RepaidTotal != 1_000_000*100 || m.RepaidCoverage != 0.5 {
+		t.Fatalf("%+v", m)
+	}
+}
+
+// ---- two coverage measures: the share of revenue that goes to payments (load) and the cash flow cover (DSCR) ----
+
+func TestDSCR_IsCashFlowOverAllPayments(t *testing.T) {
+	cfg := DefaultConfig()
+	in := baseInput() // revenue 2 000 000, group 1, obligations 100 000
+	res := Score(in, cfg)
+	wantCash := int64(float64(2_000_000*rub) * cfg.OperatingMargin[1])
+	if res.MonthlyCashFlow != wantCash {
+		t.Fatalf("cash flow %d, want %d", res.MonthlyCashFlow, wantCash)
+	}
+	want := float64(wantCash) / float64(in.MonthlyObligations+res.Payment)
+	if math.Abs(res.DSCR-want) > 1e-9 {
+		t.Fatalf("DSCR %v, want %v", res.DSCR, want)
+	}
+}
+
+func TestDSCR_MarginDependsOnTheIndustryGroup(t *testing.T) {
+	cfg := DefaultConfig()
+	low, high := baseInput(), baseInput()
+	low.OKVEDGroup, high.OKVEDGroup = 3, 1
+	if Score(low, cfg).MonthlyCashFlow >= Score(high, cfg).MonthlyCashFlow {
+		t.Fatal("a riskier industry keeps less cash from the same revenue")
+	}
+}
+
+func TestMaxAmountByDSCR_KeepsCoverAtTheMinimum(t *testing.T) {
+	cfg := DefaultConfig()
+	in := baseInput()
+	res := Score(in, cfg)
+	if res.MaxAmountByDSCR <= 0 {
+		t.Fatal("expected a positive limit")
+	}
+	pay := MonthlyPayment(res.MaxAmountByDSCR, in.RateBP, in.TermMonths)
+	if got := float64(res.MonthlyCashFlow) / float64(in.MonthlyObligations+pay); got < cfg.MinDSCR-0.001 {
+		t.Fatalf("cover at the limit is %.3f, below %.2f", got, cfg.MinDSCR)
+	}
+	over := MonthlyPayment(res.MaxAmountByDSCR+res.MaxAmountByDSCR/20, in.RateBP, in.TermMonths)
+	if float64(res.MonthlyCashFlow)/float64(in.MonthlyObligations+over) >= cfg.MinDSCR {
+		t.Fatal("the limit is not tight")
+	}
+}
+
+func TestMaxAffordable_IsTheStricterOfTheTwoLimits(t *testing.T) {
+	res := Score(baseInput(), DefaultConfig())
+	want := res.MaxAmountByLoad
+	if res.MaxAmountByDSCR < want {
+		want = res.MaxAmountByDSCR
+	}
+	if res.MaxAffordableAmount != want {
+		t.Fatalf("affordable %d, by load %d, by DSCR %d", res.MaxAffordableAmount, res.MaxAmountByLoad, res.MaxAmountByDSCR)
+	}
+}
+
+func TestBothMeasuresMatter_EachCanBeTheBindingOne(t *testing.T) {
+	cfg := DefaultConfig()
+	// a thin margin makes the cash flow the limit although the load looks fine
+	thin := baseInput()
+	thin.OKVEDGroup = 3
+	thin.MonthlyObligations = 400_000 * rub
+	r := Score(thin, cfg)
+	if !(r.MaxAmountByDSCR < r.MaxAmountByLoad) {
+		t.Fatalf("expected DSCR to bind: load %d, dscr %d", r.MaxAmountByLoad, r.MaxAmountByDSCR)
+	}
+	// no existing debt and a good margin: the load share is the stricter one
+	lean := baseInput()
+	lean.MonthlyObligations = 0
+	lean.OKVEDGroup = 1
+	lean.MonthlyRevenue = flatRevenue(1_000_000 * rub)
+	cfg.OperatingMargin = map[int]float64{1: 0.9, 2: 0.9, 3: 0.9}
+	r = Score(lean, cfg)
+	if !(r.MaxAmountByLoad < r.MaxAmountByDSCR) {
+		t.Fatalf("expected the load to bind: load %d, dscr %d", r.MaxAmountByLoad, r.MaxAmountByDSCR)
+	}
+}
+
+func TestDSCR_SafeWithoutRevenue(t *testing.T) {
+	in := baseInput()
+	in.MonthlyRevenue = nil
+	r := Score(in, DefaultConfig())
+	if r.DSCR != 0 || r.MonthlyCashFlow != 0 || r.MaxAmountByDSCR != 0 {
+		t.Fatalf("%+v", r)
+	}
+}
+
+func TestMetrics_CarryTheCoverMeasures(t *testing.T) {
+	r := Score(baseInput(), DefaultConfig())
+	m := r.Metrics()
+	if m.DSCR != r.DSCR || m.MonthlyCashFlow != r.MonthlyCashFlow || m.MaxAmountByLoad != r.MaxAmountByLoad || m.MaxAmountByDSCR != r.MaxAmountByDSCR {
 		t.Fatalf("%+v", m)
 	}
 }

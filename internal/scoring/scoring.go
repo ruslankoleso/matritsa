@@ -81,8 +81,15 @@ type Result struct {
 
 	Payment             int64    `json:"payment"`
 	DebtLoad            float64  `json:"debtLoad"`
-	MaxAffordableAmount int64    `json:"maxAffordableAmount"`
+	MaxAffordableAmount int64    `json:"maxAffordableAmount"` // the stricter of the two limits below
 	HardStops           []string `json:"hardStops"`
+
+	// Two measures that answer different questions: DebtLoad is the share of revenue that goes to
+	// payments; DSCR is whether the cash flow covers them. Each gives its own limit on the amount.
+	DSCR            float64 `json:"dscr"`
+	MonthlyCashFlow int64   `json:"monthlyCashFlow"`
+	MaxAmountByLoad int64   `json:"maxAmountByLoad"`
+	MaxAmountByDSCR int64   `json:"maxAmountByDscr"`
 }
 
 // Score evaluates the input. It never panics on empty or zero revenue.
@@ -127,7 +134,13 @@ func Score(in Input, cfg Config) Result {
 	if avg > 0 {
 		res.DebtLoad = float64(in.MonthlyObligations+res.Payment) / float64(avg)
 	}
-	res.MaxAffordableAmount = maxAffordable(avg, in, cfg)
+	res.MonthlyCashFlow = int64(float64(avg) * margin(in.OKVEDGroup, cfg))
+	if payments := in.MonthlyObligations + res.Payment; res.MonthlyCashFlow > 0 && payments > 0 {
+		res.DSCR = float64(res.MonthlyCashFlow) / float64(payments)
+	}
+	res.MaxAmountByLoad = maxAmount(cfg.MaxLoad*float64(avg)-float64(in.MonthlyObligations), avg, in)
+	res.MaxAmountByDSCR = maxAmount(float64(res.MonthlyCashFlow)/cfg.MinDSCR-float64(in.MonthlyObligations), res.MonthlyCashFlow, in)
+	res.MaxAffordableAmount = min(res.MaxAmountByLoad, res.MaxAmountByDSCR)
 	return res
 }
 
@@ -304,13 +317,18 @@ func okvedFactor(group int, cfg Config) Factor {
 	return f
 }
 
-// maxAffordable is the largest amount whose payment keeps the total load at or below cfg.MaxLoad.
-func maxAffordable(avg int64, in Input, cfg Config) int64 {
-	if avg <= 0 || in.TermMonths <= 0 {
-		return 0
+// margin is the cash-flow share of revenue for an industry group; unknown groups use the most cautious one.
+func margin(group int, cfg Config) float64 {
+	if m, ok := cfg.OperatingMargin[group]; ok {
+		return m
 	}
-	room := cfg.MaxLoad*float64(avg) - float64(in.MonthlyObligations)
-	if room <= 0 {
+	return cfg.OperatingMargin[3]
+}
+
+// maxAmount is the largest amount whose monthly payment fits into room (money per month left for the new
+// payment). base is the revenue or cash flow the room was taken from: without it nothing can be repaid.
+func maxAmount(room float64, base int64, in Input) int64 {
+	if base <= 0 || in.TermMonths <= 0 || room <= 0 {
 		return 0
 	}
 	r := float64(in.RateBP) / 10000 / 12
@@ -334,8 +352,14 @@ type Metrics struct {
 
 	RepaidTotal    int64   `json:"repaidTotal"`
 	RepaidCoverage float64 `json:"repaidCoverage"`
+
+	DSCR            float64 `json:"dscr"`
+	MonthlyCashFlow int64   `json:"monthlyCashFlow"`
+	MaxAmountByLoad int64   `json:"maxAmountByLoad"`
+	MaxAmountByDSCR int64   `json:"maxAmountByDscr"`
 }
 
 func (r Result) Metrics() Metrics {
-	return Metrics{PD: r.PD, CumulativePD: r.CumulativePD, LGD: r.LGD, EAD: r.EAD, ExpectedLoss: r.ExpectedLoss, ELRate: r.ELRate, RiskPremiumBP: r.RiskPremiumBP, Payment: r.Payment, RepaidTotal: r.RepaidTotal, RepaidCoverage: r.RepaidCoverage}
+	return Metrics{PD: r.PD, CumulativePD: r.CumulativePD, LGD: r.LGD, EAD: r.EAD, ExpectedLoss: r.ExpectedLoss, ELRate: r.ELRate, RiskPremiumBP: r.RiskPremiumBP, Payment: r.Payment, RepaidTotal: r.RepaidTotal, RepaidCoverage: r.RepaidCoverage,
+		DSCR: r.DSCR, MonthlyCashFlow: r.MonthlyCashFlow, MaxAmountByLoad: r.MaxAmountByLoad, MaxAmountByDSCR: r.MaxAmountByDSCR}
 }

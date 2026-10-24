@@ -143,3 +143,24 @@ func TestDecide_LowCoverage_IsNotedForTheAnalystInEveryReview(t *testing.T) {
 		t.Fatalf("the hint appears only when the experience is short: low=%v ok=%v", low.Reasons, ok.Reasons)
 	}
 }
+
+func TestDecide_TooBigRequest_NamesTheLimitThatBinds(t *testing.T) {
+	has := func(d Decision, part string) bool {
+		for _, r := range d.Reasons {
+			if strings.Contains(r, part) {
+				return true
+			}
+		}
+		return false
+	}
+	byCash := result(scoring.GradeC, 800_000*rub)
+	byCash.MaxAmountByLoad, byCash.MaxAmountByDSCR = 2_000_000*rub, 800_000*rub
+	if d := Decide(byCash, prod(t, products.WorkingCapital), 2_000_000*rub, 12); !has(d, "денежного потока") {
+		t.Fatalf("the cash flow is the limit: %v", d.Reasons)
+	}
+	byLoad := result(scoring.GradeC, 800_000*rub)
+	byLoad.MaxAmountByLoad, byLoad.MaxAmountByDSCR = 800_000*rub, 2_000_000*rub
+	if d := Decide(byLoad, prod(t, products.WorkingCapital), 2_000_000*rub, 12); !has(d, "долговую нагрузку") {
+		t.Fatalf("the load share is the limit: %v", d.Reasons)
+	}
+}

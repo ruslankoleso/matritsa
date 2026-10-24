@@ -64,7 +64,7 @@ func Companies() []Company {
 			Login: "client2", OwnerName: "Алексей Смирнов", INN: "771234500002", Name: "ИП Смирнов А. В. (кофейня «Гараж»)", Kind: "ip",
 			RegisteredAt: monthsAgo(96), OKVED: "56.10", OKVEDTitle: "Деятельность ресторанов и кафе", OKVEDGroup: 2,
 			Director: "Смирнов Алексей Викторович", Address: "г. Нижний Новгород, ул. Рождественская, 7",
-			MonthlyObligations: 200_000 * rub,
+			MonthlyObligations: 120_000 * rub,
 			Revenue:            series(700_000*rub, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 3, TotalDebt: 3_400_000 * rub, MaxOverdueDays: 25, Score: 610, ClosedLoans: 2, TotalRepaid: 1_500_000 * rub},

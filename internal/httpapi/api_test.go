@@ -725,3 +725,18 @@ func TestStaffCard_ShowsRepaymentExperienceAgainstTheRequest(t *testing.T) {
 		t.Fatalf("the bureau block must show the closed loans: %+v", card.Enrichment)
 	}
 }
+
+func TestStaffCard_ShowsBothCoverMeasuresAndTheirLimits(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+	s := e.staffCard(app.Id.String()).Scoring
+	if s == nil || s.Dscr == nil || s.MinDscr == nil || s.MaxAmountByLoad == nil || s.MaxAmountByDscr == nil || s.MonthlyCashFlow == nil {
+		t.Fatalf("both measures must be on the card: %+v", s)
+	}
+	if *s.MinDscr != 1.25 || *s.Dscr >= *s.MinDscr {
+		t.Fatalf("this request is too big for the cash flow: DSCR %v min %v", *s.Dscr, *s.MinDscr)
+	}
+	if s.MaxAffordableAmount != min(*s.MaxAmountByLoad, *s.MaxAmountByDscr) {
+		t.Fatalf("affordable %d, by load %d, by DSCR %d", s.MaxAffordableAmount, *s.MaxAmountByLoad, *s.MaxAmountByDscr)
+	}
+}

@@ -75,7 +75,11 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 		if recAmount < p.MinAmount {
 			recAmount = p.MinAmount
 		}
-		reasons = append(reasons, "Запрошенная сумма превышает допустимую нагрузку на бизнес: рекомендована меньшая")
+		if res.MaxAmountByDSCR > 0 && res.MaxAmountByDSCR < res.MaxAmountByLoad {
+			reasons = append(reasons, "Запрошенная сумма превышает возможности денежного потока (покрытие платежей ниже допустимого): рекомендована меньшая")
+		} else {
+			reasons = append(reasons, "Запрошенная сумма превышает допустимую долговую нагрузку на выручку: рекомендована меньшая")
+		}
 	}
 	if recAmount > p.MaxAmount {
 		recAmount = p.MaxAmount

@@ -754,6 +754,9 @@ type ScoringResult struct {
 	CumulativePd *float32 `json:"cumulativePd,omitempty"`
 	DebtLoad     float32  `json:"debtLoad"`
 
+	// Dscr Покрытие всех платежей (действующих и по заявке) денежным потоком
+	Dscr *float32 `json:"dscr,omitempty"`
+
 	// Ead Сумма под риском на момент дефолта
 	Ead *int64 `json:"ead,omitempty"`
 
@@ -770,8 +773,23 @@ type ScoringResult struct {
 	Lgd                 *float32 `json:"lgd,omitempty"`
 	MaxAffordableAmount int64    `json:"maxAffordableAmount"`
 
+	// MaxAmountByDscr Предельная сумма по покрытию денежным потоком
+	MaxAmountByDscr *int64 `json:"maxAmountByDscr,omitempty"`
+
+	// MaxAmountByLoad Предельная сумма по доле платежей в выручке
+	MaxAmountByLoad *int64 `json:"maxAmountByLoad,omitempty"`
+
+	// MaxLoad Предельная доля платежей в выручке
+	MaxLoad *float32 `json:"maxLoad,omitempty"`
+
+	// MinDscr Минимально допустимое покрытие
+	MinDscr *float32 `json:"minDscr,omitempty"`
+
 	// MinRepaidCoverage Минимальное покрытие для автоматического решения
 	MinRepaidCoverage *float32 `json:"minRepaidCoverage,omitempty"`
+
+	// MonthlyCashFlow Оценка месячного денежного потока до платежей по долгам, копейки
+	MonthlyCashFlow *int64 `json:"monthlyCashFlow,omitempty"`
 
 	// Payment Ежемесячный платёж по запрошенной сумме (по базовой ставке)
 	Payment *int64 `json:"payment,omitempty"`
