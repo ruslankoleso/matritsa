@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { homeFor } from '../auth/RequireRole'
 import { IconMenu, IconMoon, IconOut, IconSun } from './icons'
 import { loadTheme, saveTheme, transitionTo, type Theme } from '../lib/theme'
 import type { ReactElement } from 'react'
@@ -38,7 +39,7 @@ export function AppShell({ scope, scopeName, nav, children }: { scope: string; s
       </div>
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside className="side" aria-label="Навигация">
-        <Link to="/" className="side-brand" aria-label="Матрица — на главную страницу">
+        <Link to={session ? homeFor(session.role) : '/'} className="side-brand" aria-label="Матрица — главная страница кабинета">
           <span className="wordmark-dot" aria-hidden />
           <span>
             <b>Матрица</b>

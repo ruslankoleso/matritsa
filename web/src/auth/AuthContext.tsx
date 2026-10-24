@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import { api, clearSession, loadSession, saveSession, type Session } from '../api/client'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { api, clearSession, loadSession, onSessionChange, saveSession, type Session } from '../api/client'
+import { queryClient } from '../api/queryClient'
 import type { RegisterRequest } from '../api/types'
 
 export interface AuthValue {
@@ -23,8 +24,17 @@ export const AuthContext = createContext<AuthValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => loadSession())
 
+  // The cache holds the previous person's data (company, applications). It must never outlive the session.
+  useEffect(() => onSessionChange((s) => {
+    if (!s) {
+      queryClient.clear()
+      setSession(null)
+    }
+  }), [])
+
   const login = useCallback(async (loginName: string, password: string) => {
     const s = await api.login(loginName, password)
+    queryClient.clear()
     saveSession(s)
     setSession(s)
     return s
@@ -32,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (form: RegisterRequest) => {
     const s = await api.register(form)
+    queryClient.clear()
     saveSession(s)
     setSession(s)
     return s
@@ -39,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearSession()
+    queryClient.clear()
     setSession(null)
   }, [])
 
