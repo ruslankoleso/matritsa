@@ -673,6 +673,11 @@ export interface components {
         Rejection: {
             reasons: string[];
             comment?: string;
+            /**
+             * @description Кто принял решение: правила системы (автоматический отказ) или сотрудник банка
+             * @enum {string}
+             */
+            by: "system" | "staff";
         };
         ApplicationSummary: {
             /** Format: uuid */
@@ -874,6 +879,8 @@ export interface components {
             updatedAt: string;
             waitingMinutes: number;
             manualCheck: boolean;
+            /** @description Решение принято правилами системы без сотрудника (автоотказ или автоматическое предложение) */
+            automatic: boolean;
             assignedTo?: string;
         };
         Queue: {

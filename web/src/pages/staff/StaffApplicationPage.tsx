@@ -9,10 +9,11 @@ import { Route } from '../../design/Route'
 import { Empty, ErrorBox, Loading } from '../../design/states'
 import { useToast } from '../../design/Toast'
 import { annuity, formatDate, formatDateTime, formatMoney, formatPercent, formatRate, formatTerm } from '../../lib/format'
-import { routeStatesOf, transitionText } from '../../lib/status'
+import { routeStatesOf, statusView, transitionText } from '../../lib/status'
 import { useCountUp } from '../../lib/useCountUp'
 import Affordability from './Affordability'
 import Conclusion from './Conclusion'
+import DecisionBanner from './DecisionBanner'
 
 /** True one frame after mount, so CSS transitions can run from the initial state. */
 function useMounted() {
@@ -170,7 +171,7 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
     return (
       <section className="card" aria-labelledby="dec-h">
         <h2 id="dec-h" style={{ marginBottom: 10 }}>Решение</h2>
-        <p className="field-hint">По этой заявке решение сейчас не требуется: {app.statusMessage}</p>
+        <p className="field-hint">По этой заявке решение сейчас не требуется. Текущий статус: {statusView(app.status).label}.</p>
       </section>
     )
   }
@@ -241,9 +242,11 @@ export default function StaffApplicationPage() {
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <StatusPill status={app.status} />
-          {card.assignedTo ? <span className="pill">{card.assignedTo.split(',')[0]}</span> : <Button variant="outline" size="sm" busy={claim.isPending} onClick={() => claim.mutate()}>Взять в работу</Button>}
+          {card.assignedTo ? <span className="pill">{card.assignedTo.split(',')[0]}</span> : app.status !== 'ANALYST_REVIEW' ? null : <Button variant="outline" size="sm" busy={claim.isPending} onClick={() => claim.mutate()}>Взять в работу</Button>}
         </div>
       </div>
+
+      <DecisionBanner app={app} />
 
       <div className="grid">
         <div className="col-7">

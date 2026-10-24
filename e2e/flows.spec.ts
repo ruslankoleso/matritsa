@@ -46,7 +46,8 @@ test.describe('credit pipeline, end to end', () => {
   test('a liquidated company is declined automatically with plain reasons', async ({ page }) => {
     await loginAs(page, /Старый порт/)
     await fillAndSubmit(page, { product: /оборотные средства/, amount: '500000', term: '12' })
-    await expect(page.getByRole('heading', { name: 'Причины отказа' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Автоматический отказ' })).toBeVisible()
+    await expect(page.getByText(/Сотрудник банка её не рассматривал/)).toBeVisible()
     await expect(page.getByText(/не является действующей/)).toBeVisible()
     await expect(page.getByRole('link', { name: 'Подать новую заявку' })).toBeVisible()
   })
@@ -164,6 +165,17 @@ test.describe('credit pipeline, end to end', () => {
     await page.getByLabel('На что нужны деньги').fill('купить станок для мастерской')
     await page.getByRole('button', { name: 'Создать заявку' }).click()
     await expect(page).toHaveURL(/\/cabinet\/new/)
+  })
+
+  test('a reviewer finds the automatic decisions ready: marked in the queue and explained in the card', async ({ browser }) => {
+    const staff = await newPage(await browser.newContext({ reducedMotion: 'reduce' }), /Анна Белова/)
+    await staff.getByRole('tab', { name: /Закрытые/ }).click()
+    const row = staff.locator('tr', { hasText: 'Вектор Логистик' })
+    await expect(row.getByText('Авто')).toBeVisible()
+    await row.click()
+    await expect(staff.getByText('Автоматический отказ', { exact: true })).toBeVisible()
+    await expect(staff.getByText(/не передавалась сотруднику/)).toBeVisible()
+    await expect(staff.getByText(/Долговая нагрузка не позволяет выдать/)).toBeVisible()
   })
 
   test('the greeting with the name appears after signing in and goes away', async ({ browser }) => {

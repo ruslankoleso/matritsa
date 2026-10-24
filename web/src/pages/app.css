@@ -496,3 +496,7 @@
 .afford-limit { margin: 12px 0 0; font-size: 14.5px; }
 .afford-limit span { color: var(--ink-soft); }
 @media (max-width: 760px) { .afford-grid { grid-template-columns: 1fr; } }
+
+.decision-banner { margin-bottom: 20px; }
+.decision-banner ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.5; }
+.pill-auto { margin-left: 6px; }

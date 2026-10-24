@@ -8,6 +8,7 @@ import { DocUpload } from '../../design/DocUpload'
 import { RollingNumber } from '../../design/RollingNumber'
 import { StatusPill } from '../../design/Pill'
 import { Route } from '../../design/Route'
+import RejectionCard from './RejectionCard'
 import { Empty, ErrorBox, Loading } from '../../design/states'
 import { useToast } from '../../design/Toast'
 import { formatDate, formatDateTime, formatMoney, formatRate, formatTerm } from '../../lib/format'
@@ -257,15 +258,7 @@ export default function ApplicationPage() {
               <div className="callout callout-ok"><div><b>Готово: деньги выданы</b><p style={{ marginTop: 4 }}>{formatMoney(app.offer.amount)} на {formatTerm(app.offer.termMonths)} под {formatRate(app.offer.rateBp)}. Платёж — {formatMoney(app.offer.monthlyPayment)} в месяц.</p></div></div>
             </section>
           )}
-          {app.status === 'REJECTED' && (
-            <section className="card" style={{ marginTop: 16 }} aria-labelledby="rej-h">
-              <h2 id="rej-h" style={{ marginBottom: 10 }}>Причины отказа</h2>
-              {rej && rej.reasons.length > 0 && <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>{rej.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
-              {rej?.comment && <div className="callout callout-info" style={{ marginTop: 14 }}><div><b>Комментарий сотрудника банка</b><p style={{ marginTop: 4 }}>{rej.comment}</p></div></div>}
-              <p className="field-hint" style={{ marginTop: 12 }}>Возможные действия: подать заявку на меньшую сумму или выбрать другой продукт.</p>
-              <div className="offer-actions"><LinkButton to="/cabinet/new" variant="dark">Подать новую заявку</LinkButton></div>
-            </section>
-          )}
+          {app.status === 'REJECTED' && <RejectionCard rejection={rej} />}
           {['EXPIRED', 'DECLINED_BY_CLIENT', 'CANCELLED'].includes(app.status) && (
             <section className="card" style={{ marginTop: 16 }}>
               <p>{app.statusMessage}</p>

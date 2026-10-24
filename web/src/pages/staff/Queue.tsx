@@ -81,7 +81,7 @@ export default function Queue() {
                     <td className="hide-sm">{i.productTitle}<span className="secondary">{formatTerm(i.termMonths)}</span></td>
                     <td className="r">{formatMoney(i.amount)}</td>
                     <td>{i.grade ? <><b>{i.grade}</b> <span className="secondary" style={{ display: 'inline' }}>· {i.score}</span></> : <span className="dash">—</span>}</td>
-                    <td><StatusPill status={i.status} /></td>
+                    <td><StatusPill status={i.status} />{i.automatic && <span className="pill pill-auto" title="Решение принято правилами системы, без сотрудника">Авто</span>}</td>
                     <td className="r hide-sm">{waitingText(i.waitingMinutes)}</td>
                   </tr>
                 ))}
