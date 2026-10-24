@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -147,5 +148,22 @@ func TestLimiter_ResetClearsFailures(t *testing.T) {
 	l.Reset("k")
 	if !l.Allowed("k") {
 		t.Fatal("a successful login clears earlier failures")
+	}
+}
+
+func TestLimiter_SweepsExpiredKeys(t *testing.T) {
+	now := time.Now()
+	l := NewLimiter(5, time.Minute)
+	l.Now = func() time.Time { return now }
+	for i := 0; i < 6000; i++ {
+		l.Fail(fmt.Sprintf("guess-%d", i))
+	}
+	now = now.Add(2 * time.Minute)
+	l.Fail("one-more")
+	l.mu.Lock()
+	n := len(l.fails)
+	l.mu.Unlock()
+	if n > 10 {
+		t.Fatalf("expired keys must be dropped, %d are still stored", n)
 	}
 }

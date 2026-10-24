@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"net"
 	"net/http"
 	"strings"
 
@@ -18,7 +19,10 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	login := strings.ToLower(strings.TrimSpace(req.Login))
-	if !s.LoginLimiter.Allowed(login) {
+	// Attempts are counted per address and login, so a stranger guessing passwords
+	// blocks only themselves and cannot lock a demo account for everybody else.
+	key := clientIP(r) + "|" + login
+	if !s.LoginLimiter.Allowed(key) {
 		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "Слишком много попыток входа. Подождите минуту и попробуйте снова.")
 		return
 	}
@@ -28,12 +32,24 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 		hash = user.PasswordHash
 	}
 	if !auth.CheckPassword(hash, req.Password) || err != nil {
-		s.LoginLimiter.Fail(login)
+		s.LoginLimiter.Fail(key)
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "Неверный логин или пароль")
 		return
 	}
-	s.LoginLimiter.Reset(login)
+	s.LoginLimiter.Reset(key)
 	s.issueTokens(w, r, user)
+}
+
+// clientIP is the address the request came from: nginx sets X-Forwarded-For to the real peer.
+func clientIP(r *http.Request) string {
+	if first, _, _ := strings.Cut(r.Header.Get("X-Forwarded-For"), ","); strings.TrimSpace(first) != "" {
+		return strings.TrimSpace(first)
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {

@@ -64,6 +64,19 @@ func TestLogin_RateLimitOnlyAfterFailures_AndBlocksEvenRightPassword(t *testing.
 	}
 }
 
+func TestLogin_FailuresFromOneAddressDoNotLockOthersOut(t *testing.T) {
+	e := newEnv(t)
+	for i := 0; i < 5; i++ {
+		e.do("POST", "/api/v1/auth/login", "", map[string]string{"login": "client2", "password": "wrong"}, "X-Forwarded-For", "203.0.113.7")
+	}
+	if code, _ := e.do("POST", "/api/v1/auth/login", "", map[string]string{"login": "client2", "password": "demo1234"}, "X-Forwarded-For", "203.0.113.7"); code != 429 {
+		t.Fatalf("the guessing address must be blocked: got %d", code)
+	}
+	if code, _ := e.do("POST", "/api/v1/auth/login", "", map[string]string{"login": "client2", "password": "demo1234"}, "X-Forwarded-For", "198.51.100.9"); code != 200 {
+		t.Fatalf("somebody else with the right password must get in: got %d", code)
+	}
+}
+
 func TestProtected_NoToken_401(t *testing.T) {
 	e := newEnv(t)
 	for _, p := range []string{"/api/v1/me", "/api/v1/applications", "/api/v1/feed", "/api/v1/staff/queue"} {

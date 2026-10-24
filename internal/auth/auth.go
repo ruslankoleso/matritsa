@@ -150,7 +150,7 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 	}
 }
 
-// Limiter blocks a key after too many recent failures. Only failures count: successful
+// Limiter blocks a key (the caller picks it: here sign-in address + login) after too many recent failures. Only failures count: successful
 // sign-ins never consume attempts, so people can switch between accounts freely.
 type Limiter struct {
 	max    int
@@ -183,11 +183,27 @@ func (l *Limiter) Allowed(key string) bool {
 	return len(l.recent(key)) < l.max
 }
 
+// sweepAbove is the number of tracked keys after which expired ones are dropped,
+// so guessing with endless random logins cannot grow the map without bound.
+const sweepAbove = 4096
+
 // Fail records a failed attempt.
 func (l *Limiter) Fail(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if len(l.fails) > sweepAbove {
+		l.sweep()
+	}
 	l.fails[key] = append(l.recent(key), l.Now())
+}
+
+// sweep forgets every key whose failures all fell out of the window. The caller holds mu.
+func (l *Limiter) sweep() {
+	for key := range l.fails {
+		if len(l.recent(key)) == 0 {
+			delete(l.fails, key)
+		}
+	}
 }
 
 // Reset forgets earlier failures (after a successful sign-in).
