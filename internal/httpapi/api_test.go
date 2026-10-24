@@ -5,12 +5,16 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"matritsa/internal/appdata"
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/products"
+	"matritsa/internal/scoring"
+	"matritsa/internal/store/db"
 )
 
 func TestLogin_Success_ReturnsTokens(t *testing.T) {
@@ -512,6 +516,65 @@ func TestStaffExplanation(t *testing.T) {
 	mustJSON(t, raw, &ex)
 	if code != 200 || strings.Contains(ex.Text, "Класс риска") {
 		t.Fatalf("client audience must be plain: %d %s", code, ex.Text)
+	}
+}
+
+// The card shows the recommendation stored at scoring time. The explanation must tell the same
+// story: it was once recalculated with the current rules and then disagreed with the card.
+func TestExplanation_RepeatsTheStoredRecommendation_NotAFreshRecalculation(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+	id := app.Id.String()
+
+	// Pretend the rules changed after scoring: the stored recommendation now carries another rate.
+	row, err := e.s.GetApplication(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := appdata.Parse(row.Data)
+	if data.Review == nil || data.Review.Recommended == nil {
+		t.Fatalf("a borderline application must have a stored recommendation: %+v", data.Review)
+	}
+	data.Review.Recommended.RateBP = 3333
+	data.Review.Recommended.MonthlyPayment = scoring.MonthlyPayment(data.Review.Recommended.Amount, 3333, data.Review.Recommended.TermMonths)
+	if err := e.s.SetApplicationData(context.Background(), db.SetApplicationDataParams{ID: id, Data: data.Marshal()}); err != nil {
+		t.Fatal(err)
+	}
+
+	card := e.staffCard(id)
+	if card.Recommended == nil || card.Recommended.RateBp != 3333 {
+		t.Fatalf("the card must show the stored rate: %+v", card.Recommended)
+	}
+	for _, audience := range []string{"", "?audience=client"} {
+		code, raw := e.do("GET", "/api/v1/staff/applications/"+id+"/explanation"+audience, e.token("staff1"), nil)
+		var ex gen.Explanation
+		mustJSON(t, raw, &ex)
+		if code != 200 || !strings.Contains(ex.Text, "33.3%") {
+			t.Fatalf("the explanation must quote the stored rate 33.3%% (audience %q): %s", audience, ex.Text)
+		}
+	}
+}
+
+func TestExplanation_QuotesTheStoredOffer_AndTheStoredReasons(t *testing.T) {
+	e := newEnv(t)
+	auto := e.run("client1", e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, true))
+	row, err := e.s.GetActiveOffer(context.Background(), auto.Id.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, raw := e.do("GET", "/api/v1/staff/applications/"+auto.Id.String()+"/explanation", e.token("staff1"), nil)
+	var ex gen.Explanation
+	mustJSON(t, raw, &ex)
+	want := strconv.FormatFloat(float64(row.RateBp)/100, 'f', 1, 64) + "%"
+	if !strings.Contains(ex.Text, want) || !strings.Contains(ex.Text, "автоматически") {
+		t.Fatalf("the explanation of an automatic offer must quote its stored rate %s: %s", want, ex.Text)
+	}
+
+	rej := e.run("client4", e.draft("client4", products.WorkingCapital, 500_000*rub, 12, true))
+	_, raw = e.do("GET", "/api/v1/staff/applications/"+rej.Id.String()+"/explanation", e.token("staff1"), nil)
+	mustJSON(t, raw, &ex)
+	if !strings.Contains(ex.Text, "Рекомендация — отказать") {
+		t.Fatalf("the explanation of a rejection must say so: %s", ex.Text)
 	}
 }
 

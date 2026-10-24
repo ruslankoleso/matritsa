@@ -336,6 +336,28 @@ func (s *Server) approvalOffer(ctx context.Context, a db.Application, prod produ
 	}, nil
 }
 
+// storedDecision is the decision the system made when it scored the application, read back from
+// what was stored then: the recommendation, the reasons, the automatic offer. Explaining it must
+// not recalculate with today's rules, or the text would contradict the card next to it.
+func (s *Server) storedDecision(ctx context.Context, a db.Application, res scoring.Result) (decision.Decision, error) {
+	data := appdata.Parse(a.Data)
+	switch {
+	case data.Rejection != nil && data.Rejection.By == "system":
+		return decision.Decision{Outcome: decision.Reject, Reasons: data.Rejection.Reasons}, nil
+	case data.Review != nil:
+		return decision.Decision{Outcome: decision.Review, Recommended: data.Review.Recommended, Reasons: data.Review.Reasons}, nil
+	}
+	if o, err := s.Store.GetActiveOffer(ctx, a.ID); err == nil && o.Source == "auto" {
+		offer := decision.Offer{Amount: o.Amount, TermMonths: int(o.TermMonths), RateBP: int(o.RateBp), MonthlyPayment: o.MonthlyPayment, Source: o.Source}
+		return decision.Decision{Outcome: decision.AutoOffer, Offer: &offer}, nil
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return decision.Decision{}, err
+	}
+	// nothing was stored (an old record): the best available is a calculation with the current rules
+	prod, _ := products.Get(products.ID(a.ProductID))
+	return decision.Decide(res, prod, a.Amount, int(a.TermMonths)), nil
+}
+
 func (s *Server) GetExplanation(w http.ResponseWriter, r *http.Request, id gen.ApplicationId, params gen.GetExplanationParams) {
 	a, ok := s.staffApp(w, r, id.String())
 	if !ok {
@@ -353,8 +375,11 @@ func (s *Server) GetExplanation(w http.ResponseWriter, r *http.Request, id gen.A
 		})
 		return
 	}
-	prod, _ := products.Get(products.ID(a.ProductID))
-	d := decision.Decide(*res, prod, a.Amount, int(a.TermMonths))
+	d, err := s.storedDecision(r.Context(), a, *res)
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
 	audience := "staff"
 	if params.Audience != nil && *params.Audience == gen.GetExplanationParamsAudienceClient {
 		audience = "client"
