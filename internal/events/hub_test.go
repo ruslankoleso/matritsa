@@ -75,3 +75,29 @@ func TestHub_SlowSubscriberDoesNotBlockPublisher(t *testing.T) {
 		t.Fatal("publisher blocked by a slow subscriber")
 	}
 }
+
+func TestHub_CloseEndsEveryStreamAndIsSafeWithCancel(t *testing.T) {
+	h := NewHub()
+	a, cancelA := h.Subscribe("user-a")
+	b, cancelB := h.Subscribe("staff")
+	h.Close()
+	for _, ch := range []<-chan Event{a, b} {
+		select {
+		case _, open := <-ch:
+			if open {
+				t.Fatal("channel must be closed, got an event")
+			}
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Close must release every subscriber")
+		}
+	}
+	cancelA() // cancel after Close must not panic on a double close
+	cancelB()
+	h.Publish("user-a", Event{Type: "status"}) // and nobody is listening any more
+
+	late, cancelLate := h.Subscribe("user-c")
+	defer cancelLate()
+	if _, open := <-late; open {
+		t.Fatal("a subscriber that arrives after Close must get a closed channel")
+	}
+}

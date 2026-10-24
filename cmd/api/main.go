@@ -55,7 +55,20 @@ func run() error {
 	hub := events.NewHub()
 	client := integrations.NewClient(cfg.BKIURL, cfg.EGRULURL)
 	pipe := pipeline.New(st, client, hub, pipeline.DefaultConfig())
-	go pipe.Run(ctx)
+	pipeDone := make(chan struct{})
+	go func() {
+		defer close(pipeDone)
+		pipe.Run(ctx)
+	}()
+	// Let the worker finish its current step before the database pool is closed.
+	defer func() {
+		stop()
+		select {
+		case <-pipeDone:
+		case <-time.After(10 * time.Second):
+			slog.Warn("pipeline worker did not stop in time")
+		}
+	}()
 
 	var llm ai.LLM
 	if cfg.AIEnabled {
@@ -81,6 +94,7 @@ func run() error {
 		}
 	case <-ctx.Done():
 		slog.Info("shutting down")
+		hub.Close() // open event streams would otherwise keep Shutdown waiting until its timeout
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)

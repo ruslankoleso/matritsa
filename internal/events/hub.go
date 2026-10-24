@@ -17,8 +17,9 @@ type Event struct {
 // Hub is an in-memory pub/sub keyed by user ID (or "staff" for the whole bank team).
 // Delivery is best-effort and never blocks the publisher; the UI refetches on reconnect.
 type Hub struct {
-	mu   sync.Mutex
-	subs map[string]map[chan Event]struct{}
+	mu     sync.Mutex
+	subs   map[string]map[chan Event]struct{}
+	closed bool
 }
 
 func NewHub() *Hub { return &Hub{subs: map[string]map[chan Event]struct{}{}} }
@@ -27,6 +28,11 @@ func NewHub() *Hub { return &Hub{subs: map[string]map[chan Event]struct{}{}} }
 func (h *Hub) Subscribe(key string) (<-chan Event, func()) {
 	ch := make(chan Event, 16)
 	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		close(ch)
+		return ch, func() {}
+	}
 	if h.subs[key] == nil {
 		h.subs[key] = map[chan Event]struct{}{}
 	}
@@ -36,13 +42,30 @@ func (h *Hub) Subscribe(key string) (<-chan Event, func()) {
 	return ch, func() {
 		once.Do(func() {
 			h.mu.Lock()
+			defer h.mu.Unlock()
+			if _, active := h.subs[key][ch]; !active {
+				return // Close already released it
+			}
 			delete(h.subs[key], ch)
 			if len(h.subs[key]) == 0 {
 				delete(h.subs, key)
 			}
-			h.mu.Unlock()
 			close(ch)
 		})
+	}
+}
+
+// Close ends every open stream and refuses new ones; it is called on shutdown,
+// because the HTTP server waits for long-lived event streams to finish.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.closed = true
+	for key, set := range h.subs {
+		for ch := range set {
+			close(ch)
+		}
+		delete(h.subs, key)
 	}
 }
 
