@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"matritsa/internal/seed"
 	"matritsa/internal/store"
 	"matritsa/internal/store/storetest"
 )
@@ -33,8 +34,10 @@ func TestSeed_Idempotent(t *testing.T) {
 	}
 	companies, _ := s.CountCompanies(ctx)
 	users, _ := s.CountUsers(ctx)
-	if companies != 6 || users != 7 {
-		t.Fatalf("want 6 companies and 7 users, got %d and %d", companies, users)
+	wantCompanies := int64(len(seed.Companies()))
+	wantUsers := wantCompanies + int64(len(seed.StaffAccounts()))
+	if int64(companies) != wantCompanies || int64(users) != wantUsers {
+		t.Fatalf("want %d companies and %d users, got %d and %d", wantCompanies, wantUsers, companies, users)
 	}
 }
 
