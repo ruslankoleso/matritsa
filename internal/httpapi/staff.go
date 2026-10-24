@@ -40,7 +40,7 @@ func (s *Server) GetQueue(w http.ResponseWriter, r *http.Request, params gen.Get
 		it := gen.QueueItem{
 			Id: uid(row.ID), CompanyName: row.CompanyName, Inn: row.CompanyInn, ProductTitle: productTitle(row.ProductID),
 			Amount: row.Amount, TermMonths: int(row.TermMonths), Status: gen.Status(row.Status), UpdatedAt: row.UpdatedAt.Time,
-			WaitingMinutes: int(time.Since(row.UpdatedAt.Time).Minutes()), ManualCheck: mc,
+			WaitingMinutes: int(time.Since(row.UpdatedAt.Time).Minutes()), ManualCheck: mc, Automatic: row.Automatic.Valid && row.Automatic.Bool,
 		}
 		if row.Grade.Valid {
 			g := row.Grade.String

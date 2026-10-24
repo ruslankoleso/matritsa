@@ -47,7 +47,7 @@ func series(base int64, pattern []float64, n int) []int64 {
 	return out
 }
 
-// Companies returns the six demo companies.
+// Companies returns the demo companies: each one tells a different story.
 func Companies() []Company {
 	return []Company{
 		{
@@ -109,6 +109,56 @@ func Companies() []Company {
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 9_000_000 * rub, MaxOverdueDays: 120, Score: 480, ClosedLoans: 1, TotalRepaid: 2_000_000 * rub},
 			Story:              "Просрочка более 90 дней: отказ по жёсткому правилу",
+		},
+		{
+			Login: "client7", OwnerName: "Андрей Лебедев", INN: "7701234507", Name: "ООО «Балтийский лён»", Kind: "ooo",
+			RegisteredAt: monthsAgo(90), OKVED: "13.20", OKVEDTitle: "Производство тканей", OKVEDGroup: 1,
+			Director: "Лебедев Андрей Игоревич", Address: "г. Калининград, ул. Профсоюзная, 33",
+			MonthlyObligations: 150_000 * rub,
+			Revenue:            series(4_000_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
+			Status:             "active",
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 2_000_000 * rub, MaxOverdueDays: 0, Score: 800, ClosedLoans: 5, TotalRepaid: 12_000_000 * rub},
+			Story:              "Надёжная компания, но сумма выше лимита автоматического решения: рассматривает сотрудник",
+		},
+		{
+			Login: "client8", OwnerName: "Константин Орлов", INN: "771234500008", Name: "ИП Орлов К. А. (мастерская «Дуб»)", Kind: "ip",
+			RegisteredAt: monthsAgo(60), OKVED: "16.23", OKVEDTitle: "Производство прочих деревянных строительных конструкций", OKVEDGroup: 1,
+			Director: "Орлов Константин Александрович", Address: "г. Тверь, ул. Советская, 21",
+			MonthlyObligations: 60_000 * rub,
+			Revenue:            series(1_200_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
+			Status:             "active",
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 0, Score: 770, ClosedLoans: 1, TotalRepaid: 360_000 * rub},
+			Story:              "Хороший заёмщик с малым опытом погашения: автоматического решения нет, рассматривает сотрудник",
+		},
+		{
+			Login: "client9", OwnerName: "Виктор Зуев", INN: "7701234509", Name: "ООО «Вектор Логистик»", Kind: "ooo",
+			RegisteredAt: monthsAgo(48), OKVED: "49.41", OKVEDTitle: "Деятельность автомобильного грузового транспорта", OKVEDGroup: 3,
+			Director: "Зуев Виктор Петрович", Address: "г. Самара, Московское шоссе, 17",
+			MonthlyObligations: 140_000 * rub,
+			Revenue:            series(500_000*rub, []float64{1.0, 0.9, 1.1, 0.95, 1.05}, 12),
+			Status:             "active",
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 6_000_000 * rub, MaxOverdueDays: 15, Score: 600, ClosedLoans: 1, TotalRepaid: 1_000_000 * rub},
+			Story:              "Платежи по действующим кредитам съедают выручку: автоматический отказ по платёжеспособности",
+		},
+		{
+			Login: "client10", OwnerName: "Сергей Мартынов", INN: "7701234510", Name: "ООО «Гранд Строй»", Kind: "ooo",
+			RegisteredAt: monthsAgo(84), OKVED: "41.20", OKVEDTitle: "Строительство жилых и нежилых зданий", OKVEDGroup: 3,
+			Director: "Мартынов Сергей Олегович", Address: "г. Краснодар, ул. Красная, 120",
+			MonthlyObligations: 100_000 * rub, Bankrupt: true,
+			Revenue: series(2_000_000*rub, []float64{1.0, 0.8, 1.2, 0.9}, 12),
+			Status:  "active",
+			BKI:     &integrations.BKIReport{HasHistory: true, ActiveLoans: 2, TotalDebt: 4_000_000 * rub, MaxOverdueDays: 40, Score: 560, ClosedLoans: 2, TotalRepaid: 3_000_000 * rub},
+			Story:   "Процедура банкротства: автоматический отказ по жёсткому правилу",
+		},
+		{
+			Login: "client11", OwnerName: "Марина Васильева", INN: "771234500011", Name: "ИП Васильева М. Н. (студия «Лад»)", Kind: "ip",
+			RegisteredAt: monthsAgo(54), OKVED: "96.02", OKVEDTitle: "Предоставление услуг парикмахерскими и салонами красоты", OKVEDGroup: 2,
+			Director: "Васильева Марина Николаевна", Address: "г. Ярославль, ул. Свободы, 9",
+			MonthlyObligations: 40_000 * rub,
+			Revenue:            series(900_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
+			Status:             "active",
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 0, TotalDebt: 0, MaxOverdueDays: 0, Score: 760, ClosedLoans: 4, TotalRepaid: 5_000_000 * rub},
+			Story:              "Постоянный клиент: полная история заявок — выдача, отказ от предложения, черновик и отозванная заявка",
 		},
 	}
 }

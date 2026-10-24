@@ -251,6 +251,24 @@ func (e RecommendationSource) Valid() bool {
 	}
 }
 
+// Defines values for RejectionBy.
+const (
+	RejectionByStaff  RejectionBy = "staff"
+	RejectionBySystem RejectionBy = "system"
+)
+
+// Valid indicates whether the value is a known member of the RejectionBy enum.
+func (e RejectionBy) Valid() bool {
+	switch e {
+	case RejectionByStaff:
+		return true
+	case RejectionBySystem:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ScoringResultGrade.
 const (
 	A ScoringResultGrade = "A"
@@ -679,8 +697,11 @@ type Queue struct {
 
 // QueueItem defines model for QueueItem.
 type QueueItem struct {
-	Amount         int64              `json:"amount"`
-	AssignedTo     *string            `json:"assignedTo,omitempty"`
+	Amount     int64   `json:"amount"`
+	AssignedTo *string `json:"assignedTo,omitempty"`
+
+	// Automatic Решение принято правилами системы без сотрудника (автоотказ или автоматическое предложение)
+	Automatic      bool               `json:"automatic"`
 	CompanyName    string             `json:"companyName"`
 	Grade          *string            `json:"grade,omitempty"`
 	Id             openapi_types.UUID `json:"id"`
@@ -744,9 +765,14 @@ type RegistrationExample struct {
 
 // Rejection defines model for Rejection.
 type Rejection struct {
-	Comment *string  `json:"comment,omitempty"`
-	Reasons []string `json:"reasons"`
+	// By Кто принял решение: правила системы (автоматический отказ) или сотрудник банка
+	By      RejectionBy `json:"by"`
+	Comment *string     `json:"comment,omitempty"`
+	Reasons []string    `json:"reasons"`
 }
+
+// RejectionBy Кто принял решение: правила системы (автоматический отказ) или сотрудник банка
+type RejectionBy string
 
 // ScoringResult defines model for ScoringResult.
 type ScoringResult struct {

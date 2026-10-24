@@ -765,3 +765,40 @@ func TestStaffCard_OldRecordWithoutCoverFigures_ShowsNoZeros(t *testing.T) {
 		t.Fatalf("figures that were never calculated must be absent, not zero: dscr=%v cash=%v repaid=%v", s.Dscr, s.MonthlyCashFlow, s.RepaidTotal)
 	}
 }
+
+// A reviewer must see at once whether a decision was made by the rules or by a person.
+func TestAutomaticDecisions_AreMarkedOnTheApplicationAndInTheQueue(t *testing.T) {
+	e := newEnv(t)
+	rej := e.run("client4", e.draft("client4", products.WorkingCapital, 500_000*rub, 12, true))
+	if rej.Rejection == nil || rej.Rejection.By != gen.RejectionBySystem || len(rej.Rejection.Reasons) == 0 {
+		t.Fatalf("an automatic rejection must say it was made by the system and why: %+v", rej.Rejection)
+	}
+	auto := e.run("client1", e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, true))
+	review := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+
+	_, raw := e.do("GET", "/api/v1/staff/queue", e.token("staff1"), nil)
+	var q gen.Queue
+	mustJSON(t, raw, &q)
+	got := map[string]bool{}
+	for _, it := range q.Items {
+		got[it.Id.String()] = it.Automatic
+	}
+	if !got[rej.Id.String()] || !got[auto.Id.String()] {
+		t.Fatalf("decisions made by the rules must be marked automatic: %v", got)
+	}
+	if got[review.Id.String()] {
+		t.Fatal("an application waiting for a person is not automatic")
+	}
+
+	// the analyst rejects the one that waited: now a person decided
+	card := e.staffCard(review.Id.String())
+	code, raw := e.do("POST", "/api/v1/staff/applications/"+review.Id.String()+"/decision", e.token("staff1"),
+		map[string]any{"action": "reject", "comment": "Недостаточно подтверждений оборотов", "version": *card.Version})
+	if code != 200 {
+		t.Fatalf("%d %s", code, raw)
+	}
+	after := e.staffCard(review.Id.String())
+	if after.Application.Rejection == nil || after.Application.Rejection.By != gen.RejectionByStaff {
+		t.Fatalf("a rejection by an analyst says so: %+v", after.Application.Rejection)
+	}
+}

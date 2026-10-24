@@ -40,7 +40,9 @@ UPDATE applications SET assigned_to = $2, updated_at = now() WHERE id = $1;
 SELECT a.id, a.product_id, a.amount, a.term_months, a.status, a.updated_at, a.assigned_to,
        c.name AS company_name, c.inn AS company_inn,
        sr.grade AS grade, sr.score AS score,
-       COALESCE((a.data->'review'->>'manualCheck')::boolean, false) AS manual_check
+       COALESCE((a.data->'review'->>'manualCheck')::boolean, false) AS manual_check,
+       COALESCE((a.data->'rejection'->>'by') = 'system', false)
+         OR EXISTS (SELECT 1 FROM offers o WHERE o.application_id = a.id AND o.source = 'auto') AS automatic
 FROM applications a
 JOIN companies c ON c.id = a.company_id
 LEFT JOIN scoring_results sr ON sr.application_id = a.id

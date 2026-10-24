@@ -14,6 +14,7 @@ import (
 	"matritsa/internal/ai"
 	"matritsa/internal/auth"
 	"matritsa/internal/config"
+	"matritsa/internal/demo"
 	"matritsa/internal/events"
 	"matritsa/internal/httpapi"
 	"matritsa/internal/integrations"
@@ -69,6 +70,15 @@ func run() error {
 			slog.Warn("pipeline worker did not stop in time")
 		}
 	}()
+
+	if cfg.SeedOnStart {
+		// Filed through the real pipeline in the background: the sources may still be starting.
+		go func() {
+			if err := demo.Run(ctx, st, pipe); err != nil && ctx.Err() == nil {
+				slog.Error("demo applications failed", "err", err)
+			}
+		}()
+	}
 
 	var llm ai.LLM
 	if cfg.AIEnabled {

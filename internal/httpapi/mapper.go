@@ -157,9 +157,12 @@ func (s *Server) loadApplication(ctx context.Context, a db.Application) (gen.App
 			out.Offer = &offer
 		}
 	case workflow.Rejected:
-		rej := gen.Rejection{Reasons: []string{}}
+		rej := gen.Rejection{Reasons: []string{}, By: gen.RejectionBySystem}
 		if data.Rejection != nil {
 			rej.Reasons = data.Rejection.Reasons
+			if data.Rejection.By == "staff" {
+				rej.By = gen.RejectionByStaff
+			}
 		}
 		if c := s.lastStaffComment(ctx, a.ID, "AnalystReject"); c != "" {
 			rej.Comment = &c
