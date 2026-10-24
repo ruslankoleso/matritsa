@@ -17,7 +17,10 @@ import (
 	"matritsa/internal/workflow"
 )
 
-const maxUpload = 5 << 20
+const (
+	maxUpload    = 5 << 20
+	maxDocuments = 10 // per application: a client needs two or three, the cap only protects the disk
+)
 
 var allowedTypes = map[string]string{"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg"}
 
@@ -69,6 +72,13 @@ func (s *Server) UploadDocument(w http.ResponseWriter, r *http.Request, id gen.A
 	}
 	if !known {
 		writeFieldErrors(w, http.StatusUnprocessableEntity, "Неизвестный тип документа", []fieldErr{{"kind", "Выберите тип документа из списка для этого продукта"}})
+		return
+	}
+	if have, err := s.Store.ListDocuments(r.Context(), app.ID); err != nil {
+		internalError(w, r, err)
+		return
+	} else if len(have) >= maxDocuments {
+		writeError(w, http.StatusUnprocessableEntity, "too_many_files", "К заявке уже приложено много файлов. Удалите лишние или оставьте самые нужные")
 		return
 	}
 	file, header, err := r.FormFile("file")

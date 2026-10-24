@@ -238,6 +238,19 @@ func TestUpload_BadType_415(t *testing.T) {
 	}
 }
 
+func TestUpload_NumberOfFilesIsLimited(t *testing.T) {
+	e := newEnv(t)
+	app := e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, false)
+	for i := 0; i < 10; i++ {
+		if code, _ := e.upload(e.token("client1"), app.Id.String(), "bank_statement", "a.pdf", pdfBytes); code != 201 {
+			t.Fatalf("file %d must be accepted, got %d", i+1, code)
+		}
+	}
+	if code, _ := e.upload(e.token("client1"), app.Id.String(), "bank_statement", "a.pdf", pdfBytes); code != 422 {
+		t.Fatalf("the 11th file must be refused so the disk cannot be filled, got %d", code)
+	}
+}
+
 func TestLookup(t *testing.T) {
 	e := newEnv(t)
 	tok := e.token("client1")
