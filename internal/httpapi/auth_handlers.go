@@ -71,12 +71,16 @@ func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) issueTokens(w http.ResponseWriter, r *http.Request, user db.User) {
+	s.issueTokensWithStatus(w, r, user, http.StatusOK)
+}
+
+func (s *Server) issueTokensWithStatus(w http.ResponseWriter, r *http.Request, user db.User, code int) {
 	access, refresh, err := s.Issuer.Issue(user.ID, user.Role)
 	if err != nil {
 		internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, gen.TokenPair{AccessToken: access, RefreshToken: refresh, Role: gen.TokenPairRole(user.Role), FullName: user.FullName})
+	writeJSON(w, code, gen.TokenPair{AccessToken: access, RefreshToken: refresh, Role: gen.TokenPairRole(user.Role), FullName: user.FullName})
 }
 
 func (s *Server) GetMe(w http.ResponseWriter, r *http.Request) {

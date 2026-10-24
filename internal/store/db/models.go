@@ -103,10 +103,11 @@ type ScoringResult struct {
 }
 
 type User struct {
-	ID           string  `json:"id"`
-	Login        string  `json:"login"`
-	PasswordHash string  `json:"password_hash"`
-	Role         string  `json:"role"`
-	CompanyID    *string `json:"company_id"`
-	FullName     string  `json:"full_name"`
+	ID           string             `json:"id"`
+	Login        string             `json:"login"`
+	PasswordHash string             `json:"password_hash"`
+	Role         string             `json:"role"`
+	CompanyID    *string            `json:"company_id"`
+	FullName     string             `json:"full_name"`
+	ConsentedAt  pgtype.Timestamptz `json:"consented_at"`
 }

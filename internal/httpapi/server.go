@@ -31,8 +31,10 @@ type Deps struct {
 	Explainer    *ai.Explainer
 	DataDir      string
 	LoginLimiter *auth.Limiter
-	Heartbeat    time.Duration
-	OfferTTL     time.Duration
+	// RegisterLimiter counts sign-up attempts per address, successful ones included.
+	RegisterLimiter *auth.Limiter
+	Heartbeat       time.Duration
+	OfferTTL        time.Duration
 }
 
 type Server struct {
@@ -48,6 +50,9 @@ func New(d Deps) *Server {
 	}
 	if d.LoginLimiter == nil {
 		d.LoginLimiter = auth.NewLimiter(5, time.Minute)
+	}
+	if d.RegisterLimiter == nil {
+		d.RegisterLimiter = auth.NewLimiter(10, time.Hour)
 	}
 	return &Server{Deps: d}
 }
@@ -90,7 +95,10 @@ func timeoutExcept(d time.Duration, paths ...string) func(http.Handler) http.Han
 	}
 }
 
-var publicPaths = map[string]bool{"/api/v1/auth/login": true, "/api/v1/auth/refresh": true, "/api/v1/products": true}
+var publicPaths = map[string]bool{
+	"/api/v1/auth/login": true, "/api/v1/auth/refresh": true, "/api/v1/products": true,
+	"/api/v1/auth/register": true, "/api/v1/auth/company": true, "/api/v1/auth/registration-examples": true,
+}
 
 // bothRoles are reachable by clients and bank staff alike.
 var bothRoles = map[string]bool{"/api/v1/me": true, "/api/v1/events": true}

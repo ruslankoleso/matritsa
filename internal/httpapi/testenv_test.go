@@ -38,6 +38,9 @@ func (f *fakeSources) BKI(_ context.Context, inn string) (*integrations.BKIRepor
 	if c, ok := seed.ByINN(inn); ok && c.BKI != nil {
 		return c.BKI, nil
 	}
+	if c, ok := seed.Synthesize(inn); ok && c.BKI != nil {
+		return c.BKI, nil
+	}
 	return &integrations.BKIReport{}, nil
 }
 
@@ -46,6 +49,9 @@ func (f *fakeSources) EGRUL(_ context.Context, inn string) (integrations.EGRULRe
 		return integrations.EGRULRecord{}, integrations.ErrUnavailable
 	}
 	if c, ok := seed.ByINN(inn); ok {
+		return c.EGRUL(), nil
+	}
+	if c, ok := seed.Synthesize(inn); ok {
 		return c.EGRUL(), nil
 	}
 	return integrations.EGRULRecord{}, integrations.ErrNotFound

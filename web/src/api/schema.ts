@@ -38,6 +38,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Регистрация нового клиента
+         * @description Создаёт аккаунт предпринимателя и привязывает его к компании по ИНН. Данные компании подтягиваются из реестра (смоделированного). Сотрудников банка через регистрацию завести нельзя. Одна компания — один аккаунт.
+         */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Найти компанию по ИНН при регистрации */
+        get: operations["lookupCompanyForSignup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/registration-examples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Тестовые ИНН для регистрации
+         * @description Подсказка для демонстрации: какие ИНН какой тип компании дадут (все данные синтетические).
+         */
+        get: operations["registrationExamples"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -462,6 +519,25 @@ export interface components {
             /** @example demo1234 */
             password: string;
         };
+        RegisterRequest: {
+            /** @example Иванов Иван Иванович */
+            fullName: string;
+            /**
+             * @description Латинские буквы, цифры, точка, дефис и подчёркивание
+             * @example ivanov
+             */
+            login: string;
+            password: string;
+            /** @example 7700000016 */
+            inn: string;
+            /** @description Согласие на обработку данных; без него регистрация невозможна */
+            consent: boolean;
+        };
+        RegistrationExample: {
+            inn: string;
+            name: string;
+            note: string;
+        };
         RefreshRequest: {
             refreshToken: string;
         };
@@ -848,6 +924,81 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Аккаунт создан, пользователь сразу вошёл */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    lookupCompanyForSignup: {
+        parameters: {
+            query: {
+                inn: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Компания из реестра, которую ещё не зарегистрировали */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyLookup"];
+                };
+            };
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    registrationExamples: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Примеры */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationExample"][];
+                };
+            };
         };
     };
     getMe: {

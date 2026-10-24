@@ -78,7 +78,7 @@ func (q *Queries) GetCompanyByINN(ctx context.Context, inn string) (Company, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, login, password_hash, role, company_id, full_name FROM users WHERE id = $1
+SELECT id, login, password_hash, role, company_id, full_name, consented_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
@@ -91,12 +91,13 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 		&i.Role,
 		&i.CompanyID,
 		&i.FullName,
+		&i.ConsentedAt,
 	)
 	return i, err
 }
 
 const getUserByLogin = `-- name: GetUserByLogin :one
-SELECT id, login, password_hash, role, company_id, full_name FROM users WHERE login = $1
+SELECT id, login, password_hash, role, company_id, full_name, consented_at FROM users WHERE login = $1
 `
 
 func (q *Queries) GetUserByLogin(ctx context.Context, login string) (User, error) {
@@ -109,6 +110,88 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (User, error
 		&i.Role,
 		&i.CompanyID,
 		&i.FullName,
+		&i.ConsentedAt,
+	)
+	return i, err
+}
+
+const insertClient = `-- name: InsertClient :one
+INSERT INTO users (login, password_hash, role, company_id, full_name, consented_at)
+VALUES ($1, $2, 'client', $3, $4, now())
+RETURNING id, login, password_hash, role, company_id, full_name, consented_at
+`
+
+type InsertClientParams struct {
+	Login        string  `json:"login"`
+	PasswordHash string  `json:"password_hash"`
+	CompanyID    *string `json:"company_id"`
+	FullName     string  `json:"full_name"`
+}
+
+// A new client account from sign-up; fails on a taken login instead of overwriting it.
+func (q *Queries) InsertClient(ctx context.Context, arg InsertClientParams) (User, error) {
+	row := q.db.QueryRow(ctx, insertClient,
+		arg.Login,
+		arg.PasswordHash,
+		arg.CompanyID,
+		arg.FullName,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Login,
+		&i.PasswordHash,
+		&i.Role,
+		&i.CompanyID,
+		&i.FullName,
+		&i.ConsentedAt,
+	)
+	return i, err
+}
+
+const insertCompany = `-- name: InsertCompany :one
+INSERT INTO companies (inn, name, kind, registered_at, okved, okved_group, director, address, monthly_obligations)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, inn, name, kind, registered_at, okved, okved_group, director, address, monthly_obligations
+`
+
+type InsertCompanyParams struct {
+	Inn                string      `json:"inn"`
+	Name               string      `json:"name"`
+	Kind               string      `json:"kind"`
+	RegisteredAt       pgtype.Date `json:"registered_at"`
+	Okved              string      `json:"okved"`
+	OkvedGroup         int32       `json:"okved_group"`
+	Director           string      `json:"director"`
+	Address            string      `json:"address"`
+	MonthlyObligations int64       `json:"monthly_obligations"`
+}
+
+// Unlike UpsertCompany it never touches an existing company: sign-up must not take one over.
+func (q *Queries) InsertCompany(ctx context.Context, arg InsertCompanyParams) (Company, error) {
+	row := q.db.QueryRow(ctx, insertCompany,
+		arg.Inn,
+		arg.Name,
+		arg.Kind,
+		arg.RegisteredAt,
+		arg.Okved,
+		arg.OkvedGroup,
+		arg.Director,
+		arg.Address,
+		arg.MonthlyObligations,
+	)
+	var i Company
+	err := row.Scan(
+		&i.ID,
+		&i.Inn,
+		&i.Name,
+		&i.Kind,
+		&i.RegisteredAt,
+		&i.Okved,
+		&i.OkvedGroup,
+		&i.Director,
+		&i.Address,
+		&i.MonthlyObligations,
 	)
 	return i, err
 }
@@ -207,7 +290,7 @@ INSERT INTO users (login, password_hash, role, company_id, full_name)
 VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (login) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = EXCLUDED.role,
   company_id = EXCLUDED.company_id, full_name = EXCLUDED.full_name
-RETURNING id, login, password_hash, role, company_id, full_name
+RETURNING id, login, password_hash, role, company_id, full_name, consented_at
 `
 
 type UpsertUserParams struct {
@@ -234,6 +317,7 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, e
 		&i.Role,
 		&i.CompanyID,
 		&i.FullName,
+		&i.ConsentedAt,
 	)
 	return i, err
 }

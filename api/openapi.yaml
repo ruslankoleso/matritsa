@@ -55,6 +55,62 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenPair' }
         '401': { $ref: '#/components/responses/Error' }
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Регистрация нового клиента
+      description: "Создаёт аккаунт предпринимателя и привязывает его к компании по ИНН. Данные компании подтягиваются из реестра (смоделированного). Сотрудников банка через регистрацию завести нельзя. Одна компания — один аккаунт."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Аккаунт создан, пользователь сразу вошёл
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /auth/company:
+    get:
+      tags: [auth]
+      operationId: lookupCompanyForSignup
+      summary: Найти компанию по ИНН при регистрации
+      security: []
+      parameters:
+        - { name: inn, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Компания из реестра, которую ещё не зарегистрировали
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompanyLookup' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /auth/registration-examples:
+    get:
+      tags: [auth]
+      operationId: registrationExamples
+      summary: Тестовые ИНН для регистрации
+      description: "Подсказка для демонстрации: какие ИНН какой тип компании дадут (все данные синтетические)."
+      security: []
+      responses:
+        '200':
+          description: Примеры
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RegistrationExample' }
   /me:
     get:
       tags: [auth]
@@ -482,6 +538,22 @@ components:
       properties:
         login: { type: string, example: client1 }
         password: { type: string, example: demo1234 }
+    RegisterRequest:
+      type: object
+      required: [fullName, login, password, inn, consent]
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 100, example: Иванов Иван Иванович }
+        login: { type: string, minLength: 3, maxLength: 32, description: "Латинские буквы, цифры, точка, дефис и подчёркивание", example: ivanov }
+        password: { type: string, minLength: 8, maxLength: 72 }
+        inn: { type: string, example: "7700000016" }
+        consent: { type: boolean, description: "Согласие на обработку данных; без него регистрация невозможна" }
+    RegistrationExample:
+      type: object
+      required: [inn, name, note]
+      properties:
+        inn: { type: string }
+        name: { type: string }
+        note: { type: string }
     RefreshRequest:
       type: object
       required: [refreshToken]

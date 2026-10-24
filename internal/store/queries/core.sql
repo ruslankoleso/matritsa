@@ -37,3 +37,15 @@ SELECT count(*) FROM companies;
 
 -- name: CountUsers :one
 SELECT count(*) FROM users;
+
+-- name: InsertCompany :one
+-- Unlike UpsertCompany it never touches an existing company: sign-up must not take one over.
+INSERT INTO companies (inn, name, kind, registered_at, okved, okved_group, director, address, monthly_obligations)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING *;
+
+-- name: InsertClient :one
+-- A new client account from sign-up; fails on a taken login instead of overwriting it.
+INSERT INTO users (login, password_hash, role, company_id, full_name, consented_at)
+VALUES ($1, $2, 'client', $3, $4, now())
+RETURNING *;

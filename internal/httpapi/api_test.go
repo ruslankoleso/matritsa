@@ -260,7 +260,7 @@ func TestLookup(t *testing.T) {
 	if code, _ := e.do("GET", "/api/v1/company/lookup?inn=12345abcde", tok, nil); code != 422 {
 		t.Errorf("non-digit INN: %d", code)
 	}
-	if code, _ := e.do("GET", "/api/v1/company/lookup?inn=5000000000", tok, nil); code != 404 {
+	if code, _ := e.do("GET", "/api/v1/company/lookup?inn=5000000001", tok, nil); code != 404 {
 		t.Errorf("unknown INN: %d", code)
 	}
 	code, raw := e.do("GET", "/api/v1/company/lookup?inn=7701234501", tok, nil)

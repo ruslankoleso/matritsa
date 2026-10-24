@@ -29,14 +29,8 @@ func Seed(ctx context.Context, s *Store) error {
 			if err != nil {
 				return fmt.Errorf("company %s: %w", c.INN, err)
 			}
-			n := len(c.Revenue)
-			for i, rev := range c.Revenue {
-				month := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month()-time.Month(n-i), 1, 0, 0, 0, 0, time.UTC)
-				if err := q.UpsertFinancial(ctx, db.UpsertFinancialParams{
-					CompanyID: co.ID, Month: pgtype.Date{Time: month, Valid: true}, Revenue: rev,
-				}); err != nil {
-					return err
-				}
+			if err := SaveFinancials(ctx, q, co.ID, c.Revenue); err != nil {
+				return err
 			}
 			coID := co.ID
 			if _, err := q.UpsertUser(ctx, db.UpsertUserParams{
@@ -54,4 +48,19 @@ func Seed(ctx context.Context, s *Store) error {
 		}
 		return nil
 	})
+}
+
+// SaveFinancials stores monthly revenue, oldest first, ending with the last full month.
+func SaveFinancials(ctx context.Context, q *db.Queries, companyID string, revenue []int64) error {
+	n := len(revenue)
+	now := time.Now().UTC()
+	for i, rev := range revenue {
+		month := time.Date(now.Year(), now.Month()-time.Month(n-i), 1, 0, 0, 0, 0, time.UTC)
+		if err := q.UpsertFinancial(ctx, db.UpsertFinancialParams{
+			CompanyID: companyID, Month: pgtype.Date{Time: month, Valid: true}, Revenue: rev,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

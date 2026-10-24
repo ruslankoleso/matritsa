@@ -38,7 +38,7 @@ func TestOpenAPI_Valid(t *testing.T) {
 		"listApplications", "createApplication", "getApplication", "updateApplication", "submitApplication", "uploadDocument",
 		"respondToInfoRequest", "acceptOffer", "declineOffer", "cancelApplication", "getTimeline", "getFeed",
 		"listNotifications", "markNotificationRead", "streamEvents", "getQueue", "getStaffApplication", "claimApplication",
-		"makeDecision", "getExplanation"} {
+		"makeDecision", "getExplanation", "register", "lookupCompanyForSignup", "registrationExamples"} {
 		if _, ok := seen[id]; !ok {
 			t.Errorf("operation %s missing from the contract", id)
 		}
@@ -47,7 +47,8 @@ func TestOpenAPI_Valid(t *testing.T) {
 
 func TestOpenAPI_PublicOperationsAreExplicit(t *testing.T) {
 	doc := loadSpec(t)
-	public := map[string]bool{"login": true, "refreshToken": true, "listProducts": true}
+	public := map[string]bool{"login": true, "refreshToken": true, "listProducts": true,
+		"register": true, "lookupCompanyForSignup": true, "registrationExamples": true}
 	for _, item := range doc.Paths.Map() {
 		for _, op := range item.Operations() {
 			explicitlyOpen := op.Security != nil && len(*op.Security) == 0

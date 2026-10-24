@@ -708,6 +708,31 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	// Consent Согласие на обработку данных; без него регистрация невозможна
+	Consent bool `json:"consent"`
+
+	// FullName Example: Иванов Иван Иванович
+	FullName string `json:"fullName"`
+
+	// Inn Example: 7700000016
+	Inn string `json:"inn"`
+
+	// Login Латинские буквы, цифры, точка, дефис и подчёркивание
+	//
+	// Example: ivanov
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+// RegistrationExample defines model for RegistrationExample.
+type RegistrationExample struct {
+	Inn  string `json:"inn"`
+	Name string `json:"name"`
+	Note string `json:"note"`
+}
+
 // Rejection defines model for Rejection.
 type Rejection struct {
 	Comment *string  `json:"comment,omitempty"`
@@ -809,6 +834,11 @@ type SubmitApplicationParams struct {
 	IdempotencyKey string `json:"Idempotency-Key"`
 }
 
+// LookupCompanyForSignupParams defines parameters for LookupCompanyForSignup.
+type LookupCompanyForSignupParams struct {
+	Inn string `form:"inn" json:"inn"`
+}
+
 // LookupCompanyParams defines parameters for LookupCompany.
 type LookupCompanyParams struct {
 	Inn string `form:"inn" json:"inn"`
@@ -856,6 +886,9 @@ type LoginJSONRequestBody = LoginRequest
 // RefreshTokenJSONRequestBody defines body for RefreshToken for application/json ContentType.
 type RefreshTokenJSONRequestBody = RefreshRequest
 
+// RegisterJSONRequestBody defines body for Register for application/json ContentType.
+type RegisterJSONRequestBody = RegisterRequest
+
 // MakeDecisionJSONRequestBody defines body for MakeDecision for application/json ContentType.
 type MakeDecisionJSONRequestBody = DecisionRequest
 
@@ -897,12 +930,21 @@ type ServerInterface interface {
 	// RecommendProduct Подобрать продукт по описанию потребности (ИИ либо правила)
 	// (POST /assistant/recommend)
 	RecommendProduct(w http.ResponseWriter, r *http.Request)
+	// LookupCompanyForSignup Найти компанию по ИНН при регистрации
+	// (GET /auth/company)
+	LookupCompanyForSignup(w http.ResponseWriter, r *http.Request, params LookupCompanyForSignupParams)
 	// Login Вход по логину и паролю
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
 	// RefreshToken Обновить токены
 	// (POST /auth/refresh)
 	RefreshToken(w http.ResponseWriter, r *http.Request)
+	// Register Регистрация нового клиента
+	// (POST /auth/register)
+	Register(w http.ResponseWriter, r *http.Request)
+	// RegistrationExamples Тестовые ИНН для регистрации
+	// (GET /auth/registration-examples)
+	RegistrationExamples(w http.ResponseWriter, r *http.Request)
 	// LookupCompany Найти компанию по ИНН в (смоделированном) ЕГРЮЛ
 	// (GET /company/lookup)
 	LookupCompany(w http.ResponseWriter, r *http.Request, params LookupCompanyParams)
@@ -1017,6 +1059,12 @@ func (_ Unimplemented) RecommendProduct(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// LookupCompanyForSignup Найти компанию по ИНН при регистрации
+// (GET /auth/company)
+func (_ Unimplemented) LookupCompanyForSignup(w http.ResponseWriter, r *http.Request, params LookupCompanyForSignupParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Login Вход по логину и паролю
 // (POST /auth/login)
 func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
@@ -1026,6 +1074,18 @@ func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
 // RefreshToken Обновить токены
 // (POST /auth/refresh)
 func (_ Unimplemented) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Register Регистрация нового клиента
+// (POST /auth/register)
+func (_ Unimplemented) Register(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RegistrationExamples Тестовые ИНН для регистрации
+// (GET /auth/registration-examples)
+func (_ Unimplemented) RegistrationExamples(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1414,6 +1474,39 @@ func (siw *ServerInterfaceWrapper) RecommendProduct(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// LookupCompanyForSignup operation middleware
+func (siw *ServerInterfaceWrapper) LookupCompanyForSignup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LookupCompanyForSignupParams
+
+	// ------------- Required query parameter "inn" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "inn", r.URL.Query(), &params.Inn, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "inn"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "inn", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LookupCompanyForSignup(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
 
@@ -1433,6 +1526,34 @@ func (siw *ServerInterfaceWrapper) RefreshToken(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RefreshToken(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Register operation middleware
+func (siw *ServerInterfaceWrapper) Register(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Register(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RegistrationExamples operation middleware
+func (siw *ServerInterfaceWrapper) RegistrationExamples(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RegistrationExamples(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1874,6 +1995,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/refresh", wrapper.RefreshToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/register", wrapper.Register)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/company", wrapper.LookupCompanyForSignup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/registration-examples", wrapper.RegistrationExamples)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/me", wrapper.GetMe)

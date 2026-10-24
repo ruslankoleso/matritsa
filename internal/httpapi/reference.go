@@ -41,6 +41,11 @@ func (s *Server) LookupCompany(w http.ResponseWriter, r *http.Request, params ge
 		writeFieldErrors(w, http.StatusUnprocessableEntity, "Проверьте ИНН", []fieldErr{{"inn", "ИНН состоит из 10 цифр (для организаций) или 12 цифр (для ИП)"}})
 		return
 	}
+	s.writeCompany(w, r, inn)
+}
+
+// writeCompany answers with the registry record of inn (or the reason there is none).
+func (s *Server) writeCompany(w http.ResponseWriter, r *http.Request, inn string) {
 	rec, err := s.Lookup.EGRUL(r.Context(), inn)
 	switch {
 	case errors.Is(err, integrations.ErrNotFound):
