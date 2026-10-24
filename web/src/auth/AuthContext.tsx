@@ -25,12 +25,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => loadSession())
 
   // The cache holds the previous person's data (company, applications). It must never outlive the session.
-  useEffect(() => onSessionChange((s) => {
-    if (!s) {
-      queryClient.clear()
-      setSession(null)
+  useEffect(() => {
+    const off = onSessionChange((s) => {
+      if (!s) {
+        queryClient.clear()
+        setSession(null)
+      }
+    })
+    return () => {
+      off()
     }
-  }), [])
+  }, [])
 
   const login = useCallback(async (loginName: string, password: string) => {
     const s = await api.login(loginName, password)
