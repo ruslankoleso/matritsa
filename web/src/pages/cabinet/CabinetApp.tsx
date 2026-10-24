@@ -47,7 +47,7 @@ function Cabinet() {
     })),
     allTo: '/cabinet/notifications',
     allLabel: 'Открыть все уведомления',
-    empty: 'Пока ничего нового',
+    empty: 'Новых уведомлений нет',
     onOpenItem: (it) => {
       if (it.unread) read.mutate(it.id)
     },

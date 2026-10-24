@@ -69,7 +69,7 @@ describe('Landing', () => {
   it('the INN blank refuses a malformed INN and says how to fix it', async () => {
     setup()
     await userEvent.type(screen.getByLabelText('ИНН компании'), '123')
-    await userEvent.click(screen.getByRole('button', { name: 'поехали' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Продолжить' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('10 цифр')
   })
 

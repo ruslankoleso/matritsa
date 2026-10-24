@@ -9,8 +9,8 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page.getByRole('heading', { name: 'Ваше предложение' })).toBeVisible()
     await expect(page.getByText('Платёж в месяц')).toBeVisible()
     await page.getByRole('button', { name: 'Принять и подписать' }).click()
-    await expect(page.getByText('Готово: деньги выданы (в демо — условно)').first()).toBeVisible()
-    await expect(page.getByText('Деньги выданы (демо)').first()).toBeVisible()
+    await expect(page.getByText('Готово: деньги выданы').first()).toBeVisible()
+    await expect(page.getByText('Деньги выданы').first()).toBeVisible()
   })
 
   test('a borderline case goes to an analyst who makes a counter-offer; the client sees it live', async ({ browser }) => {
@@ -35,10 +35,10 @@ test.describe('credit pipeline, end to end', () => {
 
     // The client page is still open and was not reloaded: the update arrives over SSE.
     await expect(client.getByRole('heading', { name: 'Предложение банка' })).toBeVisible()
-    await expect(client.getByText('Это не совсем то, что вы просили')).toBeVisible()
+    await expect(client.getByText('Условия отличаются от запрошенных')).toBeVisible()
     await expect(client.getByText(/Сумма: 800.000.₽ вместо 3.000.000.₽/)).toBeVisible()
     await client.getByRole('button', { name: 'Принять и подписать' }).click()
-    await expect(client.getByText('Деньги выданы (демо)').first()).toBeVisible()
+    await expect(client.getByText('Деньги выданы').first()).toBeVisible()
     await clientCtx.close()
     await staffCtx.close()
   })
@@ -46,7 +46,7 @@ test.describe('credit pipeline, end to end', () => {
   test('a liquidated company is declined automatically with plain reasons', async ({ page }) => {
     await loginAs(page, /Старый порт/)
     await fillAndSubmit(page, { product: /оборотные средства/, amount: '500000', term: '12' })
-    await expect(page.getByRole('heading', { name: 'Почему так вышло' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Причины отказа' })).toBeVisible()
     await expect(page.getByText(/не является действующей/)).toBeVisible()
     await expect(page.getByRole('link', { name: 'Подать новую заявку' })).toBeVisible()
   })
@@ -160,7 +160,7 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page.locator('.company-card')).toBeVisible()
     await page.getByRole('checkbox', { name: /Согласен на обработку данных/ }).check()
     await page.getByRole('button', { name: 'Создать аккаунт' }).click()
-    await expect(page.getByRole('heading', { name: 'Давайте оформим первую заявку' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Оформите первую заявку' })).toBeVisible()
     await page.getByLabel('На что нужны деньги').fill('купить станок для мастерской')
     await page.getByRole('button', { name: 'Создать заявку' }).click()
     await expect(page).toHaveURL(/\/cabinet\/new/)

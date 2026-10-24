@@ -174,13 +174,13 @@ func ageFactor(months int, cfg Config) Factor {
 	f := Factor{Key: "company_age", Title: "Возраст бизнеса", Max: cfg.MaxAge}
 	switch {
 	case months >= 36:
-		f.Points, f.Note = cfg.MaxAge, fmt.Sprintf("Бизнес работает %s — это плюс", years(months))
+		f.Points, f.Note = cfg.MaxAge, fmt.Sprintf("Срок работы %s", years(months))
 	case months >= 12:
-		f.Points, f.Note = cfg.MaxAge*2/3, fmt.Sprintf("Бизнес работает %s — достаточно, чтобы оценить результаты", years(months))
+		f.Points, f.Note = cfg.MaxAge*2/3, fmt.Sprintf("Срок работы %s: достаточно для оценки результатов", years(months))
 	case months >= 6:
-		f.Points, f.Note = cfg.MaxAge/3, "Бизнесу меньше года — истории пока немного"
+		f.Points, f.Note = cfg.MaxAge/3, fmt.Sprintf("Срок работы %d мес.: история ограничена", months)
 	default:
-		f.Points, f.Note = 0, "Бизнес совсем молодой — банку трудно оценить его устойчивость"
+		f.Points, f.Note = 0, fmt.Sprintf("Срок работы %d мес.: недостаточно для оценки устойчивости", months)
 	}
 	return f
 }
@@ -203,7 +203,7 @@ func years(months int) string {
 func stabilityFactor(rev []int64, avg int64, cfg Config) Factor {
 	f := Factor{Key: "revenue_stability", Title: "Стабильность выручки", Max: cfg.MaxStability}
 	if avg <= 0 || len(rev) < 3 {
-		f.Note = "Недостаточно данных о выручке, чтобы оценить стабильность"
+		f.Note = "Данных о выручке недостаточно для оценки стабильности (нужно не менее 3 месяцев)"
 		return f
 	}
 	var sq float64
@@ -214,13 +214,13 @@ func stabilityFactor(rev []int64, avg int64, cfg Config) Factor {
 	cv := math.Sqrt(sq/float64(len(rev))) / float64(avg)
 	switch {
 	case cv < 0.15:
-		f.Points, f.Note = cfg.MaxStability, "Выручка ровная от месяца к месяцу"
+		f.Points, f.Note = cfg.MaxStability, fmt.Sprintf("Выручка стабильна: коэффициент вариации %d%%", pct(cv))
 	case cv < 0.30:
-		f.Points, f.Note = cfg.MaxStability*13/20, "Выручка колеблется умеренно"
+		f.Points, f.Note = cfg.MaxStability*13/20, fmt.Sprintf("Умеренные колебания выручки: коэффициент вариации %d%%", pct(cv))
 	case cv < 0.50:
-		f.Points, f.Note = cfg.MaxStability*6/20, "Выручка заметно скачет по месяцам"
+		f.Points, f.Note = cfg.MaxStability*6/20, fmt.Sprintf("Значительные колебания выручки: коэффициент вариации %d%%", pct(cv))
 	default:
-		f.Points, f.Note = 0, "Выручка очень нестабильна"
+		f.Points, f.Note = 0, fmt.Sprintf("Выручка нестабильна: коэффициент вариации %d%%", pct(cv))
 	}
 	return f
 }
@@ -229,21 +229,21 @@ func stabilityFactor(rev []int64, avg int64, cfg Config) Factor {
 func existingDebtFactor(obligations, avg int64, cfg Config) Factor {
 	f := Factor{Key: "existing_debt", Title: "Текущая долговая нагрузка", Max: cfg.MaxExistingDebt}
 	if avg <= 0 {
-		f.Note = "Нет выручки — нагрузку оценить нельзя"
+		f.Note = "Нет подтверждённой выручки: нагрузку оценить нельзя"
 		return f
 	}
 	load := float64(obligations) / float64(avg)
 	switch {
 	case load < 0.10:
-		f.Points, f.Note = cfg.MaxExistingDebt, fmt.Sprintf("Действующие кредиты забирают около %d%% выручки — нагрузка небольшая", pct(load))
+		f.Points, f.Note = cfg.MaxExistingDebt, fmt.Sprintf("Действующие платежи составляют %d%% выручки: низкая нагрузка", pct(load))
 	case load < 0.20:
-		f.Points, f.Note = cfg.MaxExistingDebt*15/20, fmt.Sprintf("Действующие кредиты забирают около %d%% выручки — нагрузка умеренная", pct(load))
+		f.Points, f.Note = cfg.MaxExistingDebt*15/20, fmt.Sprintf("Действующие платежи составляют %d%% выручки: умеренная нагрузка", pct(load))
 	case load < 0.30:
-		f.Points, f.Note = cfg.MaxExistingDebt*9/20, fmt.Sprintf("Действующие кредиты забирают около %d%% выручки — нагрузка заметная", pct(load))
+		f.Points, f.Note = cfg.MaxExistingDebt*9/20, fmt.Sprintf("Действующие платежи составляют %d%% выручки: повышенная нагрузка", pct(load))
 	case load < 0.45:
-		f.Points, f.Note = cfg.MaxExistingDebt*3/20, fmt.Sprintf("Действующие кредиты забирают около %d%% выручки — нагрузка высокая", pct(load))
+		f.Points, f.Note = cfg.MaxExistingDebt*3/20, fmt.Sprintf("Действующие платежи составляют %d%% выручки: высокая нагрузка", pct(load))
 	default:
-		f.Points, f.Note = 0, fmt.Sprintf("Действующие кредиты забирают около %d%% выручки — это слишком много", pct(load))
+		f.Points, f.Note = 0, fmt.Sprintf("Действующие платежи составляют %d%% выручки: чрезмерная нагрузка", pct(load))
 	}
 	return f
 }
@@ -254,15 +254,15 @@ func bkiFactor(b *integrations.BKIReport, cfg Config) Factor {
 	f := Factor{Key: "bki_score", Title: "Кредитная история (балл БКИ)", Max: cfg.MaxBKI}
 	switch {
 	case b == nil || !b.HasHistory:
-		f.Points, f.Note = cfg.MaxBKI*10/25, "Кредитной истории нет — это не минус, но и подтвердить надёжность пока нечем"
+		f.Points, f.Note = cfg.MaxBKI*10/25, "Кредитная история отсутствует: оценка по данным бюро невозможна"
 	case b.Score >= 750:
-		f.Points, f.Note = cfg.MaxBKI, "Высокий балл бюро кредитных историй"
+		f.Points, f.Note = cfg.MaxBKI, fmt.Sprintf("Балл бюро кредитных историй %d: высокий", b.Score)
 	case b.Score >= 650:
-		f.Points, f.Note = cfg.MaxBKI*18/25, "Хороший балл бюро кредитных историй"
+		f.Points, f.Note = cfg.MaxBKI*18/25, fmt.Sprintf("Балл бюро кредитных историй %d: хороший", b.Score)
 	case b.Score >= 550:
-		f.Points, f.Note = cfg.MaxBKI*9/25, "Средний балл бюро кредитных историй"
+		f.Points, f.Note = cfg.MaxBKI*9/25, fmt.Sprintf("Балл бюро кредитных историй %d: средний", b.Score)
 	default:
-		f.Points, f.Note = 0, "Низкий балл бюро кредитных историй"
+		f.Points, f.Note = 0, fmt.Sprintf("Балл бюро кредитных историй %d: низкий", b.Score)
 	}
 	return f
 }
@@ -273,9 +273,9 @@ func overdueFactor(b *integrations.BKIReport, cfg Config) Factor {
 	case b == nil || !b.HasHistory || b.MaxOverdueDays == 0:
 		f.Points, f.Note = cfg.MaxOverdue, "Просрочек по платежам не было"
 	case b.MaxOverdueDays <= 30:
-		f.Points, f.Note = cfg.MaxOverdue*8/15, fmt.Sprintf("Была короткая просрочка — до %d дней", b.MaxOverdueDays)
+		f.Points, f.Note = cfg.MaxOverdue*8/15, fmt.Sprintf("Короткая просрочка: до %d дн.", b.MaxOverdueDays)
 	default:
-		f.Points, f.Note = 0, fmt.Sprintf("Была значительная просрочка — до %d дней", b.MaxOverdueDays)
+		f.Points, f.Note = 0, fmt.Sprintf("Значительная просрочка: до %d дн.", b.MaxOverdueDays)
 	}
 	return f
 }
@@ -286,9 +286,9 @@ func okvedFactor(group int, cfg Config) Factor {
 	case 1:
 		f.Points, f.Note = cfg.MaxOKVED, "Отрасль с устойчивым спросом"
 	case 2:
-		f.Points, f.Note = cfg.MaxOKVED*3/5, "Отрасль со средней зависимостью от рынка"
+		f.Points, f.Note = cfg.MaxOKVED*3/5, "Отрасль со средней зависимостью от рыночной конъюнктуры"
 	default:
-		f.Points, f.Note = 0, "Отрасль с повышенной зависимостью от рынка"
+		f.Points, f.Note = 0, "Отрасль с повышенной зависимостью от рыночной конъюнктуры"
 	}
 	return f
 }

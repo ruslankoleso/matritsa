@@ -262,12 +262,12 @@ func (s *Server) RespondToInfoRequest(w http.ResponseWriter, r *http.Request, id
 		return
 	}
 	if workflow.Status(app.Status) != workflow.NeedsInfo {
-		writeError(w, http.StatusConflict, "invalid_state", "Сейчас от вас ничего не требуется")
+		writeError(w, http.StatusConflict, "invalid_state", "Сейчас от вас не требуется действий")
 		return
 	}
 	text := strings.TrimSpace(in.Text)
 	if text == "" {
-		writeFieldErrors(w, http.StatusUnprocessableEntity, "Напишите ответ", []fieldErr{{"text", "Напишите пару слов в ответ на вопрос банка"}})
+		writeFieldErrors(w, http.StatusUnprocessableEntity, "Введите ответ", []fieldErr{{"text", "Ответьте на вопрос банка"}})
 		return
 	}
 	data := appdata.Parse(app.Data)
@@ -321,7 +321,7 @@ func (s *Server) AcceptOffer(w http.ResponseWriter, r *http.Request, id gen.Appl
 		return
 	}
 	// Signing and disbursement are simulated: no real documents or money move.
-	if err := s.Pipeline.Apply(r.Context(), app.ID, workflow.Disburse, "system", "Документы подписаны, деньги отправлены (демо — реальных операций нет)", pipeline.AnyVersion); err != nil {
+	if err := s.Pipeline.Apply(r.Context(), app.ID, workflow.Disburse, "system", "Документы подписаны, деньги перечислены", pipeline.AnyVersion); err != nil {
 		s.applyError(w, r, err)
 		return
 	}

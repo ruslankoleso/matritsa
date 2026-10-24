@@ -34,7 +34,7 @@ function useRun() {
       if (ok) toast(ok)
       return true
     } catch (e) {
-      setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Что-то пошло не так. Попробуйте ещё раз.')
+      setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Произошла ошибка. Повторите попытку.')
       return false
     } finally {
       setBusy('')
@@ -65,10 +65,10 @@ function OfferCard({ app }: { app: Application }) {
       qc.setQueryData(['application', done.id], done)
       void qc.invalidateQueries({ queryKey: ['applications'] })
       void qc.invalidateQueries({ queryKey: ['timeline'] })
-      toast('Готово: документы подписаны, деньги отправлены (в демо — условно)')
+      toast('Готово: документы подписаны, деньги переведены')
     } catch (e) {
       setAccepting('idle')
-      setAcceptError(e instanceof ApiError ? e.message : 'Не получилось принять предложение. Попробуйте ещё раз.')
+      setAcceptError(e instanceof ApiError ? e.message : 'Не удалось принять предложение. Повторите попытку.')
     }
   }
 
@@ -89,7 +89,7 @@ function OfferCard({ app }: { app: Application }) {
       {o.changes && o.changes.length > 0 && (
         <div className="callout callout-info" style={{ marginTop: 18 }}>
           <div>
-            <b>Это не совсем то, что вы просили</b>
+            <b>Условия отличаются от запрошенных</b>
             <ul className="changes" style={{ marginTop: 8 }}>{o.changes.map((c) => <li key={c}>{c}</li>)}</ul>
           </div>
         </div>
@@ -101,7 +101,7 @@ function OfferCard({ app }: { app: Application }) {
           {confirm ? (
             <>
               <Button variant="dark" busy={busy === 'decline'} onClick={() => void run('decline', () => api.decline(app.id), 'Вы отказались от предложения')}>Да, отказаться</Button>
-              <Button variant="ghost" onClick={() => setConfirm(false)}>Передумал</Button>
+              <Button variant="ghost" onClick={() => setConfirm(false)}>Отмена</Button>
             </>
           ) : (
             <Button variant="outline" size="lg" onClick={() => setConfirm(true)}>Отказаться</Button>
@@ -149,12 +149,12 @@ function InfoCard({ app }: { app: Application }) {
       )}
       <div className="field" style={{ marginTop: 16 }}>
         <label htmlFor="answer">Ваш ответ</label>
-        <textarea id="answer" className="textarea" value={text} onChange={(e) => { setText(e.target.value); setError('') }} placeholder="Напишите, что сделали или что хотите уточнить" />
+        <textarea id="answer" className="textarea" value={text} onChange={(e) => { setText(e.target.value); setError('') }} placeholder="Введите ответ на вопрос банка" />
         {error && <span className="field-error" role="alert">{error}</span>}
       </div>
       <div className="form-actions">
         <span />
-        <Button busy={busy === 'respond'} disabled={!text.trim()} onClick={() => void run('respond', () => api.respond(app.id, text.trim()), 'Ответ отправлен — заявка снова в работе').then((ok) => { if (ok) setText('') })}>Отправить ответ</Button>
+        <Button busy={busy === 'respond'} disabled={!text.trim()} onClick={() => void run('respond', () => api.respond(app.id, text.trim()), 'Ответ отправлен. Заявка возвращена на рассмотрение').then((ok) => { if (ok) setText('') })}>Отправить ответ</Button>
       </div>
     </section>
   )
@@ -254,15 +254,15 @@ export default function ApplicationPage() {
           {app.offer && ['OFFER_MADE', 'SIGNING'].includes(app.status) && <div style={{ marginTop: 16 }}><OfferCard app={app} /></div>}
           {app.status === 'DISBURSED' && app.offer && (
             <section className="card" style={{ marginTop: 16 }}>
-              <div className="callout callout-ok"><div><b>Готово: деньги выданы (в демо — условно)</b><p style={{ marginTop: 4 }}>{formatMoney(app.offer.amount)} на {formatTerm(app.offer.termMonths)} под {formatRate(app.offer.rateBp)}. Платёж — {formatMoney(app.offer.monthlyPayment)} в месяц.</p></div></div>
+              <div className="callout callout-ok"><div><b>Готово: деньги выданы</b><p style={{ marginTop: 4 }}>{formatMoney(app.offer.amount)} на {formatTerm(app.offer.termMonths)} под {formatRate(app.offer.rateBp)}. Платёж — {formatMoney(app.offer.monthlyPayment)} в месяц.</p></div></div>
             </section>
           )}
           {app.status === 'REJECTED' && (
             <section className="card" style={{ marginTop: 16 }} aria-labelledby="rej-h">
-              <h2 id="rej-h" style={{ marginBottom: 10 }}>Почему так вышло</h2>
+              <h2 id="rej-h" style={{ marginBottom: 10 }}>Причины отказа</h2>
               {rej && rej.reasons.length > 0 && <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>{rej.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
               {rej?.comment && <div className="callout callout-info" style={{ marginTop: 14 }}><div><b>Комментарий сотрудника банка</b><p style={{ marginTop: 4 }}>{rej.comment}</p></div></div>}
-              <p className="field-hint" style={{ marginTop: 12 }}>Что можно сделать: подать заявку на меньшую сумму или выбрать другой продукт.</p>
+              <p className="field-hint" style={{ marginTop: 12 }}>Возможные действия: подать заявку на меньшую сумму или выбрать другой продукт.</p>
               <div className="offer-actions"><LinkButton to="/cabinet/new" variant="dark">Подать новую заявку</LinkButton></div>
             </section>
           )}

@@ -117,7 +117,7 @@ func TestFallback_KeywordsAndAmounts(t *testing.T) {
 func sampleResult() (scoring.Result, decision.Decision) {
 	res := scoring.Result{Score: 59, Grade: scoring.GradeC, PD: 0.06, CumulativePD: 0.1126, LGD: 0.6, EAD: 300_000_000, ExpectedLoss: 20_268_000, ELRate: 0.06756, Factors: []scoring.Factor{
 		{Key: "company_age", Title: "Возраст бизнеса", Points: 10, Max: 10, Note: "Бизнес работает 8 лет — это плюс"},
-		{Key: "existing_debt", Title: "Текущая долговая нагрузка", Points: 0, Max: 20, Note: "Действующие кредиты забирают около 52% выручки — это слишком много"},
+		{Key: "existing_debt", Title: "Текущая долговая нагрузка", Points: 0, Max: 20, Note: "Действующие платежи составляют 52% выручки: чрезмерная нагрузка"},
 		{Key: "bki_score", Title: "Кредитная история", Points: 7, Max: 20, Note: "Средний балл бюро кредитных историй"},
 	}}
 	rec := decision.Offer{Amount: 800_000 * rub, TermMonths: 24, RateBP: 2100}
@@ -130,7 +130,7 @@ func TestExplain_Fallback_MentionsTopFactors(t *testing.T) {
 	if src != "rules" {
 		t.Fatalf("source = %s", src)
 	}
-	for _, want := range []string{"C", "59", "Бизнес работает 8 лет", "слишком много"} {
+	for _, want := range []string{"C", "59", "Бизнес работает 8 лет", "чрезмерная нагрузка"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("explanation misses %q:\n%s", want, text)
 		}
@@ -226,7 +226,7 @@ func TestExplain_Staff_NoExpectedLossSentenceWithoutMetrics(t *testing.T) {
 func TestExplain_Client_ExistingDebtIsPutInPlainWords(t *testing.T) {
 	res, d := sampleResult()
 	text, _ := NewExplainer(nil).Explain(context.Background(), res, d, "client")
-	if !strings.Contains(text, "уже действующие платежи") {
+	if !strings.Contains(text, "действующие платежи по кредитам составляют значительную часть выручки") {
 		t.Fatalf("client text must explain the existing-debt weakness:\n%s", text)
 	}
 	if strings.Contains(text, "PD") || strings.Contains(text, "LGD") {

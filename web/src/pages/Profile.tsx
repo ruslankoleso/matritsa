@@ -41,7 +41,7 @@ export default function Profile() {
       <div className="page-head">
         <div>
           <h1>Мой профиль</h1>
-          <p className="sub">{isClient ? 'Что о вас и вашей компании известно в кабинете' : 'Ваш аккаунт в рабочем месте банка'}</p>
+          <p className="sub">{isClient ? 'Данные аккаунта и компании' : 'Ваш аккаунт в рабочем месте банка'}</p>
         </div>
       </div>
 
@@ -72,7 +72,7 @@ export default function Profile() {
                 <Row label="Дата регистрации">{formatFullDate(company.registeredAt)}</Row>
               </div>
               <p className="sub" style={{ marginTop: 12 }}>
-                Сведения подтянуты из реестра. Если что-то не совпадает, напишите об этом в заявке.
+                Сведения подтянуты из реестра. При расхождении данных укажите это в заявке.
               </p>
             </section>
           )}

@@ -18,8 +18,8 @@ function StartWindow() {
         {Array.from({ length: 5 }, (_, i) => <i key={i} />)}
       </div>
       <div className="start-body">
-        <h2 id="start-h">Давайте оформим первую заявку</h2>
-        <p>Расскажите своими словами, на что нужны деньги. Мы подскажем подходящий продукт и сразу посчитаем платёж.</p>
+        <h2 id="start-h">Оформите первую заявку</h2>
+        <p>Опишите своими словами, на что нужны средства. Мы подберём продукт и рассчитаем платёж.</p>
         <form className="start-form" onSubmit={(e) => { e.preventDefault(); go(text) }}>
           <label htmlFor="need" className="sr-only">На что нужны деньги</label>
           <input id="need" value={text} onChange={(e) => setText(e.target.value)} placeholder="Например: купить станок для мастерской" autoComplete="off" />
@@ -30,7 +30,7 @@ function StartWindow() {
             <button key={q} type="button" className="btn btn-soft btn-sm" onClick={() => go(q)}>{q}</button>
           ))}
         </div>
-        <p className="start-alt"><Link to="/cabinet/new">или выбрать продукт самому</Link></p>
+        <p className="start-alt"><Link to="/cabinet/new">или выбрать продукт вручную</Link></p>
       </div>
     </section>
   )
@@ -48,7 +48,7 @@ export default function Home() {
       <div className="page-head">
         <div>
           <h1>Главная</h1>
-          <p className="sub">Что с вашими заявками и что можно сделать дальше</p>
+          <p className="sub">Состояние заявок и доступные действия</p>
         </div>
         {list.length > 0 && <LinkButton to="/cabinet/new">Новая заявка</LinkButton>}
       </div>

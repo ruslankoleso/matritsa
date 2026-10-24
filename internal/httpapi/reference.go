@@ -76,7 +76,7 @@ func (s *Server) RecommendProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	rec, err := s.Assistant.Recommend(r.Context(), req.Text)
 	if errors.Is(err, ai.ErrEmptyText) {
-		writeFieldErrors(w, http.StatusUnprocessableEntity, "Расскажите, на что нужны деньги", []fieldErr{{"text", "Опишите потребность хотя бы парой слов"}})
+		writeFieldErrors(w, http.StatusUnprocessableEntity, "Опишите потребность", []fieldErr{{"text", "Укажите, на что нужны средства"}})
 		return
 	}
 	if err != nil {

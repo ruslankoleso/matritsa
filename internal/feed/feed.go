@@ -73,8 +73,8 @@ func Build(p Profile) []Card {
 	if p.CompanyAgeMonths > 0 && p.CompanyAgeMonths < 12 {
 		cards = append(cards, Card{
 			ID: "tip-history", Kind: "tip", Priority: 30,
-			Title: "Соберите платёжную историю",
-			Body:  "Бизнесу меньше года — банку пока трудно оценить устойчивость. Регулярные поступления на счёт и своевременные платежи за пару месяцев заметно улучшат условия.",
+			Title: "Сформируйте платёжную историю",
+			Body:  "Срок работы менее года: банку недостаточно данных об устойчивости. Регулярные поступления на счёт и своевременные платежи в течение нескольких месяцев улучшат условия.",
 		})
 	}
 	if t := sectorTip(class); t != nil {
@@ -84,7 +84,7 @@ func Build(p Profile) []Card {
 		cards = append(cards, Card{
 			ID: "tip-start", Kind: "tip", Priority: 50,
 			Title:    "С чего начать",
-			Body:     "Расскажите, на что нужны деньги, — мы подберём подходящий продукт и посчитаем платёж.",
+			Body:     "Опишите, на что нужны средства: мы подберём продукт и рассчитаем платёж.",
 			CTALabel: "Подобрать кредит", CTAHref: "/cabinet/new",
 		})
 	}
@@ -101,25 +101,25 @@ func appCard(a AppSummary) (*Card, bool) {
 	switch a.Status {
 	case "NEEDS_INFO":
 		return &Card{ID: "app-" + a.ID + "-info", Kind: "action", Priority: 1, ApplicationID: a.ID,
-			Title:    "Нужно небольшое уточнение",
-			Body:     "Банк просит дополнить заявку «" + a.ProductTitle + "». Это займёт пару минут — и мы продолжим.",
+			Title:    "Требуется уточнение",
+			Body:     "Банку требуется уточнение по заявке «" + a.ProductTitle + "». Ответ займёт несколько минут.",
 			CTALabel: "Ответить", CTAHref: href}, true
 	case "OFFER_MADE":
-		body := "Для вас готово предложение по заявке «" + a.ProductTitle + "». Посмотрите условия и примите решение."
+		body := "По заявке «" + a.ProductTitle + "» подготовлено предложение. Ознакомьтесь с условиями и примите решение."
 		if !a.OfferExpiresAt.IsZero() {
-			body = "Предложение по заявке «" + a.ProductTitle + "» действует до " + ruDate(a.OfferExpiresAt) + ". Посмотрите условия и примите решение."
+			body = "Предложение по заявке «" + a.ProductTitle + "» действует до " + ruDate(a.OfferExpiresAt) + ". Ознакомьтесь с условиями и примите решение."
 		}
 		return &Card{ID: "app-" + a.ID + "-offer", Kind: "status", Priority: 2, ApplicationID: a.ID,
-			Title: "Ваше предложение готово", Body: body, CTALabel: "Посмотреть условия", CTAHref: href}, true
+			Title: "Предложение подготовлено", Body: body, CTALabel: "Посмотреть условия", CTAHref: href}, true
 	case "ANALYST_REVIEW":
 		return &Card{ID: "app-" + a.ID + "-review", Kind: "status", Priority: 3, ApplicationID: a.ID,
 			Title:    "Заявку рассматривает сотрудник банка",
-			Body:     "Заявка «" + a.ProductTitle + "» у специалиста. Как только решение будет готово, вы увидите его здесь.",
+			Body:     "Заявка «" + a.ProductTitle + "» находится на рассмотрении у сотрудника банка. Решение появится здесь.",
 			CTALabel: "Открыть заявку", CTAHref: href}, true
 	case "SUBMITTED", "INTAKE_CHECK", "ENRICHMENT", "SCORING":
 		return &Card{ID: "app-" + a.ID + "-progress", Kind: "status", Priority: 4, ApplicationID: a.ID,
 			Title:    "Заявка в обработке",
-			Body:     "Проверяем данные по заявке «" + a.ProductTitle + "». Обычно это занимает пару минут.",
+			Body:     "Выполняется проверка данных по заявке «" + a.ProductTitle + "». Обычно она занимает несколько минут.",
 			CTALabel: "Следить за статусом", CTAHref: href}, true
 	case "SIGNING":
 		return &Card{ID: "app-" + a.ID + "-signing", Kind: "action", Priority: 2, ApplicationID: a.ID,
@@ -128,17 +128,17 @@ func appCard(a AppSummary) (*Card, bool) {
 	case "DRAFT":
 		return &Card{ID: "app-" + a.ID + "-draft", Kind: "action", Priority: 5, ApplicationID: a.ID,
 			Title:    "У вас есть черновик заявки",
-			Body:     "Заявка «" + a.ProductTitle + "» сохранена. Дозаполните её и отправьте.",
+			Body:     "Заявка «" + a.ProductTitle + "» сохранена. Завершите заполнение и отправьте её.",
 			CTALabel: "Продолжить", CTAHref: href}, false
 	case "DISBURSED":
 		return &Card{ID: "app-" + a.ID + "-upsell", Kind: "upsell", Priority: 20, ProductID: "overdraft",
-			Title:    "Подушка безопасности для счёта",
-			Body:     "Кредит получен — самое время подумать об овердрафте: он покроет кассовый разрыв, если клиенты заплатят позже.",
+			Title:    "Резерв на расчётном счёте",
+			Body:     "Кредит получен. Рекомендуем рассмотреть овердрафт: он покроет кассовый разрыв при задержке оплаты от клиентов.",
 			CTALabel: "Подобрать овердрафт", CTAHref: "/cabinet/new?product=overdraft"}, false
 	case "REJECTED":
 		return &Card{ID: "app-" + a.ID + "-rejected", Kind: "tip", Priority: 6, ApplicationID: a.ID,
 			Title:    "Что делать после отказа",
-			Body:     "Посмотрите причины в заявке «" + a.ProductTitle + "». Часто помогает меньшая сумма или другой продукт.",
+			Body:     "Посмотрите причины в заявке «" + a.ProductTitle + "». Возможное решение: заявка на меньшую сумму или по другому продукту.",
 			CTALabel: "Посмотреть причины", CTAHref: href}, false
 	}
 	return nil, false
@@ -155,26 +155,26 @@ func productCards(p Profile, class string) []Card {
 
 	if manufacturing || trade || food || p.AvgMonthlyRevenue > 0 {
 		out = append(out, Card{ID: "prod-working-capital", Kind: "product", Priority: 10, ProductID: "working_capital",
-			Title:    "Деньги на оборотные средства",
+			Title:    "Финансирование оборотных средств",
 			Body:     workingCapitalBody(manufacturing, trade, food),
 			CTALabel: "Рассчитать", CTAHref: "/cabinet/new?product=working_capital"})
 	}
 	if manufacturing || construction || transport {
 		out = append(out, Card{ID: "prod-equipment", Kind: "product", Priority: 11, ProductID: "equipment",
-			Title:    "Оборудование и техника в рассрочку",
-			Body:     "Для вашей отрасли подойдёт кредит на оборудование: длинный срок — небольшой ежемесячный платёж.",
+			Title:    "Кредит на оборудование и технику",
+			Body:     "Для вашей отрасли подходит кредит на оборудование: длительный срок и умеренный ежемесячный платёж.",
 			CTALabel: "Рассчитать", CTAHref: "/cabinet/new?product=equipment"})
 	}
 	if p.Volatility >= 0.2 || services {
 		out = append(out, Card{ID: "prod-overdraft", Kind: "product", Priority: 12, ProductID: "overdraft",
 			Title:    "Овердрафт на случай кассового разрыва",
-			Body:     "Выручка у вас бывает неровной. Овердрафт выручит в месяцы, когда платежи приходят позже расходов.",
+			Body:     "Выручка меняется от месяца к месяцу. Овердрафт покрывает периоды, когда поступления приходят позже расходов.",
 			CTALabel: "Узнать условия", CTAHref: "/cabinet/new?product=overdraft"})
 	}
 	if p.CompanyAgeMonths < 12 || (p.AvgMonthlyRevenue > 0 && p.AvgMonthlyRevenue < 500_000*100) {
 		out = append(out, Card{ID: "prod-express", Kind: "product", Priority: 13, ProductID: "express",
-			Title:    "Экспресс-кредит: быстро и без лишних бумаг",
-			Body:     "Небольшая сумма и быстрое решение — удобно, если деньги нужны срочно.",
+			Title:    "Экспресс-кредит: быстрое решение и минимум документов",
+			Body:     "Небольшая сумма и быстрое решение подходят, если средства нужны срочно.",
 			CTALabel: "Рассчитать", CTAHref: "/cabinet/new?product=express"})
 	}
 	return out
@@ -189,7 +189,7 @@ func workingCapitalBody(manufacturing, trade, food bool) string {
 	case trade:
 		return "Товар нужно купить раньше, чем он продастся. Оборотный кредит закрывает этот промежуток."
 	}
-	return "Деньги на текущие расходы: закупки, зарплаты, сезонные провалы."
+	return "Средства на текущие расходы: закупки, зарплаты, сезонные спады."
 }
 
 func sectorTip(class string) *Card {
@@ -204,7 +204,7 @@ func sectorTip(class string) *Card {
 	case class == "62":
 		title, body = "IT и сервисы", "Подписки и долгосрочные контракты хорошо показывают стабильность выручки — приложите их к заявке."
 	case class == "96":
-		title, body = "Услуги для населения", "Регулярные поступления по терминалу и онлайн-записи — сильный аргумент для банка."
+		title, body = "Услуги для населения", "Регулярные поступления по терминалу и онлайн-записи — подтверждают стабильность выручки."
 	default:
 		return nil
 	}

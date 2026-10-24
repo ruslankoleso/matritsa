@@ -76,18 +76,18 @@ export function leadFinding(a: Application): { text: string; cta?: { label: stri
   const to = `/cabinet/applications/${a.id}`
   switch (a.status) {
     case 'DRAFT':
-      return { text: a.missingItems.length ? `Заявка не отправлена: осталось ${a.missingItems.length === 1 ? 'одно' : a.missingItems.length}.` : 'Заявка готова — осталось отправить.', cta: { label: 'Продолжить', to } }
+      return { text: a.missingItems.length ? `Заявка не отправлена: не заполнено пунктов — ${a.missingItems.length}.` : 'Заявка готова — осталось отправить.', cta: { label: 'Продолжить', to } }
     case 'NEEDS_INFO':
-      return { text: a.infoRequest?.text ?? 'Банку нужно небольшое уточнение.', cta: { label: 'Ответить', to } }
+      return { text: a.infoRequest?.text ?? 'Банку требуется уточнение.', cta: { label: 'Ответить', to } }
     case 'OFFER_MADE':
       return {
-        text: a.offer ? `Для вас готово предложение: платёж ${formatMoney(a.offer.monthlyPayment)} в месяц, действует до ${formatDate(a.offer.expiresAt)}.` : 'Для вас готово предложение.',
+        text: a.offer ? `Подготовлено предложение: платёж ${formatMoney(a.offer.monthlyPayment)} в месяц, действует до ${formatDate(a.offer.expiresAt)}.` : 'Подготовлено предложение.',
         cta: { label: 'Посмотреть условия', to },
       }
     case 'REJECTED':
-      return { text: 'Банк не смог одобрить заявку. Причины — в заявке, там же подсказки, что можно сделать.', cta: { label: 'Посмотреть причины', to } }
+      return { text: 'Банк не может одобрить заявку. Причины и возможные действия указаны в заявке.', cta: { label: 'Посмотреть причины', to } }
     case 'DISBURSED':
-      return { text: 'Готово: деньги выданы (в демо — условно).', cta: { label: 'Открыть заявку', to } }
+      return { text: 'Деньги выданы.', cta: { label: 'Открыть заявку', to } }
     default:
       return { text: a.statusMessage, cta: { label: 'Открыть заявку', to } }
   }

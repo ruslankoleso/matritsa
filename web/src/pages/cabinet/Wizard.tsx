@@ -42,7 +42,7 @@ export function validateStep1(f: Form, products: Product[]): Record<string, stri
   if (!Number.isInteger(term) || term < p.minTerm || term > p.maxTerm) {
     errs.term = p.minTerm === p.maxTerm ? `Для этого продукта срок — ${formatTerm(p.minTerm)}` : `Для этого продукта срок — от ${formatTerm(p.minTerm)} до ${formatTerm(p.maxTerm)}`
   }
-  if (!f.purpose.trim()) errs.purpose = 'Напишите пару слов о цели — банку важно понимать, на что пойдут деньги'
+  if (!f.purpose.trim()) errs.purpose = 'Укажите цель кредита: банку необходимо знать, на что будут направлены средства'
   return errs
 }
 
@@ -111,7 +111,7 @@ export default function Wizard({ app }: { app?: Application }) {
       void qc.invalidateQueries({ queryKey: ['applications'] })
       return a
     } catch (e) {
-      setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Не получилось сохранить. Попробуйте ещё раз.')
+      setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Не удалось сохранить. Повторите попытку.')
       return null
     } finally {
       setBusy(false)
@@ -139,9 +139,9 @@ export default function Wizard({ app }: { app?: Application }) {
     setLookup(null)
     try {
       const r = await api.lookupCompany(me.data.company.inn)
-      setLookup({ ok: r.status === 'active', text: r.status === 'active' ? `Нашли в реестре: ${r.name}, действующая. Директор — ${r.director}.` : `В реестре статус компании: «${r.status}». Это может повлиять на решение.` })
+      setLookup({ ok: r.status === 'active', text: r.status === 'active' ? `Найдено в реестре: ${r.name}, статус «действующая». Руководитель: ${r.director}.` : `В реестре статус компании: «${r.status}». Это может повлиять на решение.` })
     } catch (e) {
-      setLookup({ ok: false, text: e instanceof ApiError ? e.message : 'Реестр сейчас недоступен — можно продолжить.' })
+      setLookup({ ok: false, text: e instanceof ApiError ? e.message : 'Реестр временно недоступен. Можно продолжить без сверки.' })
     }
   }
 
@@ -161,7 +161,7 @@ export default function Wizard({ app }: { app?: Application }) {
     if (a) {
       setDone(true)
       await sleep(900)
-      toast('Заявка отправлена — следите за статусом здесь')
+      toast('Заявка отправлена. Статус отображается на этой странице')
       nav(`/cabinet/applications/${a.id}`, { replace: true })
     }
   }
@@ -231,7 +231,7 @@ export default function Wizard({ app }: { app?: Application }) {
                   </div>
                   <div className="wide">
                     <FloatField id="purpose" label="На что пойдут деньги" multiline value={form.purpose} onChange={(v) => set({ purpose: v })}
-                      error={touched ? errs.purpose : undefined} hint="Это помогает банку быстрее разобраться — отвечать подробно не нужно." />
+                      error={touched ? errs.purpose : undefined} hint="Достаточно краткого описания: оно ускоряет рассмотрение заявки." />
                   </div>
                 </div>
               </section>
@@ -250,7 +250,7 @@ export default function Wizard({ app }: { app?: Application }) {
                   <p className="field-hint" style={{ marginTop: 10 }}>По базовой ставке {formatRate(product.baseRateBp)}. Точные условия банк назовёт после проверки — ставка зависит от оценки.</p>
                 </>
               ) : (
-                <p className="field-hint">Выберите продукт и укажите сумму со сроком — здесь появится ориентир.</p>
+                <p className="field-hint">Выберите продукт, сумму и срок: здесь отобразится ориентировочный платёж.</p>
               )}
             </section>
           </aside>
@@ -262,7 +262,7 @@ export default function Wizard({ app }: { app?: Application }) {
           <div className="col-8">
             <section className="card" aria-labelledby="co-h">
               <h2 id="co-h" style={{ marginBottom: 10 }}>Ваша компания</h2>
-              <p className="field-hint" style={{ marginBottom: 12 }}>Эти данные уже есть в профиле — вводить повторно не нужно.</p>
+              <p className="field-hint" style={{ marginBottom: 12 }}>Данные взяты из профиля, повторный ввод не требуется.</p>
               {me.data?.company && (
                 <div className="kv">
                   <div className="kv-row"><span>Название</span><b>{me.data.company.name}</b></div>
@@ -299,7 +299,7 @@ export default function Wizard({ app }: { app?: Application }) {
               {product.documents.map((d) => (
                 <DocUpload key={d.kind} title={d.title} why={d.why} required={d.required} uploaded={app.documents.filter((x) => x.kind === d.kind)} onUpload={upload(d.kind)} />
               ))}
-              <p className="field-hint" style={{ marginTop: 6 }}>Подходят PDF, PNG и JPEG до 5 МБ. В демо можно загрузить любой подходящий файл.</p>
+              <p className="field-hint" style={{ marginTop: 6 }}>Допустимы файлы PDF, PNG и JPEG размером до 5 МБ.</p>
             </section>
             <div className="form-actions">
               <Button variant="ghost" onClick={() => goStep(2)}>Назад</Button>
@@ -329,7 +329,7 @@ export default function Wizard({ app }: { app?: Application }) {
                   </div>
                 </div>
               ) : (
-                <div className="callout callout-ok" style={{ marginTop: 16 }}><IconCheck width={16} height={16} /> <span>Всё заполнено. После отправки заявка пойдёт по маршруту — вы увидите каждый шаг.</span></div>
+                <div className="callout callout-ok" style={{ marginTop: 16 }}><IconCheck width={16} height={16} /> <span>Заявка заполнена. После отправки отображается каждый этап её рассмотрения.</span></div>
               )}
             </section>
             <div className="form-actions">

@@ -49,7 +49,7 @@ export function Assistant({ products, onApply, initial }: { products: Product[];
       await wait(200)
       setLog((l) => [...l, { kind: 'reco', reco, need: q }])
     } catch {
-      setLog((l) => [...l.filter((e) => e.kind !== 'typing'), { kind: 'bot', text: 'Пока не получилось подобрать продукт. Выберите его в списке ниже — подсказки всегда рядом.' }])
+      setLog((l) => [...l.filter((e) => e.kind !== 'typing'), { kind: 'bot', text: 'Не удалось подобрать продукт. Выберите его в списке ниже.' }])
     } finally {
       setBusy(false)
     }
@@ -57,7 +57,7 @@ export function Assistant({ products, onApply, initial }: { products: Product[];
 
   return (
     <section className="assistant" aria-labelledby="assistant-h">
-      <h2 id="assistant-h">Не знаете, что выбрать? Расскажите, что нужно</h2>
+      <h2 id="assistant-h">Не определились с продуктом? Опишите потребность</h2>
       <p className="hint">Это лишь подсказка, выбор всегда за вами. Решение о кредите принимает банк, а не помощник.</p>
       {log.length > 0 && (
         <div className="chat" role="log" aria-live="polite" aria-label="Диалог с помощником">
@@ -71,7 +71,7 @@ export function Assistant({ products, onApply, initial }: { products: Product[];
                 <b>{p?.title ?? e.reco.productId}</b>
                 {e.reco.amount ? <span>{formatMoney(e.reco.amount)}{e.reco.termMonths ? `, ${formatTerm(e.reco.termMonths)}` : ''}</span> : null}
                 <div className="reco-actions">
-                  <Button size="sm" variant="dark" onClick={() => onApply(e.reco, e.need)}>Выбрать это</Button>
+                  <Button size="sm" variant="dark" onClick={() => onApply(e.reco, e.need)}>Выбрать продукт</Button>
                   <small>{e.reco.source === 'ai' ? 'Подсказка ИИ (открытая модель)' : 'Подобрано по правилам'}</small>
                 </div>
               </div>

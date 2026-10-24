@@ -58,7 +58,7 @@ export default function Register({ inn, onInnChange }: Props) {
     const found: Record<string, string> = {}
     if (fullName.trim().length < 2) found.fullName = 'Укажите фамилию, имя и отчество'
     if (!LOGIN_RE.test(login.trim())) found.login = 'Логин — от 3 до 32 символов: латинские буквы, цифры, точка, дефис, подчёркивание'
-    if (password.length < 8) found.password = 'Пароль — не короче 8 символов'
+    if (password.length < 8) found.password = 'Пароль — не менее 8 символов'
     setErrors(found)
     if (Object.keys(found).length === 0) setStep(2)
   }
@@ -91,7 +91,7 @@ export default function Register({ inn, onInnChange }: Props) {
         <p className="signup-step">Шаг 1 из 2: о вас</p>
         <FloatField id="fullName" label="ФИО" autoComplete="name" autoFocus value={fullName} onChange={setFullName} error={errors.fullName} />
         <FloatField id="login" label="Логин" autoComplete="username" value={login} onChange={setLogin} error={errors.login} hint="Латинские буквы и цифры, например ivanov" />
-        <FloatField id="password" label="Пароль" type="password" autoComplete="new-password" value={password} onChange={setPassword} error={errors.password} hint="Не короче 8 символов" />
+        <FloatField id="password" label="Пароль" type="password" autoComplete="new-password" value={password} onChange={setPassword} error={errors.password} hint="Не менее 8 символов" />
         <Button type="submit" size="lg" block>Дальше</Button>
       </form>
     )
@@ -112,7 +112,7 @@ export default function Register({ inn, onInnChange }: Props) {
         onChange={(v) => onInnChange(v.replace(/\D/g, ''))}
         ok={!!company}
         error={lookup.state === 'error' ? lookup.message : undefined}
-        hint={lookup.state === 'loading' ? 'Ищем в реестре…' : 'Для организаций 10 цифр, для ИП 12. Нет под рукой — возьмите тестовый справа'}
+        hint={lookup.state === 'loading' ? 'Ищем в реестре…' : 'Для организаций 10 цифр, для ИП 12. Можно использовать тестовый ИНН справа'}
       />
       {company && (
         <div className="company-card" aria-live="polite">

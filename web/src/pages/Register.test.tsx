@@ -48,7 +48,7 @@ describe('Register', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Дальше' }))
     expect(screen.getByText('Укажите фамилию, имя и отчество')).toBeInTheDocument()
     expect(screen.getByText(/Логин — от 3 до 32 символов/)).toBeInTheDocument()
-    expect(screen.getByText(/Пароль — не короче 8 символов/)).toBeInTheDocument()
+    expect(screen.getByText(/Пароль — не менее 8 символов/)).toBeInTheDocument()
     expect(screen.queryByLabelText('ИНН компании')).not.toBeInTheDocument()
     expect(fetchMock).not.toHaveBeenCalled()
   })

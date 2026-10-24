@@ -30,7 +30,7 @@ func NewAssistant(llm LLM) *Assistant { return &Assistant{llm: llm} }
 const systemPrompt = `Ты помощник банка для владельцев малого бизнеса. По описанию потребности выбери ОДИН кредитный продукт.
 Продукты: working_capital (оборотные средства: закупки, зарплаты, сезонные расходы), equipment (покупка оборудования и техники),
 overdraft (кассовые разрывы, запас на счёте), express (небольшая сумма, срочно).
-Ответь ТОЛЬКО JSON без пояснений: {"productId":"...","amountRub":число,"termMonths":число,"rationale":"1-2 предложения по-русски простым языком, почему этот продукт"}.
+Ответь ТОЛЬКО JSON без пояснений: {"productId":"...","amountRub":число,"termMonths":число,"rationale":"1-2 предложения по-русски, ясным деловым языком, почему этот продукт"}.
 Не принимай кредитных решений и не обещай одобрение.`
 
 var ErrEmptyText = errors.New("опишите, на что нужны деньги")
@@ -138,7 +138,7 @@ func Fallback(text string) Recommendation {
 	amount, term := clamp(p, amount, defaultTerm[pid])
 	return Recommendation{
 		ProductID: pid, Amount: amount, TermMonths: term, Source: "rules",
-		Rationale: fmt.Sprintf("Судя по описанию, вам подойдёт «%s». %s", p.Title, p.Hint),
+		Rationale: fmt.Sprintf("По описанию подходит продукт «%s». %s", p.Title, p.Hint),
 	}
 }
 

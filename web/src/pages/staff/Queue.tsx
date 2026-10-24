@@ -56,7 +56,7 @@ export default function Queue() {
       <section className="card" style={{ padding: '18px 10px 4px' }}>
         {q.isLoading ? <Loading rows={4} /> : q.isError ? <ErrorBox error={q.error} onRetry={() => void q.refetch()} /> : rows.length === 0 ? (
           <Empty title={tab === 'review' ? 'Очередь пуста' : 'Ничего не найдено'}>
-            {tab === 'review' ? 'Новые заявки, которым нужен человек, появятся здесь сами.' : 'Попробуйте другой запрос или вкладку.'}
+            {tab === 'review' ? 'Заявки, требующие решения сотрудника, появятся здесь автоматически.' : 'Попробуйте другой запрос или вкладку.'}
           </Empty>
         ) : (
           <div className="table-wrap">

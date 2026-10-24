@@ -14,7 +14,7 @@ type Explainer struct{ llm LLM }
 
 func NewExplainer(llm LLM) *Explainer { return &Explainer{llm: llm} }
 
-const explainSystem = `Ты помогаешь объяснить кредитное решение простым русским языком в 3-4 предложениях.
+const explainSystem = `Ты помогаешь объяснить кредитное решение ясным деловым русским языком в 3-4 предложениях.
 Используй ТОЛЬКО факты из сообщения, ничего не выдумывай, не меняй цифры и итог решения. Без канцелярита и без markdown.`
 
 // Explain returns a plain-language explanation and its source (ai | rules).
@@ -47,7 +47,8 @@ func rubles(kopecks int64) string {
 }
 
 func offerText(o *decision.Offer) string {
-	return fmt.Sprintf("%s на %d мес. под %.1f%% годовых (платёж около %s в месяц)", rubles(o.Amount), o.TermMonths, float64(o.RateBP)/100, rubles(o.MonthlyPayment))
+	rate := strings.Replace(fmt.Sprintf("%.1f", float64(o.RateBP)/100), ".", ",", 1)
+	return fmt.Sprintf("%s на %d мес. под %s%% годовых (платёж около %s в месяц)", rubles(o.Amount), o.TermMonths, rate, rubles(o.MonthlyPayment))
 }
 
 func fallbackText(res scoring.Result, d decision.Decision, audience string) string {
@@ -66,12 +67,12 @@ func fallbackText(res scoring.Result, d decision.Decision, audience string) stri
 	var b strings.Builder
 	fmt.Fprintf(&b, "Класс риска %s — %d баллов из 100.", res.Grade, res.Score)
 	if len(strong) > 0 {
-		b.WriteString(" В плюс: ")
+		b.WriteString(" Сильные стороны: ")
 		b.WriteString(joinNotes(strong))
 		b.WriteString(".")
 	}
 	if len(weak) > 0 {
-		b.WriteString(" Тянет вниз: ")
+		b.WriteString(" Факторы риска: ")
 		b.WriteString(joinNotes(weak))
 		b.WriteString(".")
 	}
@@ -110,15 +111,15 @@ func outcomeText(d decision.Decision) string {
 }
 
 var clientStrong = map[string]string{
-	"company_age": "ваш бизнес работает достаточно давно", "revenue_stability": "выручка ровная от месяца к месяцу",
-	"existing_debt": "действующие кредиты почти не нагружают бизнес", "bki_score": "у вас хорошая кредитная история",
-	"overdue": "вы платите без просрочек", "okved_risk": "в вашей отрасли устойчивый спрос",
+	"company_age": "срок работы компании достаточен для оценки", "revenue_stability": "выручка стабильна",
+	"existing_debt": "нагрузка по действующим кредитам низкая", "bki_score": "кредитная история положительная",
+	"overdue": "просрочек по платежам не было", "okved_risk": "отрасль с устойчивым спросом",
 }
 
 var clientWeak = map[string]string{
-	"company_age": "бизнес пока молодой", "revenue_stability": "выручка заметно колеблется от месяца к месяцу",
-	"existing_debt": "уже действующие платежи по кредитам забирают заметную часть выручки", "bki_score": "кредитная история пока не позволяет уверенно оценить надёжность",
-	"overdue": "в прошлом были просрочки", "okved_risk": "отрасль заметно зависит от рыночной ситуации",
+	"company_age": "срок работы компании небольшой", "revenue_stability": "выручка заметно меняется от месяца к месяцу",
+	"existing_debt": "действующие платежи по кредитам составляют значительную часть выручки", "bki_score": "кредитной истории недостаточно для оценки надёжности",
+	"overdue": "ранее были просрочки по платежам", "okved_risk": "отрасль зависит от рыночной конъюнктуры",
 }
 
 func pick(fs []scoring.Factor, dict map[string]string) []string {
@@ -134,22 +135,22 @@ func pick(fs []scoring.Factor, dict map[string]string) []string {
 func clientText(strong, weak []scoring.Factor, d decision.Decision) string {
 	var b strings.Builder
 	if s := pick(strong, clientStrong); len(s) > 0 {
-		b.WriteString("Что нам понравилось: " + strings.Join(s, ", ") + ". ")
+		b.WriteString("Сильные стороны: " + strings.Join(s, ", ") + ". ")
 	}
 	if w := pick(weak, clientWeak); len(w) > 0 {
-		b.WriteString("На что мы обратили внимание: " + strings.Join(w, ", ") + ". ")
+		b.WriteString("Ограничивающие факторы: " + strings.Join(w, ", ") + ". ")
 	}
 	switch d.Outcome {
 	case decision.AutoOffer:
-		b.WriteString("Поэтому готовы предложить " + offerText(d.Offer) + ".")
+		b.WriteString("Банк готов предложить " + offerText(d.Offer) + ".")
 	case decision.Review:
 		if d.Recommended != nil {
-			b.WriteString("Поэтому можем предложить " + offerText(d.Recommended) + ". Сотрудник банка ещё посмотрит заявку и подтвердит условия.")
+			b.WriteString("Банк может предложить " + offerText(d.Recommended) + ". Условия подтвердит сотрудник банка.")
 		} else {
-			b.WriteString("Сотрудник банка ещё посмотрит заявку и подтвердит условия.")
+			b.WriteString("Условия подтвердит сотрудник банка.")
 		}
 	default:
-		b.WriteString("К сожалению, сейчас мы не можем одобрить заявку. " + strings.Join(d.Reasons, ". ") + ". Можно подать заявку на меньшую сумму или другой продукт.")
+		b.WriteString("Банк не может одобрить заявку. " + strings.Join(d.Reasons, ". ") + ". Можно подать заявку на меньшую сумму или выбрать другой продукт.")
 	}
 	return strings.TrimSpace(b.String())
 }

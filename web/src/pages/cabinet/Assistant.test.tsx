@@ -30,7 +30,7 @@ describe('Assistant', () => {
     expect(await within(log).findByText('Подойдёт кредит на оборудование.')).toBeInTheDocument()
     const card = await within(log).findByText('Кредит на оборудование')
     expect(card).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Выбрать это' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Выбрать продукт' }))
     expect(apply).toHaveBeenCalledWith(expect.objectContaining({ productId: 'equipment' }), 'Нужно купить станок')
   })
 
@@ -39,7 +39,7 @@ describe('Assistant', () => {
     render(<Assistant products={[eq]} initial="" onApply={() => {}} />)
     await userEvent.type(screen.getByLabelText('Опишите, на что нужны деньги'), 'нужны деньги')
     await userEvent.click(screen.getByRole('button', { name: 'Подобрать' }))
-    expect(await screen.findByText(/не получилось подобрать/i)).toBeInTheDocument()
+    expect(await screen.findByText(/не удалось подобрать/i)).toBeInTheDocument()
   })
 
   it('survives browsers whose scrollIntoView returns a Promise', async () => {

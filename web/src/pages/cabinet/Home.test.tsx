@@ -31,7 +31,7 @@ describe('Home for a person without applications', () => {
 
   it('shows a start window with a field to create the first application', async () => {
     setup([])
-    expect(await screen.findByRole('heading', { name: 'Давайте оформим первую заявку' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Оформите первую заявку' })).toBeInTheDocument()
     expect(screen.getByLabelText('На что нужны деньги')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Создать заявку' })).toBeInTheDocument()
     // the same invitation is not repeated by an empty "my applications" card
@@ -60,6 +60,6 @@ describe('Home for a person without applications', () => {
   it('does not show the start window to a person who already has applications', async () => {
     setup([{ id: 'a1', productTitle: 'Овердрафт', amount: 100000000, termMonths: 12, status: 'DRAFT', createdAt: '2026-10-20T10:00:00Z', updatedAt: '2026-10-20T10:00:00Z' }])
     await screen.findAllByText(/Овердрафт/)
-    expect(screen.queryByRole('heading', { name: 'Давайте оформим первую заявку' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Оформите первую заявку' })).not.toBeInTheDocument()
   })
 })

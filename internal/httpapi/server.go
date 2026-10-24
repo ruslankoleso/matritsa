@@ -169,7 +169,7 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 
 func internalError(w http.ResponseWriter, r *http.Request, err error) {
 	slog.Error("internal error", "path", r.URL.Path, "err", err, "id", middleware.GetReqID(r.Context()))
-	writeError(w, http.StatusInternalServerError, "internal", "Что-то пошло не так. Попробуйте ещё раз чуть позже.")
+	writeError(w, http.StatusInternalServerError, "internal", "Произошла ошибка. Повторите попытку позже.")
 }
 
 // errConflict maps pipeline/workflow conflicts to HTTP 409.

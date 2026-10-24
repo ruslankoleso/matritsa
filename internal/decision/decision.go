@@ -53,17 +53,17 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 		return Decision{Outcome: Reject, Reasons: append([]string(nil), res.HardStops...)}
 	}
 	if res.Grade == scoring.GradeE {
-		return Decision{Outcome: Reject, Reasons: []string{"Итоговая оценка риска слишком низкая для выдачи кредита"}}
+		return Decision{Outcome: Reject, Reasons: []string{"Оценка риска не соответствует требованиям банка для выдачи кредита"}}
 	}
 	if res.MaxAffordableAmount < p.MinAmount {
 		return Decision{Outcome: Reject, Reasons: []string{
-			fmt.Sprintf("Долговая нагрузка слишком высока даже для минимальной суммы продукта (%d ₽)", p.MinAmount/rub),
+			fmt.Sprintf("Долговая нагрузка не позволяет выдать даже минимальную сумму по продукту (%d ₽)", p.MinAmount/rub),
 		}}
 	}
 
 	if res.Grade == scoring.GradeA && amount <= p.AutoApproveLimit && amount <= res.MaxAffordableAmount {
 		offer, _ := MakeOffer(p, res.Grade, amount, term, "auto")
-		return Decision{Outcome: AutoOffer, Offer: &offer, Reasons: []string{"Высокая надёжность и небольшая сумма — решение принято автоматически"}}
+		return Decision{Outcome: AutoOffer, Offer: &offer, Reasons: []string{"Низкий риск и сумма в пределах лимита: решение принято автоматически"}}
 	}
 
 	recAmount := amount
@@ -73,15 +73,15 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 		if recAmount < p.MinAmount {
 			recAmount = p.MinAmount
 		}
-		reasons = append(reasons, "Запрошенная сумма создаёт слишком большую нагрузку на бизнес — предлагаем меньше")
+		reasons = append(reasons, "Запрошенная сумма превышает допустимую нагрузку на бизнес: рекомендована меньшая")
 	}
 	if recAmount > p.MaxAmount {
 		recAmount = p.MaxAmount
 	}
 	if res.Grade == scoring.GradeA {
-		reasons = append(reasons, "Сумма выше лимита автоматического решения — нужна проверка сотрудником")
+		reasons = append(reasons, "Сумма превышает лимит автоматического решения: требуется рассмотрение сотрудником")
 	} else {
-		reasons = append(reasons, "Оценка риска в серой зоне — решение за сотрудником банка")
+		reasons = append(reasons, "Оценка риска в промежуточной зоне: решение принимает сотрудник банка")
 	}
 	rec, _ := MakeOffer(p, res.Grade, recAmount, term, "recommended")
 	return Decision{Outcome: Review, Recommended: &rec, Reasons: reasons}

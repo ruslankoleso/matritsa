@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isFinal, routeStates, statusView } from './status'
+import { isFinal, routeStates, statusView, transitionText } from './status'
 
 describe('routeStates', () => {
   it('starts at the first stop for a draft', () => {
@@ -23,5 +23,12 @@ describe('routeStates', () => {
     expect(isFinal('REJECTED')).toBe(true)
     expect(isFinal('SCORING')).toBe(false)
     expect(statusView('ANALYST_REVIEW').label).toBe('У сотрудника банка')
+  })
+})
+
+describe('transitionText', () => {
+  it('names the statuses in words, not by their codes', () => {
+    expect(transitionText('DRAFT', 'SUBMITTED')).toBe('Черновик → Отправлена')
+    expect(transitionText('ENRICHMENT', 'SCORING')).toBe('Сверка данных → Оценка')
   })
 })

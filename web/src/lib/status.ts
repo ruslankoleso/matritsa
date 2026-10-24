@@ -16,13 +16,16 @@ const VIEW: Record<Status, StatusView> = {
   OFFER_MADE: { label: 'Есть предложение', tone: 'ok' },
   REJECTED: { label: 'Отказ', tone: 'bad' },
   SIGNING: { label: 'Подписание', tone: 'ok' },
-  DISBURSED: { label: 'Деньги выданы (демо)', tone: 'ok' },
+  DISBURSED: { label: 'Деньги выданы', tone: 'ok' },
   DECLINED_BY_CLIENT: { label: 'Вы отказались', tone: 'default' },
   EXPIRED: { label: 'Срок истёк', tone: 'default' },
   CANCELLED: { label: 'Отозвана', tone: 'default' },
 }
 
 export const statusView = (s: Status): StatusView => VIEW[s] ?? { label: s, tone: 'default' }
+
+/** "Черновик → Отправлена": a status change in words, for journals. */
+export const transitionText = (from: string, to: string) => `${statusView(from as Status).label} → ${statusView(to as Status).label}`
 
 export const STOPS = ['Заявка', 'Проверка', 'Оценка', 'Решение', 'Деньги'] as const
 

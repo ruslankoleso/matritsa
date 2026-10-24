@@ -51,7 +51,7 @@ func (s *Server) UploadDocument(w http.ResponseWriter, r *http.Request, id gen.A
 		return
 	}
 	if st := workflow.Status(app.Status); st != workflow.Draft && st != workflow.NeedsInfo {
-		writeError(w, http.StatusConflict, "invalid_state", "Сейчас документы добавлять не нужно")
+		writeError(w, http.StatusConflict, "invalid_state", "На этом этапе добавление документов недоступно")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxUpload+(1<<20))
@@ -78,7 +78,7 @@ func (s *Server) UploadDocument(w http.ResponseWriter, r *http.Request, id gen.A
 		internalError(w, r, err)
 		return
 	} else if len(have) >= maxDocuments {
-		writeError(w, http.StatusUnprocessableEntity, "too_many_files", "К заявке уже приложено много файлов. Удалите лишние или оставьте самые нужные")
+		writeError(w, http.StatusUnprocessableEntity, "too_many_files", "К заявке приложено максимальное число файлов (10)")
 		return
 	}
 	file, header, err := r.FormFile("file")

@@ -9,8 +9,9 @@ import { Route } from '../../design/Route'
 import { Empty, ErrorBox, Loading } from '../../design/states'
 import { useToast } from '../../design/Toast'
 import { annuity, formatDate, formatDateTime, formatMoney, formatPercent, formatRate, formatTerm } from '../../lib/format'
-import { routeStatesOf } from '../../lib/status'
+import { routeStatesOf, transitionText } from '../../lib/status'
 import { useCountUp } from '../../lib/useCountUp'
+import Conclusion from './Conclusion'
 
 /** True one frame after mount, so CSS transitions can run from the initial state. */
 function useMounted() {
@@ -59,8 +60,8 @@ function Breakdown({ card }: { card: StaffApplication }) {
       <div className="score-line">
         <ScoreRing score={s.score} grade={s.grade} />
         <div className="score-facts">
-          <b>Класс {s.grade}: это оценка самого заёмщика</b>
-          <span>Она не зависит от суммы и срока заявки. Чем длиннее шкала, тем сильнее фактор.</span>
+          <b>Класс {s.grade}: оценка заёмщика</b>
+          <span>Класс не зависит от суммы и срока заявки. Длина шкалы показывает вклад фактора.</span>
         </div>
       </div>
       <div className="affordable">
@@ -160,8 +161,8 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
     onError: (e) => {
       if (e instanceof ApiError && e.status === 409) {
         void qc.invalidateQueries({ queryKey: ['staffApp', app.id] })
-        setError('Заявку уже изменили. Мы обновили карточку — проверьте и повторите.')
-      } else setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Не получилось сохранить решение.')
+        setError('Заявка была изменена другим пользователем. Карточка обновлена: проверьте данные и повторите действие.')
+      } else setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Не удалось сохранить решение.')
     },
   })
 
@@ -205,25 +206,13 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
       <div className="field">
         <label htmlFor="comment">{action === 'request_info' ? 'Что нужно уточнить' : action === 'reject' ? 'Причина отказа (увидит клиент)' : 'Комментарий (необязательно)'}</label>
         <textarea id="comment" className="textarea" value={comment} onChange={(e) => setComment(e.target.value)} />
-        {needComment && !comment.trim() && <span className="field-hint">Клиент увидит этот текст — напишите простыми словами.</span>}
+        {needComment && !comment.trim() && <span className="field-hint">Клиент увидит этот текст: формулируйте ясно и кратко.</span>}
       </div>
       {error && <div className="callout callout-bad" role="alert" style={{ marginTop: 12 }}>{error}</div>}
       <div className="form-actions">
         <span />
         <Button variant={action === 'reject' ? 'dark' : 'primary'} disabled={disabled} busy={m.isPending} onClick={() => { setError(''); m.mutate() }}>{ACTION_LABEL[action]}</Button>
       </div>
-    </section>
-  )
-}
-
-function Explanation({ id, enabled }: { id: string; enabled: boolean }) {
-  const q = useQuery({ queryKey: ['explanation', id], queryFn: () => api.explanation(id, 'staff'), enabled })
-  if (!enabled) return null
-  return (
-    <section className="card" aria-labelledby="ex-h">
-      <div className="card-head"><h2 id="ex-h">Пояснение простыми словами</h2>{q.data && <span className="pill">{q.data.source === 'ai' ? 'ИИ (открытая модель)' : 'по правилам'}</span>}</div>
-      {q.isLoading ? <Loading rows={1} /> : q.isError ? <ErrorBox error={q.error} onRetry={() => void q.refetch()} /> : <p style={{ lineHeight: 1.55, maxWidth: '70ch' }}>{q.data?.text}</p>}
-      <p className="field-hint" style={{ marginTop: 10 }}>ИИ только пересказывает факты оценки. Решение принимает человек.</p>
     </section>
   )
 }
@@ -262,13 +251,13 @@ export default function StaffApplicationPage() {
             <h2 id="sc-h" style={{ marginBottom: 14 }}>Из чего сложилась оценка</h2>
             <Breakdown card={card} />
           </section>
-          <Explanation id={app.id} enabled={!!card.scoring} />
+          <Conclusion card={card} id={app.id} />
           <section className="card" aria-labelledby="hist-h">
             <h2 id="hist-h" style={{ marginBottom: 14 }}>Журнал заявки</h2>
             <ol className="timeline">
               {card.events.map((e, i) => (
                 <li className="tl-item" key={`${e.at}-${i}`}>
-                  <b>{e.fromStatus === e.toStatus ? e.message : `${e.fromStatus} → ${e.toStatus}`}</b>
+                  <b>{e.fromStatus === e.toStatus ? e.message : transitionText(e.fromStatus, e.toStatus)}</b>
                   <span>{formatDateTime(e.at)} · {e.actor === 'client' ? 'клиент' : e.actor === 'staff' ? 'сотрудник' : 'система'}</span>
                   {e.comment && <p>{e.comment}</p>}
                 </li>

@@ -26,7 +26,7 @@ function Examples({ onPick }: { onPick: (inn: string) => void }) {
   return (
     <>
       <h2 id="demo-h">Тестовые ИНН для регистрации</h2>
-      <p>Все компании синтетические. Выберите ИНН: по нему сразу будет видно, какой тип компании и какой исход заявки вас ждёт. Подойдёт и любой другой верный ИНН.</p>
+      <p>Все компании синтетические. Для каждого ИНН указан тип компании и ожидаемый исход заявки. Подойдёт и любой другой ИНН с верной контрольной суммой.</p>
       <div className="demo-list">
         {list.map((e) => (
           <button type="button" key={e.inn} className="demo-item" onClick={() => onPick(e.inn)}>
@@ -92,7 +92,7 @@ export default function Login() {
         </div>
         {mode === 'login' ? (
           <>
-            <p>Для клиентов банка и сотрудников. Письма и SMS не нужны — только логин и пароль.</p>
+            <p>Вход для клиентов и сотрудников банка по логину и паролю.</p>
             <form className="login-form" onSubmit={onSubmit} noValidate>
               {error && <div className="login-error" role="alert">{error}</div>}
               <FloatField id="login" label="Логин" autoComplete="username" autoFocus value={name} onChange={setName} />
@@ -102,7 +102,7 @@ export default function Login() {
           </>
         ) : (
           <>
-            <p>Для предпринимателей. Письма и SMS не нужны: аккаунт готов сразу.</p>
+            <p>Регистрация для предпринимателей. Подтверждение не требуется: аккаунт создаётся сразу.</p>
             <Register inn={signupInn} onInnChange={setSignupInn} />
           </>
         )}

@@ -14,7 +14,7 @@ export function Loading({ rows = 3 }: { rows?: number }) {
 }
 
 export function ErrorBox({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const text = error instanceof ApiError ? error.message : 'Не получилось загрузить данные.'
+  const text = error instanceof ApiError ? error.message : 'Не удалось загрузить данные.'
   return (
     <div className="error-box" role="alert">
       <span>{text}</span>

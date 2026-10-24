@@ -13,6 +13,7 @@ export const IconQueue = (p: P) => (<svg {...base} {...p}><rect x="2.5" y="2.8" 
 export const IconOut = (p: P) => (<svg {...base} {...p}><path d="M6.5 2.8H3.8a.8.8 0 0 0-.8.8v8.8a.8.8 0 0 0 .8.8h2.7M10.2 5.2 13 8l-2.8 2.8M13 8H6.2" /></svg>)
 export const IconMenu = (p: P) => (<svg {...base} {...p}><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" /></svg>)
 export const IconCheck = (p: P) => (<svg {...base} {...p}><path d="m3.2 8.4 3 3 6.6-6.8" /></svg>)
+export const IconWarn = (p: P) => (<svg {...base} {...p}><path d="M8 2.6 14 13H2L8 2.6Z" /><path d="M8 6.8v3M8 11.6v.2" /></svg>)
 export const IconUpload = (p: P) => (<svg {...base} {...p}><path d="M8 10.5V2.8M5 5.5 8 2.5l3 3M3 10.5v2.2a.8.8 0 0 0 .8.8h8.4a.8.8 0 0 0 .8-.8v-2.2" /></svg>)
 export const IconSpark = (p: P) => (<svg {...base} {...p}><path d="M8 2.2 9.3 6.7 13.8 8 9.3 9.3 8 13.8 6.7 9.3 2.2 8l4.5-1.3L8 2.2Z" /></svg>)
 export const IconMoon = (p: P) => (<svg {...base} {...p}><path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8Z" /></svg>)

@@ -29,7 +29,7 @@ func (p *Pipeline) Missing(ctx context.Context, app db.Application) ([]string, e
 		}
 	}
 	if strings.TrimSpace(app.Purpose) == "" {
-		missing = append(missing, "Расскажите, на что нужны деньги")
+		missing = append(missing, "Укажите цель кредита")
 	}
 	if ok {
 		docs, err := p.s.ListDocuments(ctx, app.ID)

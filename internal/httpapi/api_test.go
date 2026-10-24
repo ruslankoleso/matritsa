@@ -549,8 +549,8 @@ func TestExplanation_RepeatsTheStoredRecommendation_NotAFreshRecalculation(t *te
 		code, raw := e.do("GET", "/api/v1/staff/applications/"+id+"/explanation"+audience, e.token("staff1"), nil)
 		var ex gen.Explanation
 		mustJSON(t, raw, &ex)
-		if code != 200 || !strings.Contains(ex.Text, "33.3%") {
-			t.Fatalf("the explanation must quote the stored rate 33.3%% (audience %q): %s", audience, ex.Text)
+		if code != 200 || !strings.Contains(ex.Text, "33,3%") {
+			t.Fatalf("the explanation must quote the stored rate 33,3%% (audience %q): %s", audience, ex.Text)
 		}
 	}
 }
@@ -565,7 +565,7 @@ func TestExplanation_QuotesTheStoredOffer_AndTheStoredReasons(t *testing.T) {
 	_, raw := e.do("GET", "/api/v1/staff/applications/"+auto.Id.String()+"/explanation", e.token("staff1"), nil)
 	var ex gen.Explanation
 	mustJSON(t, raw, &ex)
-	want := strconv.FormatFloat(float64(row.RateBp)/100, 'f', 1, 64) + "%"
+	want := strings.Replace(strconv.FormatFloat(float64(row.RateBp)/100, 'f', 1, 64), ".", ",", 1) + "%"
 	if !strings.Contains(ex.Text, want) || !strings.Contains(ex.Text, "автоматически") {
 		t.Fatalf("the explanation of an automatic offer must quote its stored rate %s: %s", want, ex.Text)
 	}

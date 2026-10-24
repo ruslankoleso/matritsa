@@ -35,7 +35,7 @@ function Staff() {
     })),
     allTo: '/staff',
     allLabel: 'Открыть очередь заявок',
-    empty: 'Все заявки разобраны',
+    empty: 'Все заявки обработаны',
   }
   return (
     <AppShell variant="rail" nav={nav} bell={bell}>

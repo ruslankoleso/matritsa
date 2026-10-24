@@ -48,7 +48,7 @@ export class ApiError extends Error {
   code: string
   fields: { field: string; message: string }[]
   constructor(status: number, body?: Partial<ApiErrorBody>) {
-    super(body?.message || 'Что-то пошло не так. Попробуйте ещё раз.')
+    super(body?.message || 'Произошла ошибка. Повторите попытку.')
     this.status = status
     this.code = body?.code ?? 'error'
     this.fields = body?.fields ?? []

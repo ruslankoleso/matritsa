@@ -77,7 +77,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "Компания с таким ИНН не найдена в реестре")
 		return
 	} else if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "registry_unavailable", "Реестр временно недоступен. Попробуйте чуть позже.")
+		writeError(w, http.StatusServiceUnavailable, "registry_unavailable", "Реестр временно недоступен. Повторите попытку позже.")
 		return
 	}
 	co, ok := seed.Synthesize(inn)
@@ -114,7 +114,7 @@ func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "company_registered", "Эта компания уже зарегистрирована. Войдите под её аккаунтом.")
 		return
 	case isUniqueOn(err, "users_login_key"):
-		writeFieldErrors(w, http.StatusConflict, "Логин занят", []fieldErr{{"login", "Такой логин уже есть, придумайте другой"}})
+		writeFieldErrors(w, http.StatusConflict, "Логин занят", []fieldErr{{"login", "Логин уже занят. Выберите другой."}})
 		return
 	case err != nil:
 		internalError(w, r, err)
@@ -132,7 +132,7 @@ func (s *Server) innIsFree(w http.ResponseWriter, r *http.Request, inn string) b
 		return false
 	}
 	if !seed.ValidINN(inn) {
-		writeFieldErrors(w, http.StatusUnprocessableEntity, "Проверьте ИНН", []fieldErr{{"inn", "Контрольная сумма ИНН не сходится. Можно взять тестовый ИНН из подсказки"}})
+		writeFieldErrors(w, http.StatusUnprocessableEntity, "Проверьте ИНН", []fieldErr{{"inn", "Контрольная сумма ИНН неверна. Можно использовать тестовый ИНН из подсказки"}})
 		return false
 	}
 	return true
