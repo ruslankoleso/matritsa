@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { homeFor } from '../auth/RequireRole'
-import { IconMenu, IconMoon, IconOut, IconSun } from './icons'
+import { IconMenu, IconMoon, IconOut, IconSite, IconSun } from './icons'
 import { loadTheme, saveTheme, transitionTo, type Theme } from '../lib/theme'
 import type { ReactElement } from 'react'
 
@@ -68,6 +68,10 @@ export function AppShell({ scope, scopeName, nav, children }: { scope: string; s
               <span>{session?.role === 'staff' ? 'Сотрудник банка' : 'Предприниматель'}</span>
             </span>
           </NavLink>
+          <Link to="/" className="nav-item">
+            <IconSite />
+            <span>На сайт</span>
+          </Link>
           <button
             className="nav-item"
             aria-pressed={theme === 'dark'}

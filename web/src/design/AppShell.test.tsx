@@ -28,4 +28,9 @@ describe('AppShell', () => {
     renderShell('staff')
     expect(screen.getByRole('link', { name: /Матрица/ })).toHaveAttribute('href', '/staff')
   })
+
+  it('keeps a way back to the public site, since the brand now leads to the cabinet', () => {
+    renderShell('client')
+    expect(screen.getByRole('link', { name: 'На сайт' })).toHaveAttribute('href', '/')
+  })
 })

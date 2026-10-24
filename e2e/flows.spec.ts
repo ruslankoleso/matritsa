@@ -114,6 +114,14 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page.getByText(/демонстрационный аккаунт/)).toBeVisible()
   })
 
+  test('from the cabinet there is a way to the public site and back', async ({ page }) => {
+    await loginAs(page, /Тёплый хлеб/)
+    await page.getByRole('link', { name: 'На сайт' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.getByRole('link', { name: 'В кабинет' }).first().click()
+    await expect(page).toHaveURL(/\/cabinet/)
+  })
+
   test('a very long file name stays inside its card', async ({ page }) => {
     await loginAs(page, /Тёплый хлеб/)
     const id = await fillAndSubmit(page, { product: /оборотные средства/, amount: '500000', term: '12', fileName: 'Альфа_Хак_Умный_кредитный_кабинет_261023_204023_очень_длинное_имя_файла_без_пробелов.pdf' })
