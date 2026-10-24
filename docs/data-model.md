@@ -36,7 +36,7 @@ erDiagram
 Ключ (`company_id`, `month`), поле `revenue`. По этим данным считаются средняя выручка и её стабильность.
 
 ### users — пользователи
-`login` уникальный, `password_hash` (bcrypt), `role` (`client` или `staff`), `company_id` (у сотрудника пусто), `full_name`.
+`login` уникальный, `password_hash` (bcrypt), `role` (`client` или `staff`), `company_id` (у сотрудника пусто), `full_name`, `consented_at` (когда человек при регистрации согласился на обработку данных; у демо-аккаунтов пусто, миграция 0003).
 
 ### applications — заявки
 | Поле | Смысл |
