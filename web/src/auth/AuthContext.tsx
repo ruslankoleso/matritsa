@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, clearSession, loadSession, onSessionChange, saveSession, type Session } from '../api/client'
 import { queryClient } from '../api/queryClient'
+import { WELCOME_FLAG } from '../design/Welcome'
 import type { RegisterRequest } from '../api/types'
 
 export interface AuthValue {
@@ -20,6 +21,15 @@ export const AuthContext = createContext<AuthValue>({
   },
   logout: () => {},
 })
+
+/** Ask the app to greet the person once, on the first screen after this sign-in. */
+function markWelcome() {
+  try {
+    sessionStorage.setItem(WELCOME_FLAG, '1')
+  } catch {
+    /* ignore */
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(() => loadSession())
@@ -41,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const s = await api.login(loginName, password)
     queryClient.clear()
     saveSession(s)
+    markWelcome()
     setSession(s)
     return s
   }, [])
@@ -49,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const s = await api.register(form)
     queryClient.clear()
     saveSession(s)
+    markWelcome()
     setSession(s)
     return s
   }, [])

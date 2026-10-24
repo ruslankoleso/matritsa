@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { AppShell, type NavEntry } from '../../design/AppShell'
-import { IconBell, IconHome, IconList, IconPlus, IconUser } from '../../design/icons'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '../../api/client'
+import { AppShell, type BellInfo, type NavEntry } from '../../design/AppShell'
+import { IconHome, IconList, IconPlus } from '../../design/icons'
 import { ToastProvider, useToast } from '../../design/Toast'
 import { useLiveUpdates } from '../../lib/events'
-import { useMe, useNotifications } from './queries'
+import { formatDateTime } from '../../lib/format'
+import { useNotifications } from './queries'
 import Home from './Home'
 import Wizard from './Wizard'
 import ApplicationPage from './ApplicationPage'
@@ -15,11 +18,12 @@ import '../app.css'
 
 function Cabinet() {
   const toast = useToast()
+  const qc = useQueryClient()
   useLiveUpdates((e) => {
     if (e.type === 'notification' && e.text) toast(e.text)
   })
-  const me = useMe()
   const notes = useNotifications()
+  const read = useMutation({ mutationFn: api.markRead, onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }) })
   const unread = notes.data?.filter((n) => !n.read).length ?? 0
   const [ring, setRing] = useState(0)
   const prev = useRef<number | undefined>(undefined)
@@ -27,15 +31,29 @@ function Cabinet() {
     if (prev.current !== undefined && unread > prev.current) setRing((r) => r + 1)
     prev.current = unread
   }, [unread])
-  const nav: NavEntry[] = [
+
+  const sections: NavEntry[] = [
     { to: '/cabinet', label: 'Главная', icon: <IconHome />, end: true },
     { to: '/cabinet/new', label: 'Новая заявка', icon: <IconPlus /> },
     { to: '/cabinet/applications', label: 'Мои заявки', icon: <IconList /> },
-    { to: '/cabinet/notifications', label: 'Уведомления', icon: <IconBell />, count: unread, ring },
-    { to: '/cabinet/profile', label: 'Профиль', icon: <IconUser /> },
   ]
+  const bell: BellInfo = {
+    count: unread,
+    ring,
+    title: 'Уведомления',
+    items: (notes.data ?? []).slice(0, 4).map((n) => ({
+      id: n.id, text: n.text, meta: formatDateTime(n.createdAt), unread: !n.read,
+      to: n.applicationId ? `/cabinet/applications/${n.applicationId}` : '/cabinet/notifications',
+    })),
+    allTo: '/cabinet/notifications',
+    allLabel: 'Открыть все уведомления',
+    empty: 'Пока ничего нового',
+    onOpenItem: (it) => {
+      if (it.unread) read.mutate(it.id)
+    },
+  }
   return (
-    <AppShell scope={me.data?.company?.name ?? 'Кабинет предпринимателя'} scopeName={me.data?.company?.name ?? 'Кабинет'} nav={nav}>
+    <AppShell variant="top" nav={sections} bell={bell}>
       <Routes>
         <Route index element={<Home />} />
         <Route path="new" element={<Wizard />} />
