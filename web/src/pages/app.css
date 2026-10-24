@@ -478,3 +478,6 @@
 .concl-ai { margin-top: 14px; }
 .concl-ai p { margin-top: 8px; max-width: 70ch; line-height: 1.55; }
 @media (max-width: 760px) { .concl-grid { grid-template-columns: 1fr; } .concl-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.concl-tiles-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .concl-tiles-3 { grid-template-columns: 1fr; } }

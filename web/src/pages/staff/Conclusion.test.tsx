@@ -19,6 +19,7 @@ const card = {
       factor('bki_score', 'Кредитная история (балл БКИ)', 10, 25, 'Кредитная история отсутствует: надёжность подтвердить нечем'),
     ],
   },
+  application: { amount: 50000000 },
   recommended: { amount: 50000000, termMonths: 6, rateBp: 2550, monthlyPayment: 8964000, source: 'recommended', expiresAt: '2026-10-31T10:00:00Z' },
 } as unknown as StaffApplication
 
@@ -81,5 +82,27 @@ describe('Conclusion', () => {
     setup('rules', clean)
     expect(screen.queryByRole('region', { name: 'Факторы риска' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Сильные стороны' })).toBeInTheDocument()
+  })
+
+  it('shows the repayment experience against the requested amount', () => {
+    const c = { ...card, scoring: { ...card.scoring!, repaidTotal: 20000000, repaidCoverage: 0.4, minRepaidCoverage: 0.5 } } as unknown as StaffApplication
+    setup('rules', c)
+    const block = screen.getByRole('region', { name: 'Опыт погашения кредитов' })
+    expect(within(block).getByText('Погашено ранее')).toBeInTheDocument()
+    expect(within(block).getByText(/200\s?000\s?₽/)).toBeInTheDocument()
+    expect(within(block).getByText('Покрытие запрошенной суммы')).toBeInTheDocument()
+    expect(within(block).getByText(/40\s?%/)).toBeInTheDocument()
+    expect(within(block).getByText(/ниже порога автоматического решения/i)).toBeInTheDocument()
+  })
+
+  it('says the experience is enough when the coverage reaches the threshold', () => {
+    const c = { ...card, scoring: { ...card.scoring!, repaidTotal: 100000000, repaidCoverage: 2, minRepaidCoverage: 0.5 } } as unknown as StaffApplication
+    setup('rules', c)
+    expect(within(screen.getByRole('region', { name: 'Опыт погашения кредитов' })).getByText(/достаточно для автоматического решения/i)).toBeInTheDocument()
+  })
+
+  it('has no experience block for old records without the figures', () => {
+    setup()
+    expect(screen.queryByRole('region', { name: 'Опыт погашения кредитов' })).not.toBeInTheDocument()
   })
 })

@@ -121,6 +121,8 @@ function Enrichment({ card }: { card: StaffApplication }) {
       {e.egrul?.bankrupt && <div className="kv-row"><span>Банкротство</span><b>Да</b></div>}
       <div className="kv-row"><span>Бюро: балл</span><b>{e.bki?.hasHistory ? e.bki.score : <span className="dash">нет истории</span>}</b></div>
       <div className="kv-row"><span>Бюро: активные кредиты</span><b>{e.bki?.hasHistory ? e.bki.activeLoans : <span className="dash">—</span>}</b></div>
+      <div className="kv-row"><span>Бюро: закрытых кредитов</span><b>{e.bki?.hasHistory && e.bki.closedLoans != null ? e.bki.closedLoans : <span className="dash">—</span>}</b></div>
+      <div className="kv-row"><span>Бюро: погашено всего</span><b>{e.bki?.hasHistory && e.bki.totalRepaid != null ? formatMoney(e.bki.totalRepaid) : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: долг</span><b>{e.bki?.hasHistory ? formatMoney(e.bki.totalDebt) : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: макс. просрочка</span><b>{e.bki?.hasHistory ? `${e.bki.maxOverdueDays} дн.` : <span className="dash">—</span>}</b></div>
       {e.lastError && <div className="kv-row"><span>Последняя ошибка источника</span><b style={{ fontSize: 13 }}>{e.lastError}</b></div>}

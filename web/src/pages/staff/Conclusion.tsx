@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import type { Factor, StaffApplication } from '../../api/types'
 import { IconCheck, IconWarn } from '../../design/icons'
-import { formatMoney, formatRate, formatTerm } from '../../lib/format'
+import { formatMoney, formatPercent, formatRate, formatTerm } from '../../lib/format'
 
 /** A factor is a strength at 80% of its maximum or more, a risk below 50%, otherwise neutral. */
 export function groupFactors(factors: Factor[]) {
@@ -54,6 +54,22 @@ export default function Conclusion({ card, id }: { card: StaffApplication; id: s
         <Block title="Факторы риска" tone="bad" factors={risks} />
       </div>
       <Block title="Нейтральные факторы" tone="neutral" factors={neutral} />
+
+      {s.repaidTotal != null && s.repaidCoverage != null && s.minRepaidCoverage != null && (
+        <section className="concl-rec" role="region" aria-labelledby="concl-exp-h">
+          <h3 id="concl-exp-h">Опыт погашения кредитов</h3>
+          <div className="concl-tiles concl-tiles-3">
+            <div><small>Погашено ранее</small><b className="num">{formatMoney(s.repaidTotal)}</b></div>
+            <div><small>Запрошено</small><b className="num">{formatMoney(card.application.amount)}</b></div>
+            <div><small>Покрытие запрошенной суммы</small><b className="num">{formatPercent(s.repaidCoverage)}</b></div>
+          </div>
+          <p className="field-hint">
+            {s.repaidCoverage >= s.minRepaidCoverage
+              ? `Достаточно для автоматического решения: порог ${formatPercent(s.minRepaidCoverage)}.`
+              : `Ниже порога автоматического решения (${formatPercent(s.minRepaidCoverage)}): заявку рассматривает сотрудник.`}
+          </p>
+        </section>
+      )}
 
       {rec && (
         <section className="concl-rec" role="region" aria-labelledby="concl-rec-h">

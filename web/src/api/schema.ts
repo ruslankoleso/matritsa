@@ -760,6 +760,21 @@ export interface components {
              * @description Ежемесячный платёж по запрошенной сумме (по базовой ставке)
              */
             payment?: number;
+            /**
+             * Format: int64
+             * @description Сумма кредитов, которые заёмщик уже погасил полностью
+             */
+            repaidTotal?: number;
+            /**
+             * Format: float
+             * @description Какую долю запрошенной суммы покрывает погашенное: погашено / запрошено
+             */
+            repaidCoverage?: number;
+            /**
+             * Format: float
+             * @description Минимальное покрытие для автоматического решения
+             */
+            minRepaidCoverage?: number;
             /** @description Вероятность дефолта за год для класса заёмщика */
             pd?: number;
             /** @description Вероятность дефолта за срок кредита */
@@ -788,6 +803,13 @@ export interface components {
             totalDebt: number;
             maxOverdueDays: number;
             score: number;
+            /** @description Число кредитов, погашенных полностью */
+            closedLoans?: number;
+            /**
+             * Format: int64
+             * @description Сумма погашенных кредитов в копейках
+             */
+            totalRepaid?: number;
         };
         EGRULRecord: {
             inn: string;
