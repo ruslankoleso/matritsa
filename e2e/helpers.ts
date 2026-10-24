@@ -1,4 +1,5 @@
 import { expect, type BrowserContext, type Page } from '@playwright/test'
+import fs from 'node:fs'
 import path from 'node:path'
 
 export const DOC = path.join(__dirname, 'fixtures', 'statement.pdf')
@@ -17,7 +18,7 @@ export async function newPage(context: BrowserContext, who: RegExp) {
 }
 
 /** Walks the client wizard and submits. Returns the application id. */
-export async function fillAndSubmit(page: Page, opts: { product: RegExp; amount: string; term?: string; purpose?: string }) {
+export async function fillAndSubmit(page: Page, opts: { product: RegExp; amount: string; term?: string; purpose?: string; fileName?: string }) {
   await page.goto('/cabinet/new')
   await page.locator('.choice', { hasText: opts.product }).click()
   await page.locator('#amount').fill(opts.amount)
@@ -33,7 +34,7 @@ export async function fillAndSubmit(page: Page, opts: { product: RegExp; amount:
   for (let left = await zones.count(); left > 0; left = await zones.count()) {
     const chooser = page.waitForEvent('filechooser')
     await zones.first().click()
-    await (await chooser).setFiles(DOC)
+    await (await chooser).setFiles(opts.fileName ? { name: opts.fileName, mimeType: 'application/pdf', buffer: fs.readFileSync(DOC) } : DOC)
     await expect(zones).toHaveCount(left - 1) // the zone turns into "Заменить" once the file is stored
   }
   await page.getByRole('button', { name: 'Далее' }).click()

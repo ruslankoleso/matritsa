@@ -114,6 +114,17 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page.getByText(/демонстрационный аккаунт/)).toBeVisible()
   })
 
+  test('a very long file name stays inside its card', async ({ page }) => {
+    await loginAs(page, /Тёплый хлеб/)
+    const id = await fillAndSubmit(page, { product: /оборотные средства/, amount: '500000', term: '12', fileName: 'Альфа_Хак_Умный_кредитный_кабинет_261023_204023_очень_длинное_имя_файла_без_пробелов.pdf' })
+    await page.goto(`/cabinet/applications/${id}`)
+    const name = page.locator('.file-name').first()
+    await expect(name).toBeVisible()
+    const card = page.locator('section.card', { has: name })
+    const [n, c] = [await name.boundingBox(), await card.boundingBox()]
+    expect(n!.x + n!.width).toBeLessThanOrEqual(c!.x + c!.width)
+  })
+
   test('a new person signs up with a company INN, lands in the cabinet and can sign in again', async ({ page }) => {
     const login = `guest${Date.now().toString(36)}`
     const inn = randomINN()

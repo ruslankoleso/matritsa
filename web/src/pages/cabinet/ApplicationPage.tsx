@@ -108,7 +108,6 @@ function OfferCard({ app }: { app: Application }) {
           )}
         </div>
       )}
-      <p className="field-hint" style={{ marginTop: 12 }}>Подписание и выдача в этом прототипе условные: настоящие документы и деньги не используются.</p>
     </section>
   )
 }
@@ -176,7 +175,7 @@ function Details({ app }: { app: Application }) {
         <>
           <h3 style={{ margin: '16px 0 6px' }}>Документы</h3>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
-            {app.documents.map((d) => <li key={d.id}>{d.filename}</li>)}
+            {app.documents.map((d) => <li key={d.id} className="file-name">{d.filename}</li>)}
           </ul>
         </>
       )}

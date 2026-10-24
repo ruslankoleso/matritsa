@@ -106,7 +106,7 @@ function ExpectedLoss({ s }: { s: NonNullable<StaffApplication['scoring']> }) {
           {s.riskPremiumBp ? ` Надбавка к ставке за риск: +${(s.riskPremiumBp / 100).toLocaleString('ru-RU')} п.п. к базовой ставке продукта.` : ' Класс A: надбавки к базовой ставке нет.'}
         </p>
       </div>
-      <p className="field-hint">Вероятности дефолта и доли потерь здесь иллюстративные: у прототипа нет реальной статистики дефолтов, поэтому модель не откалибрована на данных.</p>
+      <p className="field-hint">Параметры расчёта (вероятность дефолта и доля потерь) заданы в конфигурации и подлежат калибровке на данных банка.</p>
     </section>
   )
 }
@@ -285,7 +285,6 @@ export default function StaffApplicationPage() {
           <section className="card" aria-labelledby="ext-h">
             <h2 id="ext-h" style={{ marginBottom: 12 }}>Проверки по внешним источникам</h2>
             <Enrichment card={card} />
-            <p className="field-hint" style={{ marginTop: 10 }}>Источники смоделированы, данные синтетические.</p>
           </section>
           <section className="card" aria-labelledby="req-h">
             <h2 id="req-h" style={{ marginBottom: 12 }}>Заявка клиента</h2>

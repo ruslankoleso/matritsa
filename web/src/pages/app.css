@@ -40,7 +40,7 @@
 .mobile-bar { display: none; }
 
 /* ---------- cards ---------- */
-.card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
+.card { min-width: 0; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
 .card + .card { margin-top: 16px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .card-head .more { font-size: 13.5px; color: var(--ink-soft); text-decoration: none; }
@@ -51,6 +51,8 @@
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 0; font-size: 14.5px; }
 .kv + .kv { margin-top: 0; }
 .kv-row { display: contents; }
+.file-name, .docu-file { overflow-wrap: anywhere; min-width: 0; }
+.kv-row > span, .kv-row > b { overflow-wrap: anywhere; min-width: 0; }
 .kv-row > span { color: var(--ink-soft); padding: 9px 16px 9px 0; border-top: 1px solid var(--rule); }
 .kv-row > b { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; padding: 9px 0; border-top: 1px solid var(--rule); }
 .kv-row:first-child > span, .kv-row:first-child > b { border-top: 0; }

@@ -132,7 +132,7 @@
 .faq-card:nth-child(3n + 3) { --card: var(--red-200); }
 .faq-card:first-child { margin-top: 0; }
 .faq-tab { position: absolute; top: 0; left: calc(var(--i) * 150px); width: 200px; height: 40px; background: var(--card); clip-path: polygon(0 100%, 7% 0, 93% 0, 100% 100%); display: flex; align-items: center; justify-content: center; font-size: var(--small); font-weight: 600; color: var(--ink); pointer-events: none; }
-.faq-body { background: var(--card); border-top-right-radius: 28px; border-top-left-radius: 0; padding: 0 28px 40px; }
+.faq-body { background: var(--card); border-radius: 0; padding: 0 28px 40px; }
 .faq-q { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 96px; padding: 18px 0 14px; background: transparent; border: 0; text-align: left; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; cursor: pointer; }
 .faq-q .plus { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--white); position: relative; transition: transform 0.3s var(--ease); }
 .faq-q .plus::before, .faq-q .plus::after { content: ''; position: absolute; left: 8px; right: 8px; top: 13px; height: 2px; background: var(--ink); border-radius: 1px; }
