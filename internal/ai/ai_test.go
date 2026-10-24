@@ -325,3 +325,22 @@ func TestRecommend_ValidJSONIsNotTouched(t *testing.T) {
 		t.Fatalf("a correct answer with its own escaped quotes must stay as it is: %+v", rec)
 	}
 }
+
+// Some Qwen3-based models leak the end of their reasoning into the answer.
+func TestOllama_StripsLeakedThinkingTags(t *testing.T) {
+	for in, want := range map[string]string{
+		"</think>\nКредитная заявка имеет класс B.":            "Кредитная заявка имеет класс B.",
+		"<think>рассуждаю</think>\n\nИтог: отказ.":             "Итог: отказ.",
+		">\nКредитное решение — отказ.":                        "Кредитное решение — отказ.",
+		"  \n\nОбычный ответ без тегов.":                       "Обычный ответ без тегов.",
+		`{"productId":"express"}`:                              `{"productId":"express"}`,
+		"Сравнение: 3 > 2, и это не тег.":                      "Сравнение: 3 > 2, и это не тег.",
+		"Модель написала </think> посреди и продолжила текст.": "посреди и продолжила текст.",
+	} {
+		srv, _ := capture(t, in)
+		got, err := NewOllama(srv.URL, "m").Complete(context.Background(), "s", "u")
+		if err != nil || got != want {
+			t.Errorf("%q\n got %q\nwant %q (%v)", in, got, want, err)
+		}
+	}
+}

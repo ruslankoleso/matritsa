@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -81,5 +82,16 @@ func (o *Ollama) chat(ctx context.Context, system, user string, asJSON bool) (st
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return "", fmt.Errorf("ollama decode: %w", err)
 	}
-	return out.Message.Content, nil
+	return cleanAnswer(out.Message.Content), nil
+}
+
+// cleanAnswer drops what some Qwen3-based models leak into the text: the end of their reasoning ("</think>"),
+// a stray ">" line and the empty lines before the answer.
+func cleanAnswer(s string) string {
+	if i := strings.LastIndex(s, "</think>"); i >= 0 {
+		s = s[i+len("</think>"):]
+	}
+	s = strings.TrimSpace(s)
+	s = strings.TrimSpace(strings.TrimPrefix(s, ">\n"))
+	return s
 }
