@@ -775,6 +775,36 @@ export interface components {
              * @description Минимальное покрытие для автоматического решения
              */
             minRepaidCoverage?: number;
+            /**
+             * Format: float
+             * @description Предельная доля платежей в выручке
+             */
+            maxLoad?: number;
+            /**
+             * Format: float
+             * @description Покрытие всех платежей (действующих и по заявке) денежным потоком
+             */
+            dscr?: number;
+            /**
+             * Format: float
+             * @description Минимально допустимое покрытие
+             */
+            minDscr?: number;
+            /**
+             * Format: int64
+             * @description Оценка месячного денежного потока до платежей по долгам, копейки
+             */
+            monthlyCashFlow?: number;
+            /**
+             * Format: int64
+             * @description Предельная сумма по доле платежей в выручке
+             */
+            maxAmountByLoad?: number;
+            /**
+             * Format: int64
+             * @description Предельная сумма по покрытию денежным потоком
+             */
+            maxAmountByDscr?: number;
             /** @description Вероятность дефолта за год для класса заёмщика */
             pd?: number;
             /** @description Вероятность дефолта за срок кредита */

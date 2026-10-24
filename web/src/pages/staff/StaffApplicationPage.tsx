@@ -11,6 +11,7 @@ import { useToast } from '../../design/Toast'
 import { annuity, formatDate, formatDateTime, formatMoney, formatPercent, formatRate, formatTerm } from '../../lib/format'
 import { routeStatesOf, transitionText } from '../../lib/status'
 import { useCountUp } from '../../lib/useCountUp'
+import Affordability from './Affordability'
 import Conclusion from './Conclusion'
 
 /** True one frame after mount, so CSS transitions can run from the initial state. */
@@ -64,10 +65,7 @@ function Breakdown({ card }: { card: StaffApplication }) {
           <span>Класс не зависит от суммы и срока заявки. Длина шкалы показывает вклад фактора.</span>
         </div>
       </div>
-      <div className="affordable">
-        <b>Доступность платежа: {Math.round(s.debtLoad * 100)}% выручки</b>
-        <span>Платёж по заявке вместе с действующими не должен превышать 35%. Предельная сумма по этому правилу — {formatMoney(s.maxAffordableAmount)}.</span>
-      </div>
+      <Affordability s={s} />
       {s.hardStops.length > 0 && (
         <div className="callout callout-bad" style={{ marginBottom: 16 }}>
           <div><b>Жёсткие стопы</b><ul>{s.hardStops.map((h) => <li key={h}>{h}</li>)}</ul></div>

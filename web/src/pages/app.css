@@ -481,3 +481,18 @@
 
 .concl-tiles-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 760px) { .concl-tiles-3 { grid-template-columns: 1fr; } }
+
+/* ---------- the two coverage measures ---------- */
+.afford { margin: 0 0 18px; }
+.afford-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.afford-measure { display: grid; gap: 4px; padding: 14px 16px; border-radius: var(--radius-sm); background: var(--tone-1); border-left: 4px solid var(--ok); }
+.afford-measure[data-ok='false'] { border-left-color: var(--bad); }
+.afford-measure h3 { font-size: 14px; }
+.afford-q { margin: 0; font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+.afford-value { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; margin-top: 4px; }
+.afford-norm { font-size: 13px; color: var(--ink-soft); }
+.afford-status { font-size: 12.5px; font-weight: 600; color: var(--ok); }
+.afford-measure[data-ok='false'] .afford-status { color: var(--bad); }
+.afford-limit { margin: 12px 0 0; font-size: 14.5px; }
+.afford-limit span { color: var(--ink-soft); }
+@media (max-width: 760px) { .afford-grid { grid-template-columns: 1fr; } }
