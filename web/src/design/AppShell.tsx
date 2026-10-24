@@ -61,13 +61,13 @@ export function AppShell({ scope, scopeName, nav, children }: { scope: string; s
           ))}
         </nav>
         <div className="side-bottom">
-          <div className="side-user">
+          <NavLink to={`${session ? homeFor(session.role) : ''}/profile`} className="side-user" aria-label="Мой профиль">
             <span className="avatar" aria-hidden>{initials}</span>
             <span style={{ minWidth: 0 }}>
               <b style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{session?.fullName.split(',')[0]}</b>
               <span>{session?.role === 'staff' ? 'Сотрудник банка' : 'Предприниматель'}</span>
             </span>
-          </div>
+          </NavLink>
           <button
             className="nav-item"
             aria-pressed={theme === 'dark'}

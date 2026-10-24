@@ -556,6 +556,11 @@ export interface components {
             role: "client" | "staff";
             fullName: string;
             company?: components["schemas"]["Company"];
+            /**
+             * Format: date-time
+             * @description Когда человек согласился на обработку данных при регистрации; у демонстрационных аккаунтов поля нет
+             */
+            consentedAt?: string;
         };
         DocRequirement: {
             kind: string;

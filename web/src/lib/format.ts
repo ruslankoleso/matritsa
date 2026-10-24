@@ -49,6 +49,11 @@ export function formatTerm(months: number): string {
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' })
 const dateTimeFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 
+const fullDateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+const fullDateTimeFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+/** With the year: for things in the past, such as a registration date. */
+export const formatFullDate = (iso: string | Date) => fullDateFmt.format(new Date(iso))
+export const formatFullDateTime = (iso: string | Date) => fullDateTimeFmt.format(new Date(iso))
 export const formatDate = (iso: string | Date) => dateFmt.format(new Date(iso))
 export const formatDateTime = (iso: string | Date) => dateTimeFmt.format(new Date(iso))
 

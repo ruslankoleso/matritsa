@@ -7,6 +7,7 @@ export const IconHome = (p: P) => (<svg {...base} {...p}><path d="M2.5 7.2 8 2.8
 export const IconPlus = (p: P) => (<svg {...base} {...p}><path d="M8 3v10M3 8h10" /></svg>)
 export const IconList = (p: P) => (<svg {...base} {...p}><path d="M5.5 4h8M5.5 8h8M5.5 12h8" /><circle cx="2.6" cy="4" r=".5" /><circle cx="2.6" cy="8" r=".5" /><circle cx="2.6" cy="12" r=".5" /></svg>)
 export const IconBell = (p: P) => (<svg {...base} {...p}><path d="M3.8 11.2V7.6a4.2 4.2 0 1 1 8.4 0v3.6l1 1.1H2.8l1-1.1Z" /><path d="M6.6 13.8h2.8" /></svg>)
+export const IconUser = (p: P) => (<svg {...base} {...p}><circle cx="8" cy="5.4" r="2.6" /><path d="M2.8 13.6c.4-2.6 2.5-4.1 5.2-4.1s4.8 1.5 5.2 4.1" /></svg>)
 export const IconQueue = (p: P) => (<svg {...base} {...p}><rect x="2.5" y="2.8" width="11" height="3.2" rx=".8" /><rect x="2.5" y="7.4" width="11" height="3.2" rx=".8" /><path d="M2.5 13h6" /></svg>)
 export const IconOut = (p: P) => (<svg {...base} {...p}><path d="M6.5 2.8H3.8a.8.8 0 0 0-.8.8v8.8a.8.8 0 0 0 .8.8h2.7M10.2 5.2 13 8l-2.8 2.8M13 8H6.2" /></svg>)
 export const IconMenu = (p: P) => (<svg {...base} {...p}><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" /></svg>)
