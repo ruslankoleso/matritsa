@@ -56,7 +56,7 @@ services:
       BKI_URL: http://mock-bki:8081
       EGRUL_URL: http://mock-egrul:8082
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
       AI_ENABLED: ${AI_ENABLED:-false}
       SEED_ON_START: "true"
     volumes:

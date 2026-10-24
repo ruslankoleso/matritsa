@@ -33,7 +33,7 @@ func Load() (Config, error) {
 		BKIURL:      get("BKI_URL", "http://localhost:8081"),
 		EGRULURL:    get("EGRUL_URL", "http://localhost:8082"),
 		OllamaURL:   get("OLLAMA_URL", "http://localhost:11434"),
-		OllamaModel: get("OLLAMA_MODEL", "qwen2.5:3b"),
+		OllamaModel: get("OLLAMA_MODEL", "qwen2.5:1.5b"),
 	}
 	ai, err := parseBool(get("AI_ENABLED", "true"))
 	if err != nil {

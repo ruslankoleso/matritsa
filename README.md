@@ -93,7 +93,7 @@ flowchart LR
 | Весь сценарий внутри продукта (без email/SMS/мессенджеров) | вход по логину и паролю, уведомления и статусы внутри кабинета |
 | Автономность: моки вместо внешних систем | `cmd/mock-bki`, `cmd/mock-egrul`, `internal/mocks` |
 | Синтетические данные | `internal/seed` |
-| Без платных API; LLM только с открытыми весами | Ollama + Qwen (Apache 2.0), по желанию; запасной режим на правилах |
+| Без платных API; LLM только с открытыми весами | Ollama + Qwen2.5 1.5B (Apache 2.0), по желанию; запасной режим на правилах |
 | Docker, воспроизводимый запуск | `docker-compose.yml`, `Dockerfile`, `Dockerfile.web` |
 | Зафиксированные версии | `go.mod`/`go.sum`, `web/package-lock.json`, теги образов без `latest` |
 | OpenAPI, коллекция запросов, диаграмма состояний, модель данных, тесты | `api/openapi.yaml`, `docs/postman/`, `docs/state-diagram.md`, `docs/data-model.md`, раздел «Тесты» |
@@ -107,7 +107,7 @@ flowchart LR
 
 ```bash
 AI_ENABLED=true docker compose --profile ai up -d --build
-./scripts/pull-model.sh        # один раз скачает qwen2.5:3b (нужен интернет, ~2 ГБ)
+./scripts/pull-model.sh        # один раз скачает qwen2.5:1.5b (нужен интернет, ~1 ГБ)
 ```
 
 ## Тесты
@@ -133,7 +133,7 @@ AI_ENABLED=true docker compose --profile ai up -d --build
 | `DATA_DIR` | `./data` | куда сохраняются загруженные документы |
 | `BKI_URL`, `EGRUL_URL` | `http://localhost:8081`, `http://localhost:8082` | адреса моков |
 | `AI_ENABLED` | `true` (в compose — `false`) | использовать ли открытую модель |
-| `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen2.5:3b` | модель |
+| `OLLAMA_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen2.5:1.5b` | модель |
 | `SEED_ON_START` | `true` | загрузить синтетические данные при старте (идемпотентно) |
 | `MOCK_LATENCY_MS` | `0` | задержка ответа мока |
 
