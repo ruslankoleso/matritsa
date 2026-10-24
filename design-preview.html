@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Матрица — идеи для интерфейса и анимаций</title>
+<style>
+  /* Шрифт Onest берём из проекта (открывайте файл из корня проекта), иначе — системный. */
+  @font-face { font-family: 'OnestLocal'; src: url('./web/node_modules/@fontsource-variable/onest/files/onest-cyrillic-wght-normal.woff2') format('woff2'); font-weight: 100 900; unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  @font-face { font-family: 'OnestLocal'; src: url('./web/node_modules/@fontsource-variable/onest/files/onest-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  :root {
+    --ground:#fbf8f7; --white:#fff; --tone-1:#f5efed; --tone-2:#ebe2df; --ink:#1b1a19; --soft:#55504c; --faint:#756e69; --border:#e8dfdc;
+    --red-50:#fef3f2; --red-100:#fde4e1; --red-200:#fbcbc6; --red-500:#df291c; --red-600:#c42418; --red-700:#b3241a; --red-900:#4a100b; --deep:#2a2321;
+    --ok:#1f7a4d; --ok-bg:#e4f3ea; --warn:#7a4e00; --warn-bg:#fbefd2; --bad:#a3231a; --ease:cubic-bezier(.22,1,.36,1);
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'OnestLocal','Onest',system-ui,-apple-system,'Segoe UI',sans-serif; color:var(--ink); background:var(--ground); line-height:1.5; -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,p { margin:0; }
+  button { font:inherit; color:inherit; cursor:pointer; }
+  :focus-visible { outline:3px solid var(--red-500); outline-offset:2px; border-radius:4px; }
+  body.calm *, body.calm *::before, body.calm *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
+
+  /* ---- шапка ---- */
+  .top { position:sticky; top:0; z-index:20; background:var(--ground); padding:14px clamp(16px,3vw,40px); display:flex; align-items:center; gap:16px; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; font-size:20px; letter-spacing:-.02em; }
+  .dot { position:relative; width:24px; height:24px; border-radius:50%; background:var(--red-500); }
+  .dot::after { content:''; position:absolute; inset:7px; border-radius:50%; background:var(--white); }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+  .chip { border:1px solid var(--border); background:var(--white); border-radius:999px; padding:6px 14px; font-size:14px; font-weight:500; color:var(--soft); transition:background-color .15s,color .15s; }
+  .chip:hover { background:var(--tone-1); }
+  .chip[aria-pressed=true] { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .calm-toggle { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--soft); }
+
+  .hero { padding:clamp(36px,7vw,84px) clamp(16px,3vw,40px) 24px; max-width:1240px; margin:0 auto; }
+  .hero h1 { font-size:clamp(34px,5vw,64px); font-weight:600; letter-spacing:-.03em; line-height:1.05; max-width:14em; }
+  .hero p { margin-top:18px; font-size:18px; color:var(--soft); max-width:56ch; }
+  .legend { margin-top:22px; display:flex; gap:18px; flex-wrap:wrap; font-size:14px; color:var(--soft); }
+  .legend b { color:var(--ink); }
+
+  .grid { max-width:1240px; margin:0 auto; padding:16px clamp(16px,3vw,40px) 140px; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr)); gap:20px; }
+  .idea { background:var(--white); border:1px solid var(--border); border-radius:16px; display:flex; flex-direction:column; overflow:hidden; }
+  .idea[hidden] { display:none; }
+  .idea header { padding:20px 22px 0; }
+  .meta { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .tag { font-size:12.5px; font-weight:600; padding:3px 10px; border-radius:999px; background:var(--tone-1); color:var(--soft); }
+  .tag.where { background:var(--red-100); color:var(--red-700); }
+  .idea h2 { font-size:21px; font-weight:600; letter-spacing:-.02em; line-height:1.2; }
+  .idea header p { margin-top:6px; font-size:15px; color:var(--soft); }
+  .stage { margin:18px 22px 0; border-radius:12px; background:var(--tone-1); min-height:230px; position:relative; overflow:hidden; display:grid; place-items:center; padding:20px; }
+  .idea footer { padding:14px 22px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .how { font-size:13.5px; color:var(--faint); max-width:34ch; }
+  .pick { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--border); background:var(--white); border-radius:999px; padding:8px 16px; font-weight:600; font-size:14px; transition:background-color .15s,border-color .15s,transform .15s var(--ease); }
+  .pick:hover { background:var(--tone-1); }
+  .pick:active { transform:scale(.96); }
+  .pick[aria-pressed=true] { background:var(--red-500); color:#fff; border-color:var(--red-500); }
+  .btn { border:0; border-radius:999px; min-height:42px; padding:0 20px; font-weight:600; background:var(--ink); color:#fff; transition:transform .15s var(--ease), background-color .15s; }
+  .btn:hover { background:#000; } .btn:active { transform:scale(.96); }
+  .btn.red { background:var(--red-500); } .btn.red:hover { background:var(--red-600); }
+  .btn.soft { background:var(--red-100); color:var(--red-700); } .btn.soft:hover { background:var(--red-200); }
+  .btn.sm { min-height:34px; padding:0 14px; font-size:14px; }
+
+  /* ---- 1. маршрут при скролле ---- */
+  .d1 { width:100%; height:230px; overflow:auto; scroll-behavior:smooth; background:transparent; margin:-20px; padding:0; }
+  .d1-in { height:640px; position:relative; padding:20px 24px 20px 56px; }
+  .d1-line { position:absolute; left:34px; top:34px; bottom:34px; width:4px; border-radius:2px; background:var(--tone-2); }
+  .d1-fill { position:absolute; left:0; top:0; width:100%; height:0; background:var(--red-500); border-radius:2px; }
+  .d1-stop { position:absolute; left:24px; width:24px; height:24px; border-radius:50%; background:var(--white); border:3px solid var(--tone-2); transition:all .35s var(--ease); }
+  .d1-stop.on { background:var(--red-500); border-color:var(--red-500); transform:scale(1.15); }
+  .d1-txt { position:absolute; left:64px; font-size:15px; color:var(--faint); transition:color .3s, transform .4s var(--ease); max-width:24ch; }
+  .d1-txt b { display:block; font-size:17px; } .d1-txt.on { color:var(--ink); transform:translateX(6px); }
+  .d1-hint { position:absolute; top:6px; right:14px; font-size:12.5px; color:var(--faint); }
+
+  /* ---- 2. праздник ---- */
+  .d2 { text-align:center; width:100%; }
+  .d2 .offer { margin:14px auto 0; width:min(320px,100%); background:var(--white); border-radius:14px; padding:16px 18px; text-align:left; transform:translateY(12px) scale(.96); opacity:0; transition:all .5s var(--ease); }
+  .d2 .offer.show { transform:none; opacity:1; }
+  .d2 .offer small { color:var(--soft); font-size:13px; } .d2 .offer strong { display:block; font-size:34px; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .part { position:absolute; width:12px; height:12px; border-radius:50%; pointer-events:none; }
+
+  /* ---- 3. рулетка цифр ---- */
+  .d3 { width:100%; max-width:380px; background:var(--white); border-radius:14px; padding:20px; }
+  .roll { display:flex; align-items:flex-end; height:56px; overflow:hidden; font-size:48px; font-weight:600; letter-spacing:-.03em; line-height:56px; font-variant-numeric:tabular-nums; }
+  .roll .col { height:56px; overflow:hidden; } .roll .col > div { transition:transform .7s var(--ease); } .roll .col span { display:block; height:56px; }
+  .roll .sep { width:.35em; }
+  .d3 label { display:flex; justify-content:space-between; margin-top:14px; font-size:14px; color:var(--soft); }
+  .d3 input[type=range] { width:100%; accent-color:var(--red-500); }
+
+  /* ---- 4. ползунок с щелчками ---- */
+  .d4 { width:100%; max-width:400px; padding-top:34px; }
+  .d4 .track { position:relative; height:44px; }
+  .d4 .rail { position:absolute; left:0; right:0; top:20px; height:6px; background:var(--tone-2); border-radius:3px; }
+  .d4 .fill { position:absolute; left:0; top:20px; height:6px; background:var(--ink); border-radius:3px; width:0; }
+  .d4 .ticks { position:absolute; left:0; right:0; top:32px; display:flex; justify-content:space-between; }
+  .d4 .ticks i { width:2px; height:8px; background:var(--tone-2); border-radius:1px; transition:background-color .2s, height .2s; } .d4 .ticks i.on { background:var(--ink); height:12px; }
+  .d4 input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:grab; margin:0; }
+  .d4 .thumb { position:absolute; top:11px; width:24px; height:24px; margin-left:-12px; border-radius:50%; background:var(--white); border:6px solid var(--ink); transition:transform .15s var(--ease); pointer-events:none; }
+  .d4.drag .thumb { transform:scale(1.25); }
+  .d4 .bubble { position:absolute; top:-30px; margin-left:-44px; width:88px; text-align:center; background:var(--ink); color:#fff; border-radius:8px; padding:4px 0; font-size:14px; font-weight:600; pointer-events:none; transition:transform .15s var(--ease); font-variant-numeric:tabular-nums; }
+  .d4 .bubble::after { content:''; position:absolute; left:50%; bottom:-5px; width:10px; height:10px; margin-left:-5px; background:var(--ink); transform:rotate(45deg); border-radius:2px; }
+  .d4.drag .bubble { transform:translateY(-4px); }
+
+  /* ---- 5. помощник ---- */
+  .d5 { width:100%; max-width:420px; align-self:stretch; display:flex; flex-direction:column; gap:10px; justify-content:flex-end; }
+  .msg { max-width:86%; padding:10px 14px; border-radius:14px; font-size:15px; animation:pop .4s var(--ease); }
+  .msg.me { align-self:flex-end; background:var(--ink); color:#fff; border-bottom-right-radius:4px; }
+  .msg.bot { align-self:flex-start; background:var(--white); border-bottom-left-radius:4px; }
+  .typing i { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--faint); margin:0 2px; animation:bounce 1s infinite; } .typing i:nth-child(2){animation-delay:.15s} .typing i:nth-child(3){animation-delay:.3s}
+  .reco { align-self:flex-start; background:var(--red-100); color:var(--red-900); border-radius:12px; padding:10px 14px; font-size:14.5px; animation:pop .5s var(--ease); }
+  .reco b { display:block; font-size:16px; }
+  .quick { display:flex; gap:6px; flex-wrap:wrap; }
+  @keyframes pop { from { opacity:0; transform:translateY(10px) scale(.96);} to { opacity:1; transform:none; } }
+  @keyframes bounce { 0%,60%,100% { transform:translateY(0);} 30% { transform:translateY(-5px);} }
+
+  /* ---- 6. кольцо оценки ---- */
+  .d6 { display:grid; grid-template-columns:150px 1fr; gap:22px; align-items:center; width:100%; max-width:460px; padding-bottom:36px; }
+  .ring { position:relative; width:150px; height:150px; } .ring svg { transform:rotate(-90deg); }
+  .ring circle { fill:none; stroke-width:14; } .ring .bg { stroke:var(--tone-2); } .ring .fg { stroke:var(--red-500); stroke-linecap:round; transition:stroke-dashoffset 1.2s var(--ease); }
+  .ring .n { position:absolute; inset:0; display:grid; place-items:center; text-align:center; font-size:38px; font-weight:600; letter-spacing:-.03em; line-height:1; font-variant-numeric:tabular-nums; }
+  .ring .n small { display:block; font-size:13px; color:var(--soft); font-weight:500; letter-spacing:0; margin-top:4px; }
+  .bars { display:grid; gap:10px; } .bars div { font-size:13.5px; color:var(--soft); }
+  .bars .b { height:8px; background:var(--white); border-radius:4px; margin-top:4px; overflow:hidden; } .bars .b i { display:block; height:100%; width:0; background:var(--red-500); border-radius:4px; transition:width .9s var(--ease); }
+
+  /* ---- 7. было → стало ---- */
+  .flip { perspective:900px; width:min(340px,100%); height:190px; cursor:pointer; }
+  .flip-in { position:relative; width:100%; height:100%; transition:transform .8s var(--ease); transform-style:preserve-3d; } .flip.on .flip-in { transform:rotateY(180deg); }
+  .face { position:absolute; inset:0; backface-visibility:hidden; border-radius:14px; padding:18px 20px; background:var(--white); display:flex; flex-direction:column; justify-content:space-between; }
+  .face.back { transform:rotateY(180deg); background:var(--red-500); color:#fff; }
+  .face small { font-size:13px; opacity:.75; } .face strong { font-size:36px; letter-spacing:-.03em; line-height:1.1; font-variant-numeric:tabular-nums; display:block; }
+  .face .row { display:flex; justify-content:space-between; font-size:14px; }
+  .flip-hint { display:block; margin-top:12px; font-size:12.5px; color:var(--faint); }
+
+  /* ---- 8. живой статус ---- */
+  .d8 { width:100%; max-width:440px; background:var(--white); border-radius:14px; padding:18px 20px; }
+  .rt { display:grid; grid-template-columns:repeat(5,1fr); margin-top:6px; }
+  .rt .s { position:relative; display:flex; flex-direction:column; gap:8px; font-size:12.5px; color:var(--faint); }
+  .rt .s::before { content:''; position:absolute; top:8px; left:26px; right:4px; height:4px; background:var(--tone-2); border-radius:2px; transition:background-color .5s; }
+  .rt .s:last-child::before { display:none; } .rt .s.done::before { background:var(--red-500); }
+  .rt .p { position:relative; width:20px; height:20px; border-radius:50%; background:var(--white); border:3px solid var(--tone-2); z-index:1; transition:all .4s var(--ease); }
+  .rt .s.done .p { background:var(--red-500); border-color:var(--red-500); } .rt .s.cur .p { border:6px solid var(--red-500); } .rt .s.cur { color:var(--ink); font-weight:600; }
+  .rt .s.cur .p::after { content:''; position:absolute; inset:-10px; border-radius:50%; border:2px solid var(--red-500); opacity:0; animation:pulse 1.8s var(--ease) infinite; }
+  @keyframes pulse { 0% { transform:scale(.7); opacity:.6;} 100% { transform:scale(1.35); opacity:0;} }
+  .d8 .line { margin-top:16px; display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--red-50); border-radius:10px; padding:10px 14px; font-size:14.5px; color:var(--red-900); min-height:44px; }
+  .d8 .timer { font-variant-numeric:tabular-nums; font-weight:600; font-size:13px; }
+  .bell { position:absolute; top:14px; right:16px; width:34px; height:34px; border-radius:50%; background:var(--white); display:grid; place-items:center; } .bell svg { width:18px; height:18px; stroke:var(--ink); fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .bell.ring { animation:shake .7s; } .bell .cnt { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; border-radius:9px; background:var(--red-500); color:#fff; font-size:11px; font-weight:700; display:grid; place-items:center; }
+  @keyframes shake { 0%,100% { transform:rotate(0);} 15% { transform:rotate(18deg);} 30% { transform:rotate(-16deg);} 45% { transform:rotate(12deg);} 60% { transform:rotate(-8deg);} 75% { transform:rotate(4deg);} }
+  .toast { position:absolute; left:50%; bottom:12px; transform:translate(-50%,40px); opacity:0; background:var(--ink); color:#fff; border-radius:10px; padding:10px 16px; font-size:14px; white-space:nowrap; transition:all .5s var(--ease); }
+  .toast.show { transform:translate(-50%,0); opacity:1; }
+
+  /* ---- 9. кнопка с характером ---- */
+  .d9 { display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .mag { position:relative; border:0; background:var(--red-500); color:#fff; font-weight:600; font-size:18px; height:56px; min-width:210px; padding:0 30px; border-radius:999px; overflow:hidden; transition:min-width .5s var(--ease), padding .5s var(--ease), background-color .3s, transform .2s var(--ease); }
+  .mag.busy, .mag.done { min-width:56px; padding:0; width:56px; } .mag.done { background:var(--ok); }
+  .mag span.l { display:inline-block; transition:opacity .2s, transform .3s var(--ease); } .mag.busy span.l, .mag.done span.l { opacity:0; transform:scale(.5); position:absolute; left:50%; top:50%; margin:-12px 0 0 -30px; }
+  .mag .sp { position:absolute; inset:14px; border:3px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; opacity:0; animation:spin .8s linear infinite; } .mag.busy .sp { opacity:1; }
+  .mag .ck { position:absolute; inset:15px; stroke:#fff; fill:none; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:30; stroke-dashoffset:30; transition:stroke-dashoffset .5s .15s var(--ease); } .mag.done .ck { stroke-dashoffset:0; }
+  .ripple { position:absolute; border-radius:50%; background:rgba(255,255,255,.4); transform:scale(0); animation:rip .6s ease-out forwards; pointer-events:none; }
+  @keyframes rip { to { transform:scale(3); opacity:0; } } @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ---- 10. поле ---- */
+  .d10 { width:100%; max-width:340px; }
+  .fl { position:relative; } .fl input { width:100%; height:58px; padding:22px 44px 6px 16px; border:1px solid var(--border); border-radius:10px; font:inherit; font-size:18px; background:var(--white); font-variant-numeric:tabular-nums; letter-spacing:.04em; transition:border-color .2s; }
+  .fl input:focus { outline:2px solid var(--red-500); outline-offset:-1px; border-color:var(--red-500); }
+  .fl label { position:absolute; left:16px; top:18px; font-size:17px; color:var(--faint); pointer-events:none; transition:all .25s var(--ease); transform-origin:left top; }
+  .fl input:focus + label, .fl input:not(:placeholder-shown) + label { transform:translateY(-12px) scale(.72); }
+  .fl .st { position:absolute; right:14px; top:17px; width:24px; height:24px; } .fl .st path { fill:none; stroke:var(--ok); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:30; stroke-dashoffset:30; transition:stroke-dashoffset .4s var(--ease); } .fl.ok .st path { stroke-dashoffset:0; }
+  .fl.bad input { border-color:var(--bad); animation:nope .45s; } @keyframes nope { 20%,60% { transform:translateX(-6px);} 40%,80% { transform:translateX(6px);} }
+  .d10 .hint { margin-top:8px; font-size:13.5px; color:var(--faint); min-height:20px; transition:color .2s; } .d10 .hint.bad { color:var(--bad); font-weight:500; } .d10 .hint.ok { color:var(--ok); font-weight:500; }
+
+  /* ---- 11. загрузка документа ---- */
+  .d11 { width:100%; max-width:380px; }
+  .drop { border:2px dashed #cdbdb8; border-radius:14px; background:var(--white); padding:24px 16px; text-align:center; cursor:pointer; transition:border-color .2s, background-color .2s, transform .25s var(--ease); font-size:15px; color:var(--soft); }
+  .drop:hover, .drop.over { border-color:var(--red-500); background:var(--red-50); transform:scale(1.02); } .drop b { display:block; color:var(--ink); font-size:16px; margin-bottom:2px; }
+  .file { display:none; align-items:center; gap:12px; background:var(--white); border-radius:14px; padding:12px 14px; animation:pop .4s var(--ease); } .file.show { display:flex; }
+  .pring { position:relative; width:42px; height:42px; flex:none; } .pring svg { transform:rotate(-90deg); } .pring circle { fill:none; stroke-width:5; } .pring .bg { stroke:var(--tone-2);} .pring .fg { stroke:var(--red-500); stroke-linecap:round; stroke-dasharray:113; stroke-dashoffset:113; transition:stroke-dashoffset .2s linear; }
+  .pring .ck { position:absolute; inset:11px; stroke:var(--ok); fill:none; stroke-width:3.5; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:30; stroke-dashoffset:30; transition:stroke-dashoffset .4s var(--ease); } .file.fin .pring .fg { stroke:var(--ok); } .file.fin .ck { stroke-dashoffset:0; }
+  .file div b { display:block; font-size:15px; } .file div span { font-size:13px; color:var(--soft); }
+
+  /* ---- 12. истории ---- */
+  .d12 { width:100%; max-width:360px; }
+  .story { background:var(--deep); color:#fff; border-radius:16px; padding:14px 16px 20px; min-height:200px; position:relative; overflow:hidden; }
+  .story .bars { display:flex; gap:4px; } .story .bars i { flex:1; height:3px; background:rgba(255,255,255,.25); border-radius:2px; overflow:hidden; } .story .bars i b { display:block; height:100%; width:0; background:#fff; }
+  .story .slide { margin-top:18px; animation:pop .5s var(--ease); } .story h3 { font-size:22px; line-height:1.2; letter-spacing:-.02em; } .story p { margin-top:8px; font-size:15px; opacity:.8; }
+  .story .go { margin-top:14px; display:inline-block; background:var(--red-500); border-radius:999px; padding:8px 16px; font-weight:600; font-size:14px; }
+  .story .tap { position:absolute; top:40px; bottom:0; width:40%; } .story .tap.l { left:0; } .story .tap.r { right:0; }
+
+  /* ---- 13. раскрытие карточки ---- */
+  .d13 { width:100%; max-width:440px; display:grid; gap:8px; }
+  .row-app { background:var(--white); border-radius:12px; overflow:hidden; transition:transform .3s var(--ease), opacity .3s; }
+  .row-app.dim { opacity:.5; transform:scale(.98); }
+  .row-app > button { display:flex; width:100%; align-items:center; justify-content:space-between; gap:10px; padding:14px 16px; background:none; border:0; text-align:left; }
+  .row-app b { display:block; font-size:15px; } .row-app span { font-size:13px; color:var(--soft); }
+  .pill { font-size:12.5px; font-weight:600; padding:3px 10px; border-radius:999px; } .pill.ok { background:var(--ok-bg); color:var(--ok); } .pill.warn { background:var(--warn-bg); color:var(--warn); } .pill.br { background:var(--red-100); color:var(--red-700); }
+  .exp { display:grid; grid-template-rows:0fr; transition:grid-template-rows .5s var(--ease); } .row-app.open .exp { grid-template-rows:1fr; } .exp > div { overflow:hidden; }
+  .exp .in { padding:2px 16px 16px; } .exp .in > * { opacity:0; transform:translateY(8px); transition:all .45s var(--ease); } .row-app.open .exp .in > * { opacity:1; transform:none; } .row-app.open .exp .in > *:nth-child(2) { transition-delay:.08s; } .row-app.open .exp .in > *:nth-child(3) { transition-delay:.16s; }
+  .mini { display:grid; grid-template-columns:repeat(5,1fr); gap:3px; margin:6px 0 10px; } .mini i { height:5px; border-radius:3px; background:var(--tone-2); } .mini i.on { background:var(--red-500); }
+
+  /* ---- 14. тема ---- */
+  .d14 { position:absolute; inset:0; display:grid; place-items:center; }
+  .cab { position:absolute; inset:0; padding:18px; display:grid; grid-template-columns:90px 1fr; gap:12px; background:var(--ground); color:var(--ink); } .cab.dark { background:#171413; color:#f5efed; clip-path:circle(0 at var(--x,50%) var(--y,50%)); transition:clip-path .8s var(--ease); z-index:2; } .cab.dark.on { clip-path:circle(150% at var(--x,50%) var(--y,50%)); }
+  .cab .sb { background:var(--tone-1); border-radius:10px; padding:10px; display:grid; gap:8px; align-content:start; } .cab.dark .sb { background:#262120; }
+  .cab .sb i { height:10px; border-radius:5px; background:var(--tone-2); } .cab.dark .sb i { background:#3a3331; } .cab .sb i:first-child { background:var(--red-500); }
+  .cab .mn { display:grid; gap:10px; align-content:start; } .cab .card { background:var(--white); border-radius:10px; padding:12px; font-size:13.5px; } .cab.dark .card { background:#262120; } .cab .card b { display:block; font-size:22px; letter-spacing:-.02em; }
+  .themebtn { position:absolute; right:14px; top:14px; z-index:5; width:40px; height:40px; border-radius:50%; border:0; background:var(--ink); color:#fff; display:grid; place-items:center; font-size:18px; }
+
+  /* ---- 15. герой-параллакс ---- */
+  .d15 { position:absolute; inset:0; background:var(--white); overflow:hidden; cursor:none; }
+  .d15 .c { position:absolute; border-radius:50%; will-change:transform; transition:transform .25s ease-out; }
+  .d15 h3 { position:absolute; left:24px; bottom:22px; font-size:34px; line-height:1.05; letter-spacing:-.03em; font-weight:600; z-index:2; }
+  .d15 h3 span { display:inline-block; opacity:0; transform:translateY(24px); animation:rise .7s var(--ease) forwards; } @keyframes rise { to { opacity:1; transform:none; } }
+  .cur { opacity:0; position:absolute; width:22px; height:22px; border-radius:50%; background:var(--red-500); margin:-11px 0 0 -11px; pointer-events:none; z-index:3; transition:width .2s var(--ease), height .2s var(--ease), margin .2s var(--ease), background-color .2s; mix-blend-mode:normal; }
+  .d15:hover .cur { opacity:1; }
+  .cur.big { width:64px; height:64px; margin:-32px 0 0 -32px; background:rgba(223,41,28,.18); }
+  .d15 .replay { position:absolute; right:14px; top:14px; z-index:4; cursor:pointer; }
+
+  /* ---- 16. скелетоны ---- */
+  .d16 { width:100%; max-width:420px; }
+  .sk { height:58px; border-radius:12px; background:var(--tone-2); margin-bottom:8px; animation:breathe 1.3s ease-in-out infinite; } @keyframes breathe { 50% { opacity:.45; } }
+  .li { background:var(--white); border-radius:12px; padding:12px 16px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; animation:pop .5s var(--ease) backwards; font-size:15px; }
+  .empty { text-align:center; color:var(--soft); font-size:15px; } .empty svg { display:block; width:200px; margin:0 auto 10px; } .empty path { fill:none; stroke:var(--red-500); stroke-width:4; stroke-linecap:round; stroke-dasharray:260; stroke-dashoffset:260; animation:draw 2.2s var(--ease) infinite alternate; } .empty circle { fill:var(--white); stroke:var(--red-500); stroke-width:4; }
+  @keyframes draw { to { stroke-dashoffset:0; } }
+
+  /* ---- панель выбора ---- */
+  .bar { position:fixed; left:50%; bottom:18px; transform:translate(-50%,120px); z-index:30; background:var(--ink); color:#fff; border-radius:999px; padding:10px 12px 10px 22px; display:flex; align-items:center; gap:14px; transition:transform .5s var(--ease); box-shadow:0 10px 30px rgba(0,0,0,.25); max-width:calc(100vw - 24px); }
+  .bar.show { transform:translate(-50%,0); } .bar b { font-variant-numeric:tabular-nums; } .bar .btn { background:var(--red-500); }
+  .copied { position:fixed; left:50%; bottom:84px; transform:translate(-50%,20px); opacity:0; background:var(--ok); color:#fff; border-radius:10px; padding:10px 16px; font-size:14px; transition:all .4s var(--ease); z-index:31; } .copied.show { opacity:1; transform:translate(-50%,0); }
+  @media (max-width:560px) { .d6 { grid-template-columns:1fr; justify-items:center; } .stage { margin:16px 14px 0; } .idea header, .idea footer { padding-left:16px; padding-right:16px; } }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand"><span class="dot"></span>Матрица <span style="font-weight:500;color:var(--faint);font-size:15px">· идеи интерфейса</span></div>
+  <div class="chips" role="group" aria-label="Фильтр">
+    <button class="chip" data-f="all" aria-pressed="true">Все</button>
+    <button class="chip" data-f="Лендинг" aria-pressed="false">Лендинг</button>
+    <button class="chip" data-f="Кабинет" aria-pressed="false">Кабинет клиента</button>
+    <button class="chip" data-f="Сотрудник" aria-pressed="false">Сотрудник</button>
+    <button class="chip" data-f="Формы" aria-pressed="false">Формы</button>
+  </div>
+  <label class="calm-toggle"><input type="checkbox" id="calm"> Уменьшить движение</label>
+</div>
+
+<section class="hero">
+  <h1>Как сделать Матрицу живее и теплее</h1>
+  <p>Шестнадцать идей с живыми примерами: трогайте, двигайте ползунки, нажимайте кнопки. Всё в нашем стиле: красный на малых метках, круг-«остановка» как мотив, плоские поверхности. Отметьте понравившееся кнопкой «Беру», скопируйте список и пришлите мне.</p>
+  <div class="legend"><span><b>Эффект</b> — насколько заметно для жюри и клиента</span><span><b>Труд</b> — S: пара часов · M: полдня · L: день</span><span>Переключатель «Уменьшить движение» показывает, как всё выглядит для тех, кому анимации мешают</span></div>
+</section>
+
+<main class="grid" id="grid"></main>
+
+<div class="bar" id="bar"><span>Выбрано: <b id="cnt">0</b></span><button class="btn red sm" id="copy">Скопировать список</button></div>
+<div class="copied" id="copied">Список скопирован — вставьте его в чат</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const rub = n => Math.round(n).toLocaleString('ru-RU').replace(/ /g, ' ');
+const calm = () => document.body.classList.contains('calm');
+const sleep = ms => new Promise(r => setTimeout(r, calm() ? 0 : ms));
+
+/* ================= каталог идей ================= */
+const IDEAS = [
+  { id: 1, where: 'Лендинг', title: 'Маршрут рисуется при прокрутке', text: 'Линия маршрута заполняется красным, остановки загораются по мере чтения. Страница сама «ведёт» человека.', fx: 3, cost: 'M', how: 'CSS + IntersectionObserver / Framer Motion useScroll', demo: demo1 },
+  { id: 2, where: 'Кабинет', title: 'Праздник одобрения', text: 'Когда приходит предложение или деньги «выданы», из кнопки вылетают круги-остановки, а сумма появляется с мягким ростом. Радостный момент запоминается.', fx: 3, cost: 'S', how: 'Web Animations API, 20 кружков', demo: demo2 },
+  { id: 3, where: 'Лендинг', title: 'Цифры-рулетка в калькуляторе', text: 'Платёж не «прыгает», а прокручивается по разрядам, как на табло. Выглядит дорого и показывает, что расчёт живой.', fx: 3, cost: 'S', how: 'Колонки цифр + translateY', demo: demo3 },
+  { id: 4, where: 'Формы', title: 'Ползунок с щелчками и подсказкой', text: 'Над ползунком всплывает значение, шкала подсвечивается, на телефоне будет лёгкая вибрация. Понятно, куда тянуть.', fx: 2, cost: 'S', how: 'Кастомный range + navigator.vibrate', demo: demo4 },
+  { id: 5, where: 'Кабинет', title: 'Тёплый помощник подбора', text: 'Вместо поля ввода — диалог: подсказки-чипы, «печатает…», ответ появляется по буквам, затем карточка продукта. Помощник «живой».', fx: 3, cost: 'M', how: 'Состояние диалога + стриминг ответа ИИ/правил', demo: demo5 },
+  { id: 6, where: 'Сотрудник', title: 'Кольцо оценки и бары по очереди', text: 'Итоговый балл — кольцо с отсчётом, факторы заполняются один за другим. Аналитик сразу видит, что тянет вниз.', fx: 3, cost: 'S', how: 'SVG stroke-dashoffset + stagger', demo: demo6 },
+  { id: 7, where: 'Кабинет', title: 'Встречное предложение: «просили → предлагаем»', text: 'Карточка переворачивается: на одной стороне запрос клиента, на другой — условия банка. Понятно, что именно изменилось.', fx: 2, cost: 'S', how: 'CSS 3D flip, одна карточка', demo: demo7 },
+  { id: 8, where: 'Кабинет', title: 'Живой статус: пульс, таймер, колокольчик', text: 'Текущая остановка пульсирует, рядом тикает «в обработке», при смене статуса качается колокольчик и выезжает уведомление.', fx: 3, cost: 'M', how: 'SSE уже есть — добавляем анимации реакции', demo: demo8 },
+  { id: 9, where: 'Формы', title: 'Кнопка с характером', text: 'Слегка «липнет» к курсору, волна от касания, при отправке превращается в круг со спиннером, затем в галочку.', fx: 2, cost: 'S', how: 'Один компонент Button с состояниями', demo: demo9 },
+  { id: 10, where: 'Формы', title: 'Поле, которое понимает', text: 'Плавающая подпись, ИНН группируется на глазах, галочка «рисуется», при ошибке поле коротко трясётся с понятной подсказкой.', fx: 2, cost: 'S', how: 'Маска ввода + SVG stroke', demo: demo10 },
+  { id: 11, where: 'Формы', title: 'Загрузка документа как событие', text: 'Рамка «ловит» файл, кольцо показывает прогресс, в конце рисуется галочка. Скучная загрузка становится приятной.', fx: 2, cost: 'M', how: 'Drag&drop + XHR progress', demo: demo11 },
+  { id: 12, where: 'Кабинет', title: 'Подсказки ленты как «истории»', text: 'Персональная лента листается как истории: полоски прогресса, касание влево-вправо. Персонализация становится заметной.', fx: 3, cost: 'M', how: 'Карусель поверх /feed', demo: demo12 },
+  { id: 13, where: 'Кабинет', title: 'Заявка раскрывается на месте', text: 'Строка списка плавно раскрывается: внутри появляются маршрут и действия по очереди, остальные заявки отступают.', fx: 2, cost: 'S', how: 'grid-template-rows + stagger', demo: demo13 },
+  { id: 14, where: 'Кабинет', title: 'Тёмная тема «кругом»', text: 'Тема включается расходящимся кругом из точки нажатия — наш мотив-остановка в действии. Бонус для ночных смен аналитика.', fx: 3, cost: 'M', how: 'clip-path: circle + токены тем', demo: demo14 },
+  { id: 15, where: 'Лендинг', title: 'Герой: круги с параллаксом и курсор-остановка', text: 'Крупные круги едут за курсором на разной глубине, курсор — красная остановка, которая «магнитится» к кнопкам. Заголовок появляется по словам.', fx: 3, cost: 'M', how: 'mousemove + transform, только на десктопе', demo: demo15 },
+  { id: 16, where: 'Кабинет', title: 'Загрузка и пустые состояния с характером', text: 'Скелетоны дышат, затем строки выезжают по очереди. Когда заявок нет, маршрут сам рисуется на экране.', fx: 2, cost: 'S', how: 'Скелетоны + SVG-анимация', demo: demo16 },
+];
+
+const picks = new Set(JSON.parse(localStorage.getItem('matritsa-picks') || '[]'));
+const grid = $('#grid');
+IDEAS.forEach(it => {
+  const el = document.createElement('article');
+  el.className = 'idea'; el.dataset.where = it.where; el.id = 'i' + it.id;
+  el.innerHTML = `<header><div class="meta"><span class="tag where">${it.where}</span><span class="tag">Эффект ${'●'.repeat(it.fx)}${'○'.repeat(3 - it.fx)}</span><span class="tag">Труд ${it.cost}</span></div><h2>${it.id}. ${it.title}</h2><p>${it.text}</p></header><div class="stage"></div><footer><span class="how">${it.how}</span><button class="pick" aria-pressed="${picks.has(it.id)}">${picks.has(it.id) ? '✓ Беру' : 'Беру в работу'}</button></footer>`;
+  grid.appendChild(el);
+  it.demo($('.stage', el), el);
+  const btn = $('.pick', el);
+  btn.onclick = () => { picks.has(it.id) ? picks.delete(it.id) : picks.add(it.id); btn.setAttribute('aria-pressed', picks.has(it.id)); btn.textContent = picks.has(it.id) ? '✓ Беру' : 'Беру в работу'; sync(); };
+});
+function sync() {
+  localStorage.setItem('matritsa-picks', JSON.stringify([...picks]));
+  $('#cnt').textContent = picks.size; $('#bar').classList.toggle('show', picks.size > 0);
+}
+$('#copy').onclick = async () => {
+  const text = 'Беру в работу из превью интерфейса:\n' + IDEAS.filter(i => picks.has(i.id)).map(i => `${i.id}. ${i.title} (${i.where})`).join('\n');
+  try { await navigator.clipboard.writeText(text); } catch { const t = document.createElement('textarea'); t.value = text; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+  const c = $('#copied'); c.classList.add('show'); setTimeout(() => c.classList.remove('show'), 2200);
+};
+$$('.chip').forEach(c => c.onclick = () => { $$('.chip').forEach(x => x.setAttribute('aria-pressed', x === c)); const f = c.dataset.f; $$('.idea').forEach(i => i.hidden = f !== 'all' && i.dataset.where !== f); });
+$('#calm').onchange = e => document.body.classList.toggle('calm', e.target.checked);
+sync();
+
+/* ================= демонстрации ================= */
+function demo1(st) {
+  st.style.padding = 0; st.style.display = 'block';
+  const steps = [['Заявка', 'Вы рассказали, что нужно'], ['Проверка', 'Сверяем данные о компании'], ['Оценка', 'Считаем платёж и условия'], ['Решение', 'Предложение или вопрос'], ['Деньги', 'Подписание — в демо условное']];
+  st.innerHTML = `<div class="d1"><div class="d1-in"><div class="d1-line"><div class="d1-fill"></div></div>${steps.map((s, i) => `<div class="d1-stop" style="top:${24 + i * 112}px"></div><div class="d1-txt" style="top:${24 + i * 112 - 4}px"><b>${s[0]}</b>${s[1]}</div>`).join('')}</div><span class="d1-hint">листайте ↓</span></div>`;
+  const sc = $('.d1', st), fill = $('.d1-fill', st), stops = $$('.d1-stop', st), txt = $$('.d1-txt', st);
+  const upd = () => { const max = sc.scrollHeight - sc.clientHeight, p = max ? sc.scrollTop / max : 0; const h = (sc.scrollHeight - 68) * p + 60; fill.style.height = Math.min(h, sc.scrollHeight - 68) + 'px'; stops.forEach((s, i) => { const on = parseFloat(s.style.top) < sc.scrollTop + sc.clientHeight * .78; s.classList.toggle('on', on); txt[i].classList.toggle('on', on); }); };
+  sc.onscroll = upd; upd();
+}
+function demo2(st) {
+  st.innerHTML = `<div class="d2"><button class="btn red">Одобрить заявку</button><div class="offer"><small>Платёж в месяц</small><strong>0 ₽</strong></div></div>`;
+  const b = $('button', st), o = $('.offer', st), n = $('strong', st);
+  const cols = ['#df291c', '#fbcbc6', '#2a2321', '#fff', '#b3241a'];
+  b.onclick = () => {
+    const r = b.getBoundingClientRect(), s = st.getBoundingClientRect(), cx = r.left - s.left + r.width / 2, cy = r.top - s.top + r.height / 2;
+    o.classList.add('show');
+    if (calm()) { n.textContent = '109 161 ₽'; return; }
+    for (let i = 0; i < 26; i++) { const p = document.createElement('i'); p.className = 'part'; p.style.cssText = `left:${cx}px;top:${cy}px;background:${cols[i % cols.length]};width:${8 + Math.random() * 10}px;height:${8 + Math.random() * 10}px`; st.appendChild(p); const a = Math.random() * Math.PI * 2, d = 70 + Math.random() * 110; p.animate([{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px,${Math.sin(a) * d - 30}px) scale(.2)`, opacity: 0 }], { duration: 900 + Math.random() * 500, easing: 'cubic-bezier(.2,.8,.3,1)' }).onfinish = () => p.remove(); }
+    const t0 = performance.now(); (function f(t) { const k = Math.min(1, (t - t0) / 900), e = 1 - Math.pow(1 - k, 3); n.textContent = rub(109161 * e) + ' ₽'; if (k < 1) requestAnimationFrame(f); })(t0);
+  };
+}
+function rollInit(el) {
+  el.innerHTML = ''; el.dataset.v = '';
+  return v => {
+    const s = rub(v).split('').map(c => c === ' ' ? ' ' : c); const cur = el.dataset.v || '';
+    if (s.length !== cur.length) { el.innerHTML = s.map(c => c === ' ' ? '<div class="sep"></div>' : `<div class="col"><div>${[...'0123456789'].map(d => `<span>${d}</span>`).join('')}</div></div>`).join(''); }
+    $$('.col > div', el).forEach((d, i) => { const digs = s.filter(c => c !== ' '); d.style.transform = `translateY(-${digs[i] * 56}px)`; });
+    el.dataset.v = s.join('');
+  };
+}
+function demo3(st) {
+  st.innerHTML = `<div class="d3"><small style="color:var(--soft)">Платёж в месяц</small><div style="display:flex;align-items:flex-end"><div class="roll" id="r3"></div><span style="font-size:36px;font-weight:600;line-height:56px;margin-left:6px">₽</span></div><label>Сумма <b id="a3"></b></label><input type="range" min="300000" max="10000000" step="50000" value="1200000"></div>`;
+  const set = rollInit($('#r3', st)), inp = $('input', st), a = $('#a3', st);
+  const go = () => { const A = +inp.value, r = .165 / 12, n = 12; a.textContent = rub(A) + ' ₽'; set(A * r / (1 - Math.pow(1 + r, -n))); };
+  inp.oninput = go; go(); setTimeout(go, 50);
+}
+function demo4(st) {
+  st.innerHTML = `<div class="d4" id="s4"><div class="track"><div class="rail"></div><div class="fill"></div><div class="ticks">${Array.from({ length: 12 }, () => '<i></i>').join('')}</div><div class="thumb"></div><div class="bubble"></div><input type="range" min="3" max="24" step="1" value="12" aria-label="Срок, месяцев"></div></div>`;
+  const d = $('.d4', st), inp = $('input', st), th = $('.thumb', st), bu = $('.bubble', st), fi = $('.fill', st), ti = $$('.ticks i', st); let last;
+  const upd = () => { const p = (inp.value - 3) / 21, w = d.clientWidth, x = p * w; th.style.left = x + 'px'; bu.style.left = x + 'px'; fi.style.width = x + 'px'; bu.textContent = inp.value + ' мес.'; ti.forEach((t, i) => t.classList.toggle('on', i / 11 <= p)); if (last !== inp.value) { last = inp.value; if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate(8); } };
+  inp.oninput = upd; ['pointerdown'].forEach(e => inp.addEventListener(e, () => d.classList.add('drag'))); ['pointerup', 'pointercancel', 'blur'].forEach(e => inp.addEventListener(e, () => d.classList.remove('drag'))); upd(); window.addEventListener('resize', upd); setTimeout(upd, 60);
+}
+function demo5(st) {
+  st.innerHTML = `<div class="d5"><div class="log" style="display:grid;gap:10px;align-content:end;min-height:150px"></div><div class="quick"><button class="btn soft sm" data-q="Нужно купить станок">Нужно купить станок</button><button class="btn soft sm" data-q="Бывает кассовый разрыв">Кассовый разрыв</button><button class="btn soft sm" data-q="Срочно нужны деньги на зарплаты">Срочно на зарплаты</button></div></div>`;
+  const log = $('.log', st); let busy = false;
+  const ans = { 'Нужно купить станок': ['Подойдёт кредит на оборудование: длинный срок — небольшой платёж.', 'Кредит на оборудование', 'от 500 000 ₽ · до 5 лет'], 'Бывает кассовый разрыв': ['Тут выручит овердрафт: покроет разрыв, а платите за дни пользования.', 'Овердрафт', 'от 100 000 ₽ · на 12 месяцев'], 'Срочно нужны деньги на зарплаты': ['Для текущих расходов — оборотный кредит. Если сумма небольшая, решение придёт быстро.', 'Кредит на оборотные средства', 'от 300 000 ₽ · до 2 лет'] };
+  $$('.quick button', st).forEach(b => b.onclick = async () => {
+    if (busy) return; busy = true; log.innerHTML = '';
+    const me = document.createElement('div'); me.className = 'msg me'; me.textContent = b.dataset.q; log.append(me);
+    const ty = document.createElement('div'); ty.className = 'msg bot typing'; ty.innerHTML = '<i></i><i></i><i></i>'; await sleep(350); log.append(ty); await sleep(1100);
+    const [t, name, facts] = ans[b.dataset.q]; ty.className = 'msg bot'; ty.textContent = '';
+    for (const ch of t) { ty.textContent += ch; if (!calm()) await new Promise(r => setTimeout(r, 14)); }
+    await sleep(250); const r = document.createElement('div'); r.className = 'reco'; r.innerHTML = `<b>${name}</b>${facts}`; log.append(r); busy = false;
+  });
+}
+function demo6(st) {
+  const F = [['Возраст бизнеса', 10, 10], ['Стабильность выручки', 15, 15], ['Долговая нагрузка', 25, 25], ['Кредитная история', 7, 20], ['Просрочки', 8, 15]];
+  st.innerHTML = `<div class="d6"><div class="ring"><svg width="150" height="150" viewBox="0 0 150 150"><circle class="bg" cx="75" cy="75" r="62"/><circle class="fg" cx="75" cy="75" r="62" stroke-dasharray="389.6" stroke-dashoffset="389.6"/></svg><div class="n"><div><span id="n6">0</span><small>из 100<br>класс B</small></div></div></div><div class="bars">${F.map(f => `<div>${f[0]} <b style="color:var(--ink);float:right">${f[1]}/${f[2]}</b><div class="b"><i data-w="${f[1] / f[2] * 100}"></i></div></div>`).join('')}</div></div><button class="btn sm" style="position:absolute;right:12px;bottom:12px" id="re6">Пересчитать</button>`;
+  const fg = $('.fg', st), n = $('#n6', st), bars = $$('.b i', st);
+  const run = async () => { fg.style.transition = 'none'; fg.style.strokeDashoffset = 389.6; bars.forEach(b => { b.style.transition = 'none'; b.style.width = 0; }); n.textContent = 0; await sleep(60); fg.style.transition = ''; fg.style.strokeDashoffset = 389.6 * (1 - .65); bars.forEach(b => b.style.transition = ''); const t0 = performance.now(); (function f(t) { const k = Math.min(1, (t - t0) / 1200); n.textContent = Math.round(65 * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(f); })(t0); for (const b of bars) { b.style.width = b.dataset.w + '%'; await sleep(160); } };
+  $('#re6', st).onclick = run; const io = new IntersectionObserver(e => { if (e[0].isIntersecting) { run(); io.disconnect(); } }); io.observe(st);
+}
+function demo7(st) {
+  st.innerHTML = `<div style="text-align:center"><div class="flip"><div class="flip-in"><div class="face"><div><small>Вы просили</small><strong>3 000 000 ₽</strong></div><div class="row"><span>Срок 2 года</span><span>~ 172 400 ₽/мес</span></div></div><div class="face back"><div><small>Банк предлагает</small><strong>800 000 ₽</strong></div><div class="row"><span>Срок 2 года · 24,5 %</span><span>42 497 ₽/мес</span></div></div></div></div></div><span class="flip-hint">нажмите на карточку</span>`;
+  const f = $('.flip', st); f.onclick = () => f.classList.toggle('on'); f.tabIndex = 0; f.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); f.click(); } };
+}
+function demo8(st) {
+  const S = ['Заявка', 'Проверка', 'Оценка', 'Решение', 'Деньги'], M = ['Заявка отправлена', 'Сверяем данные о компании…', 'Считаем условия…', 'Для вас готово предложение', 'Деньги выданы (демо)'];
+  st.style.alignItems = 'start'; st.innerHTML = `<div class="bell"><svg viewBox="0 0 16 16"><path d="M3.8 11.2V7.6a4.2 4.2 0 1 1 8.4 0v3.6l1 1.1H2.8l1-1.1Z"/><path d="M6.6 13.8h2.8"/></svg><span class="cnt" style="display:none">1</span></div><div class="d8"><div class="rt">${S.map(s => `<div class="s"><span class="p"></span>${s}</div>`).join('')}</div><div class="line"><span class="msgt"></span><span class="timer">00:00</span></div></div><div class="toast"></div><button class="btn sm" style="position:absolute;left:12px;bottom:12px">Следующий шаг →</button>`;
+  let i = 1, sec = 0; const stops = $$('.s', st), mt = $('.msgt', st), tm = $('.timer', st), bell = $('.bell', st), cnt = $('.cnt', st), toast = $('.toast', st), btn = $('button', st);
+  const draw = () => { stops.forEach((s, k) => { s.className = 's' + (k < i ? ' done' : k === i ? ' cur' : ''); }); mt.textContent = M[i]; };
+  draw(); setInterval(() => { sec++; tm.textContent = `00:${String(sec % 60).padStart(2, '0')}`; }, 1000);
+  btn.onclick = () => { i = (i + 1) % 5; if (i === 0) i = 1; sec = 0; draw(); bell.classList.remove('ring'); void bell.offsetWidth; bell.classList.add('ring'); cnt.style.display = 'grid'; toast.textContent = M[i]; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2200); };
+}
+function demo9(st) {
+  st.innerHTML = `<div class="d9"><button class="mag"><span class="l">Отправить заявку</span><span class="sp"></span><svg class="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button><small style="color:var(--faint)">кнопка тянется к курсору</small></div>`;
+  const b = $('.mag', st);
+  st.onmousemove = e => { if (calm()) return; const r = b.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy); if (d < 140) b.style.transform = `translate(${dx * .18}px,${dy * .28}px)`; else b.style.transform = ''; };
+  st.onmouseleave = () => b.style.transform = '';
+  b.onclick = async e => { if (b.classList.contains('busy') || b.classList.contains('done')) { b.className = 'mag'; return; } const r = b.getBoundingClientRect(), s = document.createElement('i'); s.className = 'ripple'; const z = Math.max(r.width, r.height); s.style.cssText = `width:${z}px;height:${z}px;left:${e.clientX - r.left - z / 2}px;top:${e.clientY - r.top - z / 2}px`; b.append(s); setTimeout(() => s.remove(), 700); b.classList.add('busy'); await sleep(1600); b.classList.replace('busy', 'done'); await sleep(2400); b.className = 'mag'; };
+}
+function demo10(st) {
+  st.innerHTML = `<div class="d10"><div class="fl" id="f10"><input inputmode="numeric" placeholder=" " autocomplete="off" aria-label="ИНН"><label>ИНН компании</label><svg class="st" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="hint">10 цифр для организации, 12 для ИП. Попробуйте 7701234501</div></div>`;
+  const f = $('.fl', st), i = $('input', st), h = $('.hint', st);
+  const fmt = v => v.length > 10 ? v.replace(/(\d{4})(\d{4})(\d{0,4})/, '$1 $2 $3').trim() : v.replace(/(\d{4})(\d{0,6})/, '$1 $2').trim();
+  i.oninput = () => { const raw = i.value.replace(/\D/g, '').slice(0, 12); i.value = fmt(raw); f.classList.remove('bad'); f.classList.toggle('ok', raw.length === 10 || raw.length === 12); h.className = 'hint' + (f.classList.contains('ok') ? ' ok' : ''); h.textContent = f.classList.contains('ok') ? 'Нашли в реестре: ООО «Тёплый хлеб», действующая' : raw.length ? `Введено ${raw.length} из 10 или 12 цифр` : '10 цифр для организации, 12 для ИП. Попробуйте 7701234501'; };
+  i.onblur = () => { const n = i.value.replace(/\D/g, '').length; if (n && n !== 10 && n !== 12) { f.classList.remove('bad'); void f.offsetWidth; f.classList.add('bad'); h.className = 'hint bad'; h.textContent = 'ИНН — 10 или 12 цифр. Проверьте, пожалуйста.'; } };
+}
+function demo11(st) {
+  st.innerHTML = `<div class="d11"><div class="drop" tabindex="0" role="button"><b>Перетащите выписку сюда</b>или нажмите, чтобы выбрать (демо)</div><div class="file"><div class="pring"><svg width="42" height="42" viewBox="0 0 42 42"><circle class="bg" cx="21" cy="21" r="18"/><circle class="fg" cx="21" cy="21" r="18"/></svg><svg class="ck" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>Выписка_по_счёту.pdf</b><span>Загружаем…</span></div></div></div>`;
+  const drop = $('.drop', st), file = $('.file', st), fg = $('.fg', st), sp = $('.file span', st);
+  const start = async () => { drop.style.display = 'none'; file.className = 'file show'; sp.textContent = 'Загружаем…'; for (let p = 0; p <= 100; p += 4) { fg.style.strokeDashoffset = 113 * (1 - p / 100); await sleep(45); } file.classList.add('fin'); sp.textContent = 'Готово · 1,2 МБ'; await sleep(2200); file.className = 'file'; drop.style.display = ''; fg.style.strokeDashoffset = 113; };
+  drop.onclick = start; drop.onkeydown = e => { if (e.key === 'Enter') start(); };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); })); ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); if (ev === 'drop') start(); }));
+}
+function demo12(st) {
+  const SL = [['Овердрафт на случай кассового разрыва', 'Выручка бывает неровной. Лимит покроет паузы между платежами.', 'Узнать условия'], ['Платёжная история — ваш козырь', 'Бизнесу меньше года: регулярные платежи за пару месяцев улучшат условия.', 'Как это работает'], ['Нужно уточнение по заявке', 'Банк просит договор аренды. Это займёт пару минут.', 'Ответить']];
+  st.innerHTML = `<div class="d12"><div class="story"><div class="bars">${SL.map(() => '<i><b></b></i>').join('')}</div><div class="slide"></div><div class="tap l"></div><div class="tap r"></div></div></div>`;
+  let cur = 0, raf, t0, pause = false; const bars = $$('.bars b', st), slide = $('.slide', st); const D = 4200;
+  const show = i => { cur = (i + SL.length) % SL.length; bars.forEach((b, k) => b.style.width = k < cur ? '100%' : '0'); slide.style.animation = 'none'; void slide.offsetWidth; slide.style.animation = ''; slide.innerHTML = `<h3>${SL[cur][0]}</h3><p>${SL[cur][1]}</p><span class="go">${SL[cur][2]} →</span>`; t0 = performance.now(); };
+  const tick = t => { if (!pause && !calm()) { const k = Math.min(1, (t - t0) / D); bars[cur].style.width = k * 100 + '%'; if (k >= 1) show(cur + 1); } else t0 += 16; raf = requestAnimationFrame(tick); };
+  show(0); raf = requestAnimationFrame(tick);
+  $('.tap.l', st).onclick = () => show(cur - 1); $('.tap.r', st).onclick = () => show(cur + 1); const sb = $('.story', st); sb.onmouseenter = () => pause = true; sb.onmouseleave = () => pause = false;
+}
+function demo13(st) {
+  const A = [['Оборотные средства', '1 200 000 ₽ · 12 мес.', 'ok', 'Есть предложение', 3], ['Овердрафт', '500 000 ₽ · 12 мес.', 'warn', 'Нужно уточнение', 1], ['Экспресс-кредит', '300 000 ₽ · 6 мес.', 'br', 'У сотрудника', 2]];
+  st.innerHTML = `<div class="d13">${A.map((a, i) => `<div class="row-app"><button aria-expanded="false"><span><b>${a[0]}</b><span>${a[1]}</span></span><span class="pill ${a[2]}">${a[3]}</span></button><div class="exp"><div><div class="in"><div class="mini">${[0, 1, 2, 3, 4].map(k => `<i class="${k <= a[4] ? 'on' : ''}"></i>`).join('')}</div><span style="font-size:14px;color:var(--soft)">Платёж около ${rub(110000 - i * 25000)} ₽ в месяц</span><div style="margin-top:10px"><button class="btn soft sm">Открыть заявку</button></div></div></div></div></div>`).join('')}</div>`;
+  const rows = $$('.row-app', st); rows.forEach(r => $('button', r).onclick = () => { const open = r.classList.contains('open'); rows.forEach(x => { x.classList.remove('open', 'dim'); $('button', x).setAttribute('aria-expanded', 'false'); }); if (!open) { r.classList.add('open'); $('button', r).setAttribute('aria-expanded', 'true'); rows.forEach(x => x !== r && x.classList.add('dim')); } });
+}
+function demo14(st) {
+  st.style.padding = 0; st.style.display = 'block'; st.style.minHeight = '260px';
+  const tpl = d => `<div class="cab${d ? ' dark' : ''}"><div class="sb"><i></i><i></i><i></i><i></i></div><div class="mn"><div class="card"><small>Платёж в месяц</small><b>109 161 ₽</b></div><div class="card" style="display:flex;justify-content:space-between"><span>Оборотные средства</span><b style="font-size:14px;color:var(--ok)">Есть предложение</b></div></div></div>`;
+  st.innerHTML = tpl(false) + tpl(true) + '<button class="themebtn" aria-label="Переключить тему">☾</button>';
+  const dark = $('.cab.dark', st), btn = $('.themebtn', st); let on = false;
+  btn.onclick = e => { const r = st.getBoundingClientRect(); dark.style.setProperty('--x', (e.clientX - r.left) + 'px'); dark.style.setProperty('--y', (e.clientY - r.top) + 'px'); on = !on; dark.classList.toggle('on', on); btn.textContent = on ? '☀' : '☾'; };
+}
+function demo15(st) {
+  st.style.padding = 0; st.style.display = 'block'; st.style.minHeight = '260px';
+  const W = ['Кредит', 'для', 'бизнеса', 'шаг', 'за', 'шагом'];
+  st.innerHTML = `<div class="d15"><i class="c" data-d="0.06" style="width:230px;height:230px;right:-50px;top:-40px;background:var(--red-500)"></i><i class="c" data-d="0.12" style="width:110px;height:110px;right:170px;top:120px;background:var(--red-200)"></i><i class="c" data-d="-0.08" style="width:64px;height:64px;left:36px;top:40px;background:var(--deep)"></i><h3></h3><i class="cur"></i><button class="btn sm replay">Ещё раз</button></div>`;
+  const root = $('.d15', st), h = $('h3', st), cur = $('.cur', st), cs = $$('.c', st);
+  const words = () => { h.innerHTML = W.map((w, i) => `<span style="animation-delay:${i * 90}ms">${w}</span>`).join(' '); }; words(); $('.replay', st).onclick = words;
+  root.onmousemove = e => { const r = root.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top; cur.style.left = x + 'px'; cur.style.top = y + 'px'; cur.classList.toggle('big', !!e.target.closest('button')); if (!calm()) cs.forEach(c => c.style.transform = `translate(${(x - r.width / 2) * c.dataset.d}px,${(y - r.height / 2) * c.dataset.d}px)`); };
+  root.onmouseleave = () => cs.forEach(c => c.style.transform = '');
+}
+function demo16(st) {
+  st.innerHTML = `<div class="d16"><div class="area"></div></div><div style="position:absolute;right:12px;top:12px;display:flex;gap:6px"><button class="btn sm" data-m="load">Загрузить заявки</button><button class="btn sm soft" data-m="empty">Нет заявок</button></div>`;
+  const a = $('.area', st); st.style.alignItems = 'end';
+  const load = async () => { a.innerHTML = '<div class="sk"></div><div class="sk"></div><div class="sk"></div>'; await sleep(1400); a.innerHTML = [['Оборотные средства', '1 200 000 ₽'], ['Овердрафт', '500 000 ₽'], ['Экспресс-кредит', '300 000 ₽']].map((r, i) => `<div class="li" style="animation-delay:${i * 110}ms"><span>${r[0]}</span><b>${r[1]}</b></div>`).join(''); };
+  const empty = () => { a.innerHTML = `<div class="empty"><svg viewBox="0 0 220 60"><path d="M20 30 H200"/><circle cx="20" cy="30" r="10"/><circle cx="110" cy="30" r="10"/><circle cx="200" cy="30" r="10"/></svg>Заявок пока нет.<br>Когда отправите первую, она пойдёт по маршруту.</div>`; };
+  $('[data-m=load]', st).onclick = load; $('[data-m=empty]', st).onclick = empty; load();
+}
+</script>
+</body>
+</html>
