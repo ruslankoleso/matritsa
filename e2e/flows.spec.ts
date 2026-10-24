@@ -90,22 +90,24 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page).toHaveURL(/\/cabinet/)
   })
 
-  test('after switching accounts the previous person\'s company is not shown, and the brand leads home', async ({ page }) => {
+  test('after switching accounts the previous person\'s company is not shown, and the brand leads to the site', async ({ page }) => {
     await loginAs(page, /Смирнов/)
-    await expect(page.locator('.side-brand')).toContainText('Смирнов')
+    await expect(page.locator('.whoami')).toContainText('Смирнов')
+    await page.getByRole('button', { name: 'Аккаунт' }).click()
     await page.getByRole('button', { name: 'Выйти' }).click()
     await expect(page).toHaveURL(/\/login/)
 
     await loginAs(page, /Старый порт/)
-    await expect(page.locator('.side-brand')).toContainText('Старый порт')
-    await expect(page.locator('.side-brand')).not.toContainText('Смирнов')
-    await page.locator('.side-brand').click()
-    await expect(page).toHaveURL(/\/cabinet$/)
+    await expect(page.locator('.whoami')).toContainText('Старый порт')
+    await expect(page.locator('.whoami')).not.toContainText('Смирнов')
+    await page.getByRole('link', { name: /Матрица/ }).first().click()
+    await expect(page).toHaveURL(/\/$/)
   })
 
-  test('the person can open their profile from the corner of the menu and see what is filled in', async ({ page }) => {
+  test('the person can open their profile from the account window and see what is filled in', async ({ page }) => {
     await loginAs(page, /Тёплый хлеб/)
-    await page.getByRole('link', { name: 'Мой профиль' }).click()
+    await page.getByRole('button', { name: 'Аккаунт' }).click()
+    await page.getByRole('link', { name: /Открыть профиль/ }).click()
     await expect(page).toHaveURL(/\/cabinet\/profile$/)
     await expect(page.getByRole('heading', { name: 'Мой профиль' })).toBeVisible()
     await expect(page.getByText('client1', { exact: true })).toBeVisible()
@@ -114,12 +116,69 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page.getByText(/демонстрационный аккаунт/)).toBeVisible()
   })
 
+  test('the bell shows the news in a floating window with a link to the whole page', async ({ page }) => {
+    await loginAs(page, /Тёплый хлеб/)
+    await page.getByRole('button', { name: /^Уведомления/ }).click()
+    const win = page.getByRole('dialog', { name: 'Уведомления' })
+    await expect(win).toBeVisible()
+    await win.getByRole('link', { name: /Открыть все уведомления/ }).click()
+    await expect(page).toHaveURL(/\/cabinet\/notifications$/)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+
   test('from the cabinet there is a way to the public site and back', async ({ page }) => {
     await loginAs(page, /Тёплый хлеб/)
-    await page.getByRole('link', { name: 'На сайт' }).click()
+    await page.getByRole('button', { name: 'Аккаунт' }).click()
+    await page.getByRole('dialog', { name: 'Аккаунт' }).getByRole('link', { name: 'На сайт' }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.getByRole('link', { name: 'В кабинет' }).first().click()
     await expect(page).toHaveURL(/\/cabinet/)
+  })
+
+  test('sections of a client are tabs in the top bar; bank staff have a pull-out menu on the left', async ({ browser }) => {
+    const client = await newPage(await browser.newContext({ reducedMotion: 'reduce' }), /Тёплый хлеб/)
+    await expect(client.getByRole('navigation', { name: 'Разделы' }).getByRole('link')).toHaveText(['Главная', 'Новая заявка', 'Мои заявки'])
+    await expect(client.getByRole('button', { name: 'Меню' })).toHaveCount(0)
+
+    const staff = await newPage(await browser.newContext({ reducedMotion: 'reduce' }), /Анна Белова/)
+    const rail = staff.getByRole('complementary', { name: 'Навигация' })
+    const narrow = (await rail.boundingBox())!.width
+    await staff.getByRole('button', { name: 'Меню' }).click()
+    await expect.poll(async () => (await rail.boundingBox())!.width).toBeGreaterThan(narrow + 100)
+    await rail.getByRole('link', { name: /Очередь заявок/ }).click()
+    await expect(staff).toHaveURL(/\/staff$/)
+  })
+
+  test('a person without applications sees a start window and can create the first one from it', async ({ page }) => {
+    await page.goto('/login?mode=register')
+    const login = `first${Date.now().toString(36)}`
+    await page.getByLabel('ФИО').fill('Иванов Иван Иванович')
+    await page.locator('#login').fill(login)
+    await page.locator('#password').fill('long-enough-1')
+    await page.getByRole('button', { name: 'Дальше' }).click()
+    await page.getByLabel('ИНН компании').fill(randomINN())
+    await expect(page.locator('.company-card')).toBeVisible()
+    await page.getByRole('checkbox', { name: /Согласен на обработку данных/ }).check()
+    await page.getByRole('button', { name: 'Создать аккаунт' }).click()
+    await expect(page.getByRole('heading', { name: 'Давайте оформим первую заявку' })).toBeVisible()
+    await page.getByLabel('На что нужны деньги').fill('купить станок для мастерской')
+    await page.getByRole('button', { name: 'Создать заявку' }).click()
+    await expect(page).toHaveURL(/\/cabinet\/new/)
+  })
+
+  test('the greeting with the name appears after signing in and goes away', async ({ browser }) => {
+    const context = await browser.newContext({ reducedMotion: 'no-preference' })
+    const page = await context.newPage()
+    await page.goto('/login')
+    await page.getByRole('button', { name: /Тёплый хлеб/ }).click()
+    const hello = page.getByRole('status').filter({ hasText: /Ирина/ })
+    await expect(hello).toBeVisible()
+    await expect(hello).toContainText(/Доброе утро|Добрый день|Добрый вечер|Доброй ночи/)
+    await hello.click()
+    await expect(hello).toHaveCount(0)
+    await page.reload()
+    await expect(page.getByRole('status').filter({ hasText: /Ирина/ })).toHaveCount(0)
+    await context.close()
   })
 
   test('a very long file name stays inside its card', async ({ page }) => {

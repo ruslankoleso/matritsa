@@ -13,6 +13,8 @@ export default defineConfig({
     baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
     channel: process.env.PW_CHANNEL ?? 'chrome', // uses the installed Chrome; set PW_CHANNEL= to use bundled Chromium
     locale: 'ru-RU',
+    // The greeting after sign-in covers the screen for a few seconds; the tests that are not about it turn animation off.
+    reducedMotion: 'reduce',
     viewport: { width: 1440, height: 900 },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
