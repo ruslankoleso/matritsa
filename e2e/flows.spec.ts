@@ -103,6 +103,17 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page).toHaveURL(/\/cabinet$/)
   })
 
+  test('the person can open their profile from the corner of the menu and see what is filled in', async ({ page }) => {
+    await loginAs(page, /Тёплый хлеб/)
+    await page.getByRole('link', { name: 'Мой профиль' }).click()
+    await expect(page).toHaveURL(/\/cabinet\/profile$/)
+    await expect(page.getByRole('heading', { name: 'Мой профиль' })).toBeVisible()
+    await expect(page.getByText('client1', { exact: true })).toBeVisible()
+    await expect(page.locator('main').getByText('ООО «Тёплый хлеб»')).toBeVisible()
+    await expect(page.getByText('7701234501')).toBeVisible()
+    await expect(page.getByText(/демонстрационный аккаунт/)).toBeVisible()
+  })
+
   test('a new person signs up with a company INN, lands in the cabinet and can sign in again', async ({ page }) => {
     const login = `guest${Date.now().toString(36)}`
     const inn = randomINN()
