@@ -489,6 +489,31 @@
       "name": "auth",
       "item": [
         {
+          "name": "Найти компанию по ИНН при регистрации",
+          "request": {
+            "method": "GET",
+            "header": null,
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/company?inn=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "company"
+              ],
+              "query": [
+                {
+                  "key": "inn",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Вход по логину и паролю",
           "request": {
             "method": "POST",
@@ -561,6 +586,58 @@
                 "v1",
                 "auth",
                 "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Регистрация нового клиента",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"consent\": false,\n  \"fullName\": \"Иванов Иван Иванович\",\n  \"inn\": \"7700000016\",\n  \"login\": \"ivanov\",\n  \"password\": \"string\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Тестовые ИНН для регистрации",
+          "request": {
+            "method": "GET",
+            "header": null,
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/registration-examples",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "registration-examples"
               ]
             }
           }
