@@ -5,6 +5,7 @@ package decision
 
 import (
 	"fmt"
+	"strings"
 
 	"matritsa/internal/products"
 	"matritsa/internal/scoring"
@@ -52,8 +53,18 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 	if len(res.HardStops) > 0 {
 		return Decision{Outcome: Reject, Reasons: append([]string(nil), res.HardStops...)}
 	}
-	if res.Grade == scoring.GradeE {
-		return Decision{Outcome: Reject, Reasons: []string{"Оценка риска не соответствует требованиям банка для выдачи кредита"}}
+	if res.Grade == scoring.GradeD && res.Score+res.MissingPoints >= scoring.DefaultConfig().GradeCFrom {
+		// The class is D only because there is little data: not a refusal for the bank to give on its own.
+		return Decision{Outcome: Review, Reasons: []string{
+			fmt.Sprintf("Оценка %d баллов из 100, но по части критериев нет данных (%s): автоматический отказ не выдаётся, решение принимает сотрудник", res.Score, noDataCriteria(res)),
+		}}
+	}
+	if res.Grade == scoring.GradeD {
+		reason := fmt.Sprintf("Оценка риска не соответствует требованиям банка: класс D, %d баллов из 100", res.Score)
+		if weak := zeroCriteria(res); weak != "" {
+			reason += ". Нет баллов по критериям: " + weak
+		}
+		return Decision{Outcome: Reject, Reasons: []string{reason}}
 	}
 	if res.MaxAffordableAmount < p.MinAmount {
 		return Decision{Outcome: Reject, Reasons: []string{
@@ -63,7 +74,8 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 
 	cfg := scoring.DefaultConfig()
 	experienced := res.RepaidCoverage >= cfg.MinRepaidCoverage
-	if res.Grade == scoring.GradeA && amount <= p.AutoApproveLimit && amount <= res.MaxAffordableAmount && experienced {
+	bureauOK := res.BKIScore >= cfg.MinAutoBKIScore
+	if res.Grade == scoring.GradeA && amount <= p.AutoApproveLimit && amount <= res.MaxAffordableAmount && experienced && bureauOK {
 		offer, _ := MakeOffer(p, res.Grade, amount, term, "auto")
 		return Decision{Outcome: AutoOffer, Offer: &offer, Reasons: []string{"Низкий риск и сумма в пределах лимита: решение принято автоматически"}}
 	}
@@ -88,6 +100,9 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 		reasons = append(reasons, fmt.Sprintf("Недостаточный опыт погашения кредитов: погашено на %d ₽, это %d%% от запрошенной суммы (для автоматического решения нужно не менее %d%%)",
 			res.RepaidTotal/rub, int(res.RepaidCoverage*100), int(cfg.MinRepaidCoverage*100)))
 	}
+	if !bureauOK && res.BKIScore > 0 {
+		reasons = append(reasons, fmt.Sprintf("Балл бюро кредитных историй %d ниже %d: для автоматического решения нужен не ниже", res.BKIScore, cfg.MinAutoBKIScore))
+	}
 	switch {
 	case res.Grade != scoring.GradeA:
 		reasons = append(reasons, "Оценка риска в промежуточной зоне: решение принимает сотрудник банка")
@@ -96,4 +111,26 @@ func Decide(res scoring.Result, p products.Product, amount int64, term int) Deci
 	}
 	rec, _ := MakeOffer(p, res.Grade, recAmount, term, "recommended")
 	return Decision{Outcome: Review, Recommended: &rec, Reasons: reasons}
+}
+
+// zeroCriteria names the criteria that earned no points, in the order of the scorecard.
+func zeroCriteria(res scoring.Result) string {
+	var names []string
+	for _, f := range res.Factors {
+		if f.Points == 0 && f.Max > 0 {
+			names = append(names, f.Title)
+		}
+	}
+	return strings.Join(names, "; ")
+}
+
+// noDataCriteria names the criteria the bank had nothing to judge.
+func noDataCriteria(res scoring.Result) string {
+	var names []string
+	for _, f := range res.Factors {
+		if f.NoData {
+			names = append(names, f.Title)
+		}
+	}
+	return strings.Join(names, "; ")
 }

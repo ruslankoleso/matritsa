@@ -19,7 +19,7 @@ func evaluate(t *testing.T, c seed.Company, pid products.ID, amount int64, term 
 	age := int(time.Since(c.RegisteredAt).Hours() / 24 / 30)
 	res := scoring.Score(scoring.Input{
 		CompanyAgeMonths: age, MonthlyRevenue: c.Revenue, MonthlyObligations: c.MonthlyObligations,
-		BKI: c.BKI, EGRUL: c.EGRUL(), Amount: amount, TermMonths: term, RateBP: p.BaseRateBP, OKVEDGroup: c.OKVEDGroup, LGD: p.LGD,
+		BKI: c.BKI, EGRUL: c.EGRUL(), PurposeText: "Закупка сырья и материалов перед сезоном", PurposeDocs: pid == products.Equipment, Amount: amount, TermMonths: term, RateBP: p.BaseRateBP, OKVEDGroup: c.OKVEDGroup, LGD: p.LGD,
 	}, scoring.DefaultConfig())
 	return res, decision.Decide(res, p, amount, term)
 }
@@ -48,6 +48,21 @@ func TestDemoCompanies_ProduceIntendedOutcomes(t *testing.T) {
 		t.Logf("%-40s grade=%s score=%d load=%.2f affordable=%d outcome=%s", c.Name, res.Grade, res.Score, res.DebtLoad, res.MaxAffordableAmount/rub, d.Outcome)
 		if d.Outcome != tc.want {
 			t.Errorf("%s: outcome %s, want %s (grade %s, score %d)", c.Name, d.Outcome, tc.want, res.Grade, res.Score)
+		}
+	}
+}
+
+// Every demo company with the grade and the points the scorecard gives it: the stories must read right.
+func TestDemoCompanies_GradesMatchTheirStories(t *testing.T) {
+	want := map[string]scoring.Grade{
+		"client1": "A", "client2": "B", "client3": "C", "client4": "D", "client5": "B", "client6": "D",
+		"client7": "A", "client8": "A", "client9": "C", "client10": "D", "client11": "A",
+	}
+	for _, c := range seed.Companies() {
+		res, d := evaluate(t, c, products.WorkingCapital, 1_000_000*rub, 12)
+		t.Logf("%-8s %-38s %s %3d points, missing %2d, outcome %s", c.Login, c.Name, res.Grade, res.Score, res.MissingPoints, d.Outcome)
+		if res.Grade != want[c.Login] {
+			t.Errorf("%s: grade %s (%d points), want %s", c.Login, res.Grade, res.Score, want[c.Login])
 		}
 	}
 }

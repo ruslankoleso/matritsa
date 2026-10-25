@@ -25,7 +25,16 @@ export interface Form {
   purpose: string
   contactName: string
   position: string
+  collateral: Collateral
 }
+
+export type Collateral = 'none' | 'partial' | 'full'
+
+export const COLLATERAL: { id: Collateral; label: string; hint: string }[] = [
+  { id: 'none', label: 'Без обеспечения', hint: 'Решение по доходам и истории' },
+  { id: 'partial', label: 'Частичное', hint: 'Залог или поручительство покрывают часть суммы' },
+  { id: 'full', label: 'Полное', hint: 'Залог или поручительство покрывают всю сумму' },
+]
 
 export function validateStep1(f: Form, products: Product[]): Record<string, string> {
   const errs: Record<string, string> = {}
@@ -82,6 +91,7 @@ export default function Wizard({ app }: { app?: Application }) {
     purpose: app?.purpose ?? '',
     contactName: app?.fields?.contactName ?? me.data?.fullName?.split(',')[0] ?? '',
     position: app?.fields?.position ?? '',
+    collateral: (['none', 'partial', 'full'].includes(app?.fields?.collateral ?? '') ? app?.fields?.collateral : 'none') as Collateral,
   })
   const [touched, setTouched] = useState(false)
   const [lookup, setLookup] = useState<{ ok: boolean; text: string } | null>(null)
@@ -121,7 +131,7 @@ export default function Wizard({ app }: { app?: Application }) {
   const step1Next = async () => {
     setTouched(true)
     if (Object.keys(errs).length) return
-    const input = { productId: form.productId, amount: Number(form.amount.replace(/\s/g, '')) * 100, termMonths: Number(form.term), purpose: form.purpose.trim() }
+    const input = { productId: form.productId, amount: Number(form.amount.replace(/\s/g, '')) * 100, termMonths: Number(form.term), purpose: form.purpose.trim(), fields: { collateral: form.collateral } }
     const a = await save(() => (app ? api.updateApplication(app.id, input) : api.createApplication(input)))
     if (!a) return
     if (!app) nav(`/cabinet/applications/${a.id}?step=2`, { replace: true })
@@ -233,6 +243,18 @@ export default function Wizard({ app }: { app?: Application }) {
                     <FloatField id="purpose" label="На что пойдут деньги" multiline value={form.purpose} onChange={(v) => set({ purpose: v })}
                       error={touched ? errs.purpose : undefined} hint="Достаточно краткого описания: оно ускоряет рассмотрение заявки." />
                   </div>
+                  <fieldset className="wide collateral">
+                    <legend>Обеспечение</legend>
+                    <div className="collateral-opts">
+                      {COLLATERAL.map((c) => (
+                        <label key={c.id} data-checked={form.collateral === c.id}>
+                          <input type="radio" name="collateral" value={c.id} checked={form.collateral === c.id} onChange={() => set({ collateral: c.id })} />
+                          <span><b>{c.label}</b><small>{c.hint}</small></span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="field-hint">Залог или поручительство снижают риск банка и учитываются в оценке.</p>
+                  </fieldset>
                 </div>
               </section>
             )}
@@ -319,6 +341,7 @@ export default function Wizard({ app }: { app?: Application }) {
                 <div className="kv-row"><span>Сумма</span><b>{formatMoney(app.amount)}</b></div>
                 <div className="kv-row"><span>Срок</span><b>{formatTerm(app.termMonths)}</b></div>
                 <div className="kv-row"><span>Цель</span><b style={{ maxWidth: '34ch' }}>{app.purpose}</b></div>
+                <div className="kv-row"><span>Обеспечение</span><b>{COLLATERAL.find((c) => c.id === form.collateral)?.label}</b></div>
                 <div className="kv-row"><span>Документы</span><b>{app.documents.length ? `${app.documents.length} загружено` : '—'}</b></div>
               </div>
               {app.missingItems.length > 0 ? (

@@ -114,6 +114,10 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 		factors := make([]gen.Factor, len(res.Factors))
 		for i, f := range res.Factors {
 			factors[i] = gen.Factor{Key: f.Key, Title: f.Title, Points: f.Points, Max: f.Max, Note: f.Note}
+			if f.NoData {
+				nd := true
+				factors[i].NoData = &nd
+			}
 		}
 		stops := res.HardStops
 		if stops == nil {
@@ -123,6 +127,8 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			Score: res.Score, Grade: gen.ScoringResultGrade(res.Grade), Factors: factors, HardStops: stops,
 			MaxAffordableAmount: res.MaxAffordableAmount, DebtLoad: float32(res.DebtLoad),
 		}
+		q := scoring.QualityOf(res.Grade)
+		card.Scoring.QualityCategory, card.Scoring.ReserveRange, card.Scoring.RiskLabel = &q.Category, &q.Reserve, &q.Risk
 		maxLoad := float32(scoring.DefaultConfig().MaxLoad)
 		card.Scoring.MaxLoad = &maxLoad
 		if res.HasCoverFigures {
@@ -147,7 +153,8 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 		}
 		if en.BKI != nil {
 			closed, repaid := en.BKI.ClosedLoans, en.BKI.TotalRepaid
-			e.Bki = &gen.BKIReport{HasHistory: en.BKI.HasHistory, ActiveLoans: en.BKI.ActiveLoans, TotalDebt: en.BKI.TotalDebt, MaxOverdueDays: en.BKI.MaxOverdueDays, Score: en.BKI.Score, ClosedLoans: &closed, TotalRepaid: &repaid}
+			restructured := en.BKI.Restructured
+			e.Bki = &gen.BKIReport{HasHistory: en.BKI.HasHistory, ActiveLoans: en.BKI.ActiveLoans, TotalDebt: en.BKI.TotalDebt, MaxOverdueDays: en.BKI.MaxOverdueDays, Score: en.BKI.Score, ClosedLoans: &closed, TotalRepaid: &repaid, Restructured: &restructured}
 		}
 		if en.EGRUL != nil {
 			g := en.EGRUL
@@ -156,6 +163,11 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 				rec.RegisteredAt = &g.RegisteredAt
 			}
 			rec.Okved, rec.Director, rec.Address = &g.OKVED, &g.Director, &g.Address
+			lit := g.Litigation
+			rec.Litigation = &lit
+			if f := g.Finance; f != nil {
+				rec.Finance = &gen.FinanceData{GrossMargin: float32(f.GrossMargin), NoiMargin: float32(f.NOIMargin), CurrentRatio: float32(f.CurrentRatio), StatementAnomaly: f.StatementAnomaly}
+			}
 			e.Egrul = &rec
 		}
 		card.Enrichment = &e

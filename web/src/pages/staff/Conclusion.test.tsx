@@ -10,13 +10,14 @@ const factor = (key: string, title: string, points: number, max: number, note: s
 
 const card = {
   scoring: {
-    score: 63, grade: 'C', hardStops: [], maxAffordableAmount: 69694500, debtLoad: 0.25,
+    score: 63, grade: 'B', hardStops: [], maxAffordableAmount: 69694500, debtLoad: 0.25,
+    qualityCategory: 'II–III категория (нестандартные и сомнительные ссуды)', reserveRange: '1–50 %', riskLabel: 'умеренный риск',
     factors: [
-      factor('company_age', 'Возраст бизнеса', 0, 15, 'Срок работы 4 мес.: недостаточно для оценки устойчивости'),
-      factor('revenue_stability', 'Стабильность выручки', 10, 20, 'Умеренные колебания выручки: коэффициент вариации 22%'),
-      factor('overdue', 'Просрочки по платежам', 15, 15, 'Просрочек по платежам не было'),
-      factor('okved_risk', 'Отрасль', 5, 5, 'Отрасль с устойчивым спросом'),
-      factor('bki_score', 'Кредитная история (балл БКИ)', 10, 25, 'Кредитная история отсутствует: надёжность подтвердить нечем'),
+      factor('company_age', 'Возраст бизнеса', 0, 10, 'Срок работы 4 мес.: меньше года, истории недостаточно'),
+      factor('profitability', 'Рентабельность и стабильность выручки', 5, 10, 'Умеренные колебания выручки: коэффициент вариации 22%'),
+      factor('overdue', 'Просрочки за 36 месяцев', 15, 15, 'Просрочек по платежам не было'),
+      factor('okved_risk', 'Отраслевой риск', 5, 5, 'Отрасль с устойчивым спросом: низкий риск'),
+      { ...factor('liquidity', 'Ликвидность (текущая)', 0, 5, 'Нет данных: бухгалтерская отчётность не получена'), noData: true },
     ],
   },
   application: { amount: 50000000 },
@@ -35,18 +36,34 @@ describe('Conclusion', () => {
     setup()
     const strengths = screen.getByRole('region', { name: 'Сильные стороны' })
     const risks = screen.getByRole('region', { name: 'Факторы риска' })
-    expect(within(strengths).getByText('Просрочки по платежам')).toBeInTheDocument()
-    expect(within(strengths).getByText('Отрасль')).toBeInTheDocument()
+    expect(within(strengths).getByText('Просрочки за 36 месяцев')).toBeInTheDocument()
+    expect(within(strengths).getByText('Отраслевой риск')).toBeInTheDocument()
     expect(within(strengths).queryByText('Возраст бизнеса')).not.toBeInTheDocument()
     expect(within(risks).getByText('Возраст бизнеса')).toBeInTheDocument()
-    expect(within(risks).getByText('Кредитная история (балл БКИ)')).toBeInTheDocument()
+  })
+
+  it('does not call a criterion without data a risk: it has its own block', () => {
+    setup()
+    const risks = screen.getByRole('region', { name: 'Факторы риска' })
+    expect(within(risks).queryByText('Ликвидность (текущая)')).not.toBeInTheDocument()
+    const gaps = screen.getByRole('region', { name: 'Нет данных' })
+    expect(within(gaps).getByText('Ликвидность (текущая)')).toBeInTheDocument()
+    expect(within(gaps).getByText('0 из 5')).toBeInTheDocument()
+  })
+
+  it('shows the quality category under regulation 590-P with the reserve range', () => {
+    setup()
+    const q = screen.getByRole('region', { name: 'Категория качества ссуды (590-П)' })
+    expect(within(q).getByText(/II–III категория/)).toBeInTheDocument()
+    expect(within(q).getByText('1–50 %')).toBeInTheDocument()
+    expect(within(q).getByText('умеренный риск')).toBeInTheDocument()
   })
 
   it('keeps the middle ones apart and shows points against the maximum', () => {
     setup()
     const neutral = screen.getByRole('region', { name: 'Нейтральные факторы' })
-    expect(within(neutral).getByText('Стабильность выручки')).toBeInTheDocument()
-    expect(within(neutral).getByText('10 из 20')).toBeInTheDocument()
+    expect(within(neutral).getByText('Рентабельность и стабильность выручки')).toBeInTheDocument()
+    expect(within(neutral).getByText('5 из 10')).toBeInTheDocument()
   })
 
   it('shows the recommendation as separate figures, not as a sentence', () => {
@@ -61,7 +78,7 @@ describe('Conclusion', () => {
 
   it('names the class and the score in the header', () => {
     setup()
-    expect(screen.getByText(/Класс C/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Класс B/).length).toBeGreaterThan(0)
     expect(screen.getByText(/63 из 100/)).toBeInTheDocument()
   })
 
@@ -78,7 +95,7 @@ describe('Conclusion', () => {
   })
 
   it('shows no risk block when there are no risks', () => {
-    const clean = { ...card, scoring: { ...card.scoring!, factors: card.scoring!.factors.filter((f) => f.points === f.max) } } as StaffApplication
+    const clean = { ...card, scoring: { ...card.scoring!, factors: card.scoring!.factors.filter((f) => f.points === f.max && !f.noData) } } as StaffApplication
     setup('rules', clean)
     expect(screen.queryByRole('region', { name: 'Факторы риска' })).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Сильные стороны' })).toBeInTheDocument()

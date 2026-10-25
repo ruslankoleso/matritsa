@@ -2,6 +2,7 @@ package scoring
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"matritsa/internal/integrations"
@@ -17,8 +18,12 @@ func flatRevenue(monthly int64) []int64 {
 	return r
 }
 
+func goodFinance() *integrations.Finance {
+	return &integrations.Finance{GrossMargin: 0.38, NOIMargin: 0.30, CurrentRatio: 1.8}
+}
+
 func activeCompany() integrations.EGRULRecord {
-	return integrations.EGRULRecord{Status: "active"}
+	return integrations.EGRULRecord{Status: "active", Finance: goodFinance()}
 }
 
 func goodBKI() *integrations.BKIReport {
@@ -27,7 +32,8 @@ func goodBKI() *integrations.BKIReport {
 
 func baseInput() Input {
 	return Input{
-		CompanyAgeMonths:   60,
+		CompanyAgeMonths:   72,
+		PurposeText:        "Закупка сырья перед сезоном",
 		MonthlyRevenue:     flatRevenue(2_000_000 * rub),
 		MonthlyObligations: 100_000 * rub,
 		BKI:                goodBKI(),
@@ -50,17 +56,59 @@ func TestScore_ReliableBakery_GradeA(t *testing.T) {
 	}
 }
 
-func TestScore_NoHistory_GetsEightBKIPoints(t *testing.T) {
-	in := baseInput()
-	in.BKI = &integrations.BKIReport{HasHistory: false}
-	res := Score(in, DefaultConfig())
-	f := factor(t, res, "bki_score")
-	if f.Points != 10 {
-		t.Fatalf("want 10 points for no history, got %d", f.Points)
+// No data, no points: what the bank cannot see about a company does not earn it anything.
+func TestScore_NoData_MeansNoPoints_WithANoteSayingSo(t *testing.T) {
+	cfg := DefaultConfig()
+	noHistory := baseInput()
+	noHistory.BKI = &integrations.BKIReport{HasHistory: false}
+	res := Score(noHistory, cfg)
+	for _, key := range []string{"overdue", "debt_ebitda", "obligations"} {
+		if f := factor(t, res, key); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
+			t.Errorf("%s without a bureau history: want 0 points and a note, got %d %q", key, f.Points, f.Note)
+		}
 	}
-	od := factor(t, res, "overdue")
-	if od.Points != 15 {
-		t.Fatalf("no history must not be punished on overdue, got %d", od.Points)
+	if res.BKIScore != 0 {
+		t.Fatalf("a missing history has no bureau score: %d", res.BKIScore)
+	}
+
+	noAccounts := baseInput()
+	noAccounts.EGRUL.Finance = nil
+	res = Score(noAccounts, cfg)
+	for _, key := range []string{"dscr", "debt_ebitda", "profitability", "liquidity", "statement"} {
+		if f := factor(t, res, key); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
+			t.Errorf("%s without the accounts: want 0 points and a note, got %d %q", key, f.Points, f.Note)
+		}
+	}
+	if res.MonthlyCashFlow <= 0 {
+		t.Error("the affordability limit still needs a cash flow: without accounts it is estimated by the industry")
+	}
+
+	noRevenue := baseInput()
+	noRevenue.MonthlyRevenue = nil
+	res = Score(noRevenue, cfg)
+	for _, key := range []string{"dscr", "profitability"} {
+		if f := factor(t, res, key); f.Points != 0 {
+			t.Errorf("%s without revenue: got %d points", key, f.Points)
+		}
+	}
+
+	nothing := baseInput()
+	nothing.PurposeText, nothing.OKVEDGroup = "", 0
+	res = Score(nothing, cfg)
+	for _, key := range []string{"purpose", "okved_risk"} {
+		if f := factor(t, res, key); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
+			t.Errorf("%s with nothing given: got %d %q", key, f.Points, f.Note)
+		}
+	}
+}
+
+func TestScore_NoData_IsNotAFactOfGoodStanding(t *testing.T) {
+	good := Score(baseInput(), DefaultConfig())
+	young := baseInput()
+	young.BKI = &integrations.BKIReport{HasHistory: false}
+	young.MonthlyObligations = 0
+	if Score(young, DefaultConfig()).Score >= good.Score {
+		t.Fatal("a company with no history must not score as well as one with a clean history")
 	}
 }
 
@@ -94,13 +142,13 @@ func TestScore_HardStop_Overdue91Days(t *testing.T) {
 	}
 }
 
-func TestScore_ZeroRevenue_NoPanic_GradeE(t *testing.T) {
+func TestScore_ZeroRevenue_NoPanic_GradeD(t *testing.T) {
 	for name, rev := range map[string][]int64{"nil": nil, "zeros": make([]int64, 12)} {
 		in := baseInput()
 		in.MonthlyRevenue = rev
 		res := Score(in, DefaultConfig())
-		if res.Grade != GradeE {
-			t.Errorf("%s: want grade E for no revenue, got %s (score %d)", name, res.Grade, res.Score)
+		if res.Grade != GradeD {
+			t.Errorf("%s: want grade D for no revenue, got %s (score %d)", name, res.Grade, res.Score)
 		}
 		if res.MaxAffordableAmount != 0 {
 			t.Errorf("%s: want zero affordable amount, got %d", name, res.MaxAffordableAmount)
@@ -124,9 +172,9 @@ func TestFactorsSumToScore(t *testing.T) {
 }
 
 func TestScore_GradeBoundaries(t *testing.T) {
-	cases := map[int]Grade{100: GradeA, 80: GradeA, 79: GradeB, 65: GradeB, 64: GradeC, 50: GradeC, 49: GradeD, 35: GradeD, 34: GradeE, 0: GradeE}
+	cases := map[int]Grade{100: GradeA, 80: GradeA, 79: GradeB, 50: GradeB, 49: GradeC, 30: GradeC, 29: GradeD, 0: GradeD}
 	for score, want := range cases {
-		if got := GradeFor(score); got != want {
+		if got := GradeFor(score, DefaultConfig()); got != want {
 			t.Errorf("GradeFor(%d)=%s want %s", score, got, want)
 		}
 	}
@@ -137,11 +185,12 @@ func TestScore_IndebtedCompany_LowerThanReliable(t *testing.T) {
 	in.MonthlyObligations = 1_200_000 * rub
 	in.BKI = &integrations.BKIReport{HasHistory: true, Score: 600, MaxOverdueDays: 20}
 	got := Score(in, DefaultConfig())
-	if got.Grade == GradeA || got.Grade == GradeB {
-		t.Fatalf("indebted company should be C or worse, got %s", got.Grade)
+	reliable := Score(baseInput(), DefaultConfig())
+	if got.Grade == GradeA || got.Score >= reliable.Score {
+		t.Fatalf("an indebted company must score below a reliable one and not reach A: %s/%d vs %s/%d", got.Grade, got.Score, reliable.Grade, reliable.Score)
 	}
-	if factor(t, got, "existing_debt").Points != 0 {
-		t.Fatalf("existing debt points should be zero, got %d", factor(t, got, "existing_debt").Points)
+	if factor(t, got, "dscr").Points != 0 {
+		t.Fatalf("cash flow that does not cover the payments earns no DSCR points, got %d", factor(t, got, "dscr").Points)
 	}
 }
 
@@ -194,14 +243,18 @@ func factor(t *testing.T, r Result, key string) Factor {
 	return Factor{}
 }
 
-func TestScore_SixBorrowerFactors_NoRequestFactors(t *testing.T) {
+func TestScore_TwelveCriteria_NoRequestSizeFactors(t *testing.T) {
 	res := Score(baseInput(), DefaultConfig())
-	if len(res.Factors) != 6 {
-		t.Fatalf("want 6 factors, got %d", len(res.Factors))
+	want := []string{"dscr", "debt_ebitda", "profitability", "liquidity", "overdue", "obligations", "company_age", "okved_risk", "statement", "reputation", "collateral", "purpose"}
+	if len(res.Factors) != len(want) {
+		t.Fatalf("want %d criteria, got %d", len(want), len(res.Factors))
 	}
-	for _, f := range res.Factors {
+	for i, f := range res.Factors {
+		if f.Key != want[i] {
+			t.Errorf("criterion %d: want %s, got %s", i+1, want[i], f.Key)
+		}
 		if f.Key == "debt_load" || f.Key == "amount_to_revenue" {
-			t.Fatalf("factor %s depends on the request and must not be part of the borrower score", f.Key)
+			t.Fatalf("factor %s depends on the size of the request and must not be part of the score", f.Key)
 		}
 	}
 }
@@ -263,15 +316,15 @@ func TestExpectedLoss_WorseClassMeansHigherPD(t *testing.T) {
 
 func TestPremium(t *testing.T) {
 	cfg := DefaultConfig()
-	want := map[Grade]int{GradeA: 0, GradeB: 120, GradeC: 300, GradeD: 660} // (PD_g − PD_A) × LGD 0.6, in basis points
+	want := map[Grade]int{GradeA: 0, GradeB: 180, GradeC: 540} // (PD_g − PD_A) × LGD 0.6, in basis points
 	for g, bp := range want {
 		got, ok := Premium(g, 0.6, cfg)
 		if !ok || got != bp {
 			t.Errorf("grade %s: got %d,%v want %d", g, got, ok, bp)
 		}
 	}
-	if _, ok := Premium(GradeE, 0.6, cfg); ok {
-		t.Error("grade E gets no offer, so no premium")
+	if _, ok := Premium(GradeD, 0.6, cfg); ok {
+		t.Error("grade D gets no offer, so no premium")
 	}
 }
 
@@ -344,7 +397,7 @@ func TestDSCR_IsCashFlowOverAllPayments(t *testing.T) {
 	cfg := DefaultConfig()
 	in := baseInput() // revenue 2 000 000, group 1, obligations 100 000
 	res := Score(in, cfg)
-	wantCash := int64(float64(2_000_000*rub) * cfg.OperatingMargin[1])
+	wantCash := int64(float64(2_000_000*rub) * in.EGRUL.Finance.NOIMargin) // the margin of the company's own accounts
 	if res.MonthlyCashFlow != wantCash {
 		t.Fatalf("cash flow %d, want %d", res.MonthlyCashFlow, wantCash)
 	}
@@ -354,9 +407,10 @@ func TestDSCR_IsCashFlowOverAllPayments(t *testing.T) {
 	}
 }
 
-func TestDSCR_MarginDependsOnTheIndustryGroup(t *testing.T) {
+func TestDSCR_WithoutTheAccounts_MarginDependsOnTheIndustryGroup(t *testing.T) {
 	cfg := DefaultConfig()
 	low, high := baseInput(), baseInput()
+	low.EGRUL.Finance, high.EGRUL.Finance = nil, nil
 	low.OKVEDGroup, high.OKVEDGroup = 3, 1
 	if Score(low, cfg).MonthlyCashFlow >= Score(high, cfg).MonthlyCashFlow {
 		t.Fatal("a riskier industry keeps less cash from the same revenue")
@@ -395,6 +449,7 @@ func TestBothMeasuresMatter_EachCanBeTheBindingOne(t *testing.T) {
 	cfg := DefaultConfig()
 	// a thin margin makes the cash flow the limit although the load looks fine
 	thin := baseInput()
+	thin.EGRUL.Finance = nil
 	thin.OKVEDGroup = 3
 	thin.MonthlyObligations = 400_000 * rub
 	r := Score(thin, cfg)
@@ -403,6 +458,7 @@ func TestBothMeasuresMatter_EachCanBeTheBindingOne(t *testing.T) {
 	}
 	// no existing debt and a good margin: the load share is the stricter one
 	lean := baseInput()
+	lean.EGRUL.Finance = nil
 	lean.MonthlyObligations = 0
 	lean.OKVEDGroup = 1
 	lean.MonthlyRevenue = flatRevenue(1_000_000 * rub)

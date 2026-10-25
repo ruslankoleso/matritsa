@@ -73,7 +73,7 @@ function Breakdown({ card }: { card: StaffApplication }) {
         </div>
       )}
       {s.factors.map((f: Factor, i: number) => (
-        <div className="factor" key={f.key}>
+        <div className="factor" key={f.key} data-nodata={f.noData ? 'true' : undefined}>
           <div className="factor-head"><span>{f.title}</span><span>{f.points} <small>из {f.max}</small></span></div>
           <div className="bar" role="img" aria-label={`${f.points} из ${f.max}`}><i style={{ width: on ? `${f.max ? (f.points / f.max) * 100 : 0}%` : 0, transitionDelay: `${500 + i * 160}ms` }} data-low={f.points * 2 < f.max} /></div>
           <p>{f.note}</p>
@@ -118,12 +118,22 @@ function Enrichment({ card }: { card: StaffApplication }) {
     <div className="kv">
       <div className="kv-row"><span>Реестр (ЕГРЮЛ/ЕГРИП)</span><b>{e.egrul ? (e.egrul.status === 'active' ? 'Действующая' : e.egrul.status) : <span className="dash">—</span>}</b></div>
       {e.egrul?.bankrupt && <div className="kv-row"><span>Банкротство</span><b>Да</b></div>}
+      {e.egrul && <div className="kv-row"><span>Судебные дела</span><b>{['нет', 'незначительные', 'крупные'][e.egrul.litigation ?? 0]}</b></div>}
+      {e.egrul?.finance && (
+        <>
+          <div className="kv-row"><span>Отчётность: рентабельность продаж</span><b>{formatPercent(e.egrul.finance.grossMargin)}</b></div>
+          <div className="kv-row"><span>Отчётность: операционная маржа</span><b>{formatPercent(e.egrul.finance.noiMargin)}</b></div>
+          <div className="kv-row"><span>Отчётность: текущая ликвидность</span><b className="num">{e.egrul.finance.currentRatio.toLocaleString('ru-RU')}</b></div>
+          <div className="kv-row"><span>Выписка: аномалии</span><b>{['нет', 'незначительные', 'существенные'][e.egrul.finance.statementAnomaly] ?? '—'}</b></div>
+        </>
+      )}
       <div className="kv-row"><span>Бюро: балл</span><b>{e.bki?.hasHistory ? e.bki.score : <span className="dash">нет истории</span>}</b></div>
       <div className="kv-row"><span>Бюро: активные кредиты</span><b>{e.bki?.hasHistory ? e.bki.activeLoans : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: закрытых кредитов</span><b>{e.bki?.hasHistory && e.bki.closedLoans != null ? e.bki.closedLoans : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: погашено всего</span><b>{e.bki?.hasHistory && e.bki.totalRepaid != null ? formatMoney(e.bki.totalRepaid) : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: долг</span><b>{e.bki?.hasHistory ? formatMoney(e.bki.totalDebt) : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: макс. просрочка</span><b>{e.bki?.hasHistory ? `${e.bki.maxOverdueDays} дн.` : <span className="dash">—</span>}</b></div>
+      {e.bki?.restructured && <div className="kv-row"><span>Бюро: реструктуризация</span><b>Да</b></div>}
       {e.lastError && <div className="kv-row"><span>Последняя ошибка источника</span><b style={{ fontSize: 13 }}>{e.lastError}</b></div>}
     </div>
   )

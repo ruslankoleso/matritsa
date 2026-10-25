@@ -52,9 +52,11 @@ func offerText(o *decision.Offer) string {
 }
 
 func fallbackText(res scoring.Result, d decision.Decision, audience string) string {
-	var strong, weak []scoring.Factor
+	var strong, weak, unknown []scoring.Factor
 	for _, f := range res.Factors {
 		switch {
+		case f.NoData: // nothing is known about it, so it is neither a strength nor a risk
+			unknown = append(unknown, f)
 		case f.Points == f.Max:
 			strong = append(strong, f)
 		case f.Points*2 < f.Max:
@@ -62,7 +64,7 @@ func fallbackText(res scoring.Result, d decision.Decision, audience string) stri
 		}
 	}
 	if audience == "client" {
-		return clientText(strong, weak, d)
+		return clientText(strong, weak, len(unknown) > 0, d)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Класс риска %s — %d баллов из 100.", res.Grade, res.Score)
@@ -75,6 +77,13 @@ func fallbackText(res scoring.Result, d decision.Decision, audience string) stri
 		b.WriteString(" Факторы риска: ")
 		b.WriteString(joinNotes(weak))
 		b.WriteString(".")
+	}
+	if len(unknown) > 0 {
+		titles := make([]string, len(unknown))
+		for i, f := range unknown {
+			titles[i] = f.Title
+		}
+		b.WriteString(" Нет данных по критериям: " + strings.Join(titles, "; ") + " (баллов за них нет).")
 	}
 	if res.EAD > 0 {
 		fmt.Fprintf(&b, " Ожидаемые потери: %s (PD за срок %s × LGD %d%% × сумма %s).", rubles(res.ExpectedLoss), percent(res.CumulativePD), int(math.Round(res.LGD*100)), rubles(res.EAD))
@@ -111,15 +120,19 @@ func outcomeText(d decision.Decision) string {
 }
 
 var clientStrong = map[string]string{
-	"company_age": "срок работы компании достаточен для оценки", "revenue_stability": "выручка стабильна",
-	"existing_debt": "нагрузка по действующим кредитам низкая", "bki_score": "кредитная история положительная",
-	"overdue": "просрочек по платежам не было", "okved_risk": "отрасль с устойчивым спросом",
+	"dscr": "денежный поток с запасом покрывает платежи по кредитам", "debt_ebitda": "долг небольшой по сравнению с операционным результатом",
+	"profitability": "выручка стабильна, бизнес рентабелен", "liquidity": "ликвидность достаточная", "overdue": "просрочек по платежам не было",
+	"obligations": "действующих кредитных обязательств нет", "company_age": "срок работы компании достаточен для оценки", "okved_risk": "отрасль с устойчивым спросом",
+	"statement": "в банковской выписке нет аномалий", "reputation": "репутация компании чистая", "collateral": "есть обеспечение",
+	"purpose": "цель и сумма подтверждены документами",
 }
 
 var clientWeak = map[string]string{
-	"company_age": "срок работы компании небольшой", "revenue_stability": "выручка заметно меняется от месяца к месяцу",
-	"existing_debt": "действующие платежи по кредитам составляют значительную часть выручки", "bki_score": "кредитной истории недостаточно для оценки надёжности",
-	"overdue": "ранее были просрочки по платежам", "okved_risk": "отрасль зависит от рыночной конъюнктуры",
+	"dscr": "денежного потока мало для платежей по действующим кредитам", "debt_ebitda": "долг велик по сравнению с операционным результатом",
+	"profitability": "выручка нестабильна или бизнес мало прибылен", "liquidity": "ликвидность низкая", "overdue": "ранее были просрочки по платежам",
+	"obligations": "есть действующие кредиты", "company_age": "срок работы компании небольшой", "okved_risk": "отрасль зависит от рыночной конъюнктуры",
+	"statement": "в банковской выписке есть аномалии", "reputation": "есть судебные споры", "collateral": "обеспечения нет",
+	"purpose": "цель и сумма не подтверждены документами",
 }
 
 func pick(fs []scoring.Factor, dict map[string]string) []string {
@@ -132,13 +145,16 @@ func pick(fs []scoring.Factor, dict map[string]string) []string {
 	return out
 }
 
-func clientText(strong, weak []scoring.Factor, d decision.Decision) string {
+func clientText(strong, weak []scoring.Factor, gaps bool, d decision.Decision) string {
 	var b strings.Builder
 	if s := pick(strong, clientStrong); len(s) > 0 {
 		b.WriteString("Сильные стороны: " + strings.Join(s, ", ") + ". ")
 	}
 	if w := pick(weak, clientWeak); len(w) > 0 {
 		b.WriteString("Ограничивающие факторы: " + strings.Join(w, ", ") + ". ")
+	}
+	if gaps {
+		b.WriteString("По части показателей данных пока нет, поэтому оценка осторожная. ")
 	}
 	switch d.Outcome {
 	case decision.AutoOffer:

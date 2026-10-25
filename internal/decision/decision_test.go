@@ -18,7 +18,7 @@ func prod(t *testing.T, id products.ID) products.Product {
 }
 
 func result(g scoring.Grade, affordable int64, stops ...string) scoring.Result {
-	return scoring.Result{Grade: g, MaxAffordableAmount: affordable, HardStops: stops, RepaidCoverage: 2}
+	return scoring.Result{Grade: g, MaxAffordableAmount: affordable, HardStops: stops, RepaidCoverage: 2, BKIScore: 780}
 }
 
 func TestDecide_GradeA_Small_AutoOffer(t *testing.T) {
@@ -57,10 +57,33 @@ func TestDecide_GradeC_ReviewWithReducedCounter(t *testing.T) {
 	}
 }
 
-func TestDecide_GradeE_Reject(t *testing.T) {
-	d := Decide(result(scoring.GradeE, 100_000*rub), prod(t, products.Express), 100_000*rub, 6)
+func TestDecide_GradeD_Reject_NamesWhereThePointsWereLost(t *testing.T) {
+	r := result(scoring.GradeD, 100_000*rub)
+	r.Score = 22
+	r.Factors = []scoring.Factor{{Title: "Просрочки за 36 месяцев", Max: 15}, {Title: "Возраст бизнеса", Max: 10, Points: 4}, {Title: "Обеспечение", Max: 5}}
+	d := Decide(r, prod(t, products.Express), 100_000*rub, 6)
 	if d.Outcome != Reject || len(d.Reasons) == 0 || d.Offer != nil {
-		t.Fatalf("grade E must reject with reasons: %+v", d)
+		t.Fatalf("grade D must reject with reasons: %+v", d)
+	}
+	text := d.Reasons[0]
+	if !strings.Contains(text, "22 баллов") || !strings.Contains(text, "Просрочки за 36 месяцев; Обеспечение") || strings.Contains(text, "Возраст") {
+		t.Fatalf("the reason says the score and the criteria without points: %q", text)
+	}
+}
+
+func TestDecide_GradeA_LowBureauScore_GoesToReview(t *testing.T) {
+	r := result(scoring.GradeA, 5_000_000*rub)
+	r.BKIScore = 600
+	d := Decide(r, prod(t, products.WorkingCapital), 1_000_000*rub, 12)
+	if d.Outcome != Review {
+		t.Fatalf("a bureau score below the threshold must not give an automatic offer: %s", d.Outcome)
+	}
+	if !strings.Contains(strings.Join(d.Reasons, " "), "Балл бюро кредитных историй 600") {
+		t.Fatalf("the reason must name the bureau score: %v", d.Reasons)
+	}
+	r.BKIScore = scoring.DefaultConfig().MinAutoBKIScore
+	if d := Decide(r, prod(t, products.WorkingCapital), 1_000_000*rub, 12); d.Outcome != AutoOffer {
+		t.Fatalf("exactly the threshold must pass: %s", d.Outcome)
 	}
 }
 
@@ -86,7 +109,7 @@ func TestDecide_RateIncludesRiskPremium(t *testing.T) {
 	if d.Outcome != Review || d.Recommended == nil {
 		t.Fatalf("grade B goes to review: %+v", d)
 	}
-	if d.Recommended.RateBP != 1650+120 {
+	if d.Recommended.RateBP != 1650+180 {
 		t.Fatalf("rate = base + premium, got %d", d.Recommended.RateBP)
 	}
 }
@@ -162,5 +185,27 @@ func TestDecide_TooBigRequest_NamesTheLimitThatBinds(t *testing.T) {
 	byLoad.MaxAmountByLoad, byLoad.MaxAmountByDSCR = 800_000*rub, 2_000_000*rub
 	if d := Decide(byLoad, prod(t, products.WorkingCapital), 2_000_000*rub, 12); !has(d, "долговую нагрузку") {
 		t.Fatalf("the load share is the limit: %v", d.Reasons)
+	}
+}
+
+// A class D that comes from missing data is not a reason to refuse by itself: a person looks at it.
+func TestDecide_GradeD_FromMissingData_GoesToAPerson(t *testing.T) {
+	r := result(scoring.GradeD, 5_000_000*rub)
+	r.Score, r.MissingPoints = 24, 25 // 24 + 25 would be class C
+	r.Factors = []scoring.Factor{{Title: "Просрочки за 36 месяцев", Max: 15, NoData: true}, {Title: "Обеспечение", Max: 5}}
+	d := Decide(r, prod(t, products.Express), 100_000*rub, 6)
+	if d.Outcome != Review || d.Offer != nil {
+		t.Fatalf("missing data must not produce an automatic refusal: %+v", d)
+	}
+	if !strings.Contains(strings.Join(d.Reasons, " "), "Просрочки за 36 месяцев") {
+		t.Fatalf("the reason names the criteria without data: %v", d.Reasons)
+	}
+}
+
+func TestDecide_GradeD_WithEnoughData_StillRejects(t *testing.T) {
+	r := result(scoring.GradeD, 5_000_000*rub)
+	r.Score, r.MissingPoints = 12, 10 // even with the missing points it stays below class C
+	if d := Decide(r, prod(t, products.Express), 100_000*rub, 6); d.Outcome != Reject {
+		t.Fatalf("%+v", d)
 	}
 }

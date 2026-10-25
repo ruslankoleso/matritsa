@@ -341,7 +341,6 @@ const (
 	B ScoringResultGrade = "B"
 	C ScoringResultGrade = "C"
 	D ScoringResultGrade = "D"
-	E ScoringResultGrade = "E"
 )
 
 // Valid indicates whether the value is a known member of the ScoringResultGrade enum.
@@ -354,8 +353,6 @@ func (e ScoringResultGrade) Valid() bool {
 	case C:
 		return true
 	case D:
-		return true
-	case E:
 		return true
 	default:
 		return false
@@ -526,7 +523,9 @@ type ApplicationAllowedActions string
 
 // ApplicationInput defines model for ApplicationInput.
 type ApplicationInput struct {
-	Amount     *int64             `json:"amount,omitempty"`
+	Amount *int64 `json:"amount,omitempty"`
+
+	// Fields Ответы мастера заявки. Ключ collateral: none, partial или full (обеспечение)
 	Fields     *map[string]string `json:"fields,omitempty"`
 	ProductId  *string            `json:"productId,omitempty"`
 	Purpose    *string            `json:"purpose,omitempty"`
@@ -551,11 +550,14 @@ type BKIReport struct {
 	ActiveLoans int `json:"activeLoans"`
 
 	// ClosedLoans Число кредитов, погашенных полностью
-	ClosedLoans    *int  `json:"closedLoans,omitempty"`
-	HasHistory     bool  `json:"hasHistory"`
-	MaxOverdueDays int   `json:"maxOverdueDays"`
-	Score          int   `json:"score"`
-	TotalDebt      int64 `json:"totalDebt"`
+	ClosedLoans    *int `json:"closedLoans,omitempty"`
+	HasHistory     bool `json:"hasHistory"`
+	MaxOverdueDays int  `json:"maxOverdueDays"`
+
+	// Restructured Действующий кредит был реструктурирован
+	Restructured *bool `json:"restructured,omitempty"`
+	Score        int   `json:"score"`
+	TotalDebt    int64 `json:"totalDebt"`
 
 	// TotalRepaid Сумма погашенных кредитов в копейках
 	TotalRepaid *int64 `json:"totalRepaid,omitempty"`
@@ -668,10 +670,16 @@ type Document struct {
 
 // EGRULRecord defines model for EGRULRecord.
 type EGRULRecord struct {
-	Address      *string    `json:"address,omitempty"`
-	Bankrupt     *bool      `json:"bankrupt,omitempty"`
-	Director     *string    `json:"director,omitempty"`
-	Inn          string     `json:"inn"`
+	Address  *string `json:"address,omitempty"`
+	Bankrupt *bool   `json:"bankrupt,omitempty"`
+	Director *string `json:"director,omitempty"`
+
+	// Finance Данные бухгалтерской отчётности и анализа выписки (смоделированы)
+	Finance *FinanceData `json:"finance,omitempty"`
+	Inn     string       `json:"inn"`
+
+	// Litigation Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано)
+	Litigation   *int       `json:"litigation,omitempty"`
 	Name         string     `json:"name"`
 	Okved        *string    `json:"okved,omitempty"`
 	RegisteredAt *time.Time `json:"registeredAt,omitempty"`
@@ -710,8 +718,11 @@ type ExplanationSource string
 
 // Factor defines model for Factor.
 type Factor struct {
-	Key    string `json:"key"`
-	Max    int    `json:"max"`
+	Key string `json:"key"`
+	Max int    `json:"max"`
+
+	// NoData По критерию нет данных: баллов нет, но заёмщик не признан плохим по нему
+	NoData *bool  `json:"noData,omitempty"`
 	Note   string `json:"note"`
 	Points int    `json:"points"`
 	Title  string `json:"title"`
@@ -732,6 +743,21 @@ type FeedCard struct {
 
 // FeedCardKind defines model for FeedCard.Kind.
 type FeedCardKind string
+
+// FinanceData Данные бухгалтерской отчётности и анализа выписки (смоделированы)
+type FinanceData struct {
+	// CurrentRatio Коэффициент текущей ликвидности
+	CurrentRatio float32 `json:"currentRatio"`
+
+	// GrossMargin Валовая прибыль / выручка
+	GrossMargin float32 `json:"grossMargin"`
+
+	// NoiMargin Чистый операционный доход до обслуживания долга / выручка
+	NoiMargin float32 `json:"noiMargin"`
+
+	// StatementAnomaly Аномалии в выписке: 0 нет, 1 незначительные, 2 существенные
+	StatementAnomaly int `json:"statementAnomaly"`
+}
 
 // InfoRequest defines model for InfoRequest.
 type InfoRequest struct {
@@ -918,10 +944,12 @@ type ScoringResult struct {
 	ExpectedLoss *int64 `json:"expectedLoss,omitempty"`
 
 	// ExpectedLossRate EL / EAD
-	ExpectedLossRate *float32           `json:"expectedLossRate,omitempty"`
-	Factors          []Factor           `json:"factors"`
-	Grade            ScoringResultGrade `json:"grade"`
-	HardStops        []string           `json:"hardStops"`
+	ExpectedLossRate *float32 `json:"expectedLossRate,omitempty"`
+	Factors          []Factor `json:"factors"`
+
+	// Grade A 80–100, B 50–79, C 30–49, D менее 30 или стоп-фактор
+	Grade     ScoringResultGrade `json:"grade"`
+	HardStops []string           `json:"hardStops"`
 
 	// Lgd Доля потерь при дефолте (зависит от продукта)
 	Lgd                 *float32 `json:"lgd,omitempty"`
@@ -951,18 +979,27 @@ type ScoringResult struct {
 	// Pd Вероятность дефолта за год для класса заёмщика
 	Pd *float32 `json:"pd,omitempty"`
 
+	// QualityCategory Категория качества ссуды по Положению 590-П, соответствующая классу
+	QualityCategory *string `json:"qualityCategory,omitempty"`
+
 	// RepaidCoverage Какую долю запрошенной суммы покрывает погашенное: погашено / запрошено
 	RepaidCoverage *float32 `json:"repaidCoverage,omitempty"`
 
 	// RepaidTotal Сумма кредитов, которые заёмщик уже погасил полностью
 	RepaidTotal *int64 `json:"repaidTotal,omitempty"`
 
+	// ReserveRange Диапазон резерва на возможные потери по этой категории
+	ReserveRange *string `json:"reserveRange,omitempty"`
+
+	// RiskLabel Уровень риска словами: низкий, умеренный, высокий, критический
+	RiskLabel *string `json:"riskLabel,omitempty"`
+
 	// RiskPremiumBp Надбавка к ставке за риск, базисные пункты
 	RiskPremiumBp *int `json:"riskPremiumBp,omitempty"`
 	Score         int  `json:"score"`
 }
 
-// ScoringResultGrade defines model for ScoringResult.Grade.
+// ScoringResultGrade A 80–100, B 50–79, C 30–49, D менее 30 или стоп-фактор
 type ScoringResultGrade string
 
 // StaffApplication defines model for StaffApplication.

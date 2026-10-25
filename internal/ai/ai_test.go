@@ -118,8 +118,8 @@ func TestFallback_KeywordsAndAmounts(t *testing.T) {
 func sampleResult() (scoring.Result, decision.Decision) {
 	res := scoring.Result{Score: 59, Grade: scoring.GradeC, PD: 0.06, CumulativePD: 0.1126, LGD: 0.6, EAD: 300_000_000, ExpectedLoss: 20_268_000, ELRate: 0.06756, Factors: []scoring.Factor{
 		{Key: "company_age", Title: "Возраст бизнеса", Points: 10, Max: 10, Note: "Бизнес работает 8 лет — это плюс"},
-		{Key: "existing_debt", Title: "Текущая долговая нагрузка", Points: 0, Max: 20, Note: "Действующие платежи составляют 52% выручки: чрезмерная нагрузка"},
-		{Key: "bki_score", Title: "Кредитная история", Points: 7, Max: 20, Note: "Средний балл бюро кредитных историй"},
+		{Key: "dscr", Title: "Покрытие долга денежным потоком (DSCR)", Points: 0, Max: 15, Note: "DSCR 0,6: денежного потока не хватает на текущие платежи, чрезмерная нагрузка"},
+		{Key: "liquidity", Title: "Ликвидность (текущая)", Points: 0, Max: 5, Note: "Нет данных: бухгалтерская отчётность не получена", NoData: true},
 	}}
 	rec := decision.Offer{Amount: 800_000 * rub, TermMonths: 24, RateBP: 2100}
 	return res, decision.Decision{Outcome: decision.Review, Recommended: &rec, Reasons: []string{"Оценка риска в серой зоне"}}
@@ -131,7 +131,7 @@ func TestExplain_Fallback_MentionsTopFactors(t *testing.T) {
 	if src != "rules" {
 		t.Fatalf("source = %s", src)
 	}
-	for _, want := range []string{"C", "59", "Бизнес работает 8 лет", "чрезмерная нагрузка"} {
+	for _, want := range []string{"C", "59", "Бизнес работает 8 лет", "чрезмерная нагрузка", "Нет данных по критериям: Ликвидность (текущая)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("explanation misses %q:\n%s", want, text)
 		}
@@ -227,8 +227,11 @@ func TestExplain_Staff_NoExpectedLossSentenceWithoutMetrics(t *testing.T) {
 func TestExplain_Client_ExistingDebtIsPutInPlainWords(t *testing.T) {
 	res, d := sampleResult()
 	text, _ := NewExplainer(nil).Explain(context.Background(), res, d, "client")
-	if !strings.Contains(text, "действующие платежи по кредитам составляют значительную часть выручки") {
-		t.Fatalf("client text must explain the existing-debt weakness:\n%s", text)
+	if !strings.Contains(text, "денежного потока мало для платежей по действующим кредитам") {
+		t.Fatalf("client text must explain the debt weakness:\n%s", text)
+	}
+	if !strings.Contains(text, "данных пока нет") || strings.Contains(text, "ликвидность низкая") {
+		t.Fatalf("a missing figure is said to be missing, not turned into a weakness:\n%s", text)
 	}
 	if strings.Contains(text, "PD") || strings.Contains(text, "LGD") {
 		t.Fatalf("client text must not show risk jargon:\n%s", text)

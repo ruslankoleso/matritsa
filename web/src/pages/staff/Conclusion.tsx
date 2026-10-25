@@ -4,19 +4,24 @@ import type { Factor, StaffApplication } from '../../api/types'
 import { IconCheck, IconWarn } from '../../design/icons'
 import { formatMoney, formatPercent, formatRate, formatTerm } from '../../lib/format'
 
-/** A factor is a strength at 80% of its maximum or more, a risk below 50%, otherwise neutral. */
+/**
+ * A criterion is a strength at 80% of its maximum or more, a risk below 50%, otherwise neutral.
+ * One the bank has no data for is none of these: it earned no points, but nothing bad is known about it.
+ */
 export function groupFactors(factors: Factor[]) {
   const share = (f: Factor) => (f.max ? f.points / f.max : 0)
+  const known = factors.filter((f) => !f.noData)
   return {
-    strengths: factors.filter((f) => share(f) >= 0.8),
-    risks: factors.filter((f) => share(f) < 0.5),
-    neutral: factors.filter((f) => share(f) >= 0.5 && share(f) < 0.8),
+    strengths: known.filter((f) => share(f) >= 0.8),
+    risks: known.filter((f) => share(f) < 0.5),
+    neutral: known.filter((f) => share(f) >= 0.5 && share(f) < 0.8),
+    gaps: factors.filter((f) => f.noData),
   }
 }
 
-function Block({ title, tone, factors }: { title: string; tone: 'ok' | 'bad' | 'neutral'; factors: Factor[] }) {
+function Block({ title, tone, factors, id: blockId }: { title: string; tone: 'ok' | 'bad' | 'neutral'; factors: Factor[]; id?: string }) {
   if (factors.length === 0) return null
-  const id = `concl-${tone}`
+  const id = blockId ?? `concl-${tone}`
   return (
     <section className="concl-block" data-tone={tone} role="region" aria-labelledby={id}>
       <h3 id={id}>{title}</h3>
@@ -41,7 +46,7 @@ export default function Conclusion({ card, id }: { card: StaffApplication; id: s
   const s = card.scoring
   const ex = useQuery({ queryKey: ['explanation', id], queryFn: () => api.explanation(id, 'staff'), enabled: !!s })
   if (!s) return null
-  const { strengths, risks, neutral } = groupFactors(s.factors)
+  const { strengths, risks, neutral, gaps } = groupFactors(s.factors)
   const rec = card.recommended
   return (
     <section className="card concl" aria-labelledby="concl-h">
@@ -54,6 +59,19 @@ export default function Conclusion({ card, id }: { card: StaffApplication; id: s
         <Block title="Факторы риска" tone="bad" factors={risks} />
       </div>
       <Block title="Нейтральные факторы" tone="neutral" factors={neutral} />
+      <Block title="Нет данных" tone="neutral" factors={gaps} id="concl-gaps" />
+
+      {s.qualityCategory && (
+        <section className="concl-rec concl-quality" role="region" aria-labelledby="concl-q-h">
+          <h3 id="concl-q-h">Категория качества ссуды (590-П)</h3>
+          <div className="concl-tiles concl-tiles-3">
+            <div><small>Класс {s.grade}</small><b>{s.riskLabel}</b></div>
+            <div><small>Категория</small><b>{s.qualityCategory}</b></div>
+            <div><small>Резерв</small><b className="num">{s.reserveRange}</b></div>
+          </div>
+          <p className="field-hint">Соответствие класса категории и диапазону резерва задано аналитиком банка, точный резерв определяет банк.</p>
+        </section>
+      )}
 
       {s.repaidTotal != null && s.repaidCoverage != null && s.minRepaidCoverage != null && (
         <section className="concl-rec" role="region" aria-labelledby="concl-exp-h">

@@ -861,6 +861,7 @@ components:
         purpose: { type: string, maxLength: 500 }
         fields:
           type: object
+          description: "Ответы мастера заявки. Ключ collateral: none, partial или full (обеспечение)"
           additionalProperties: { type: string }
     InfoResponse:
       type: object
@@ -997,12 +998,16 @@ components:
         points: { type: integer }
         max: { type: integer }
         note: { type: string }
+        noData: { type: boolean, description: "По критерию нет данных: баллов нет, но заёмщик не признан плохим по нему" }
     ScoringResult:
       type: object
       required: [score, grade, factors, hardStops, maxAffordableAmount, debtLoad]
       properties:
         score: { type: integer }
-        grade: { type: string, enum: [A, B, C, D, E] }
+        grade: { type: string, enum: [A, B, C, D], description: "A 80–100, B 50–79, C 30–49, D менее 30 или стоп-фактор" }
+        qualityCategory: { type: string, description: "Категория качества ссуды по Положению 590-П, соответствующая классу" }
+        reserveRange: { type: string, description: "Диапазон резерва на возможные потери по этой категории" }
+        riskLabel: { type: string, description: "Уровень риска словами: низкий, умеренный, высокий, критический" }
         factors:
           type: array
           items: { $ref: '#/components/schemas/Factor' }
@@ -1039,6 +1044,7 @@ components:
         score: { type: integer }
         closedLoans: { type: integer, description: "Число кредитов, погашенных полностью" }
         totalRepaid: { type: integer, format: int64, description: "Сумма погашенных кредитов в копейках" }
+        restructured: { type: boolean, description: "Действующий кредит был реструктурирован" }
     EGRULRecord:
       type: object
       required: [inn, name, status]
@@ -1051,6 +1057,17 @@ components:
         director: { type: string }
         address: { type: string }
         bankrupt: { type: boolean }
+        litigation: { type: integer, description: "Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано)" }
+        finance: { $ref: '#/components/schemas/FinanceData' }
+    FinanceData:
+      type: object
+      description: "Данные бухгалтерской отчётности и анализа выписки (смоделированы)"
+      required: [grossMargin, noiMargin, currentRatio, statementAnomaly]
+      properties:
+        grossMargin: { type: number, description: "Валовая прибыль / выручка" }
+        noiMargin: { type: number, description: "Чистый операционный доход до обслуживания долга / выручка" }
+        currentRatio: { type: number, description: "Коэффициент текущей ликвидности" }
+        statementAnomaly: { type: integer, description: "Аномалии в выписке: 0 нет, 1 незначительные, 2 существенные" }
     Enrichment:
       type: object
       required: [attempts]

@@ -844,6 +844,7 @@ export interface components {
             amount?: number;
             termMonths?: number;
             purpose?: string;
+            /** @description Ответы мастера заявки. Ключ collateral: none, partial или full (обеспечение) */
             fields?: {
                 [key: string]: string;
             };
@@ -964,11 +965,22 @@ export interface components {
             points: number;
             max: number;
             note: string;
+            /** @description По критерию нет данных: баллов нет, но заёмщик не признан плохим по нему */
+            noData?: boolean;
         };
         ScoringResult: {
             score: number;
-            /** @enum {string} */
-            grade: "A" | "B" | "C" | "D" | "E";
+            /**
+             * @description A 80–100, B 50–79, C 30–49, D менее 30 или стоп-фактор
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "D";
+            /** @description Категория качества ссуды по Положению 590-П, соответствующая классу */
+            qualityCategory?: string;
+            /** @description Диапазон резерва на возможные потери по этой категории */
+            reserveRange?: string;
+            /** @description Уровень риска словами: низкий, умеренный, высокий, критический */
+            riskLabel?: string;
             factors: components["schemas"]["Factor"][];
             hardStops: string[];
             /** Format: int64 */
@@ -1059,6 +1071,8 @@ export interface components {
              * @description Сумма погашенных кредитов в копейках
              */
             totalRepaid?: number;
+            /** @description Действующий кредит был реструктурирован */
+            restructured?: boolean;
         };
         EGRULRecord: {
             inn: string;
@@ -1070,6 +1084,20 @@ export interface components {
             director?: string;
             address?: string;
             bankrupt?: boolean;
+            /** @description Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано) */
+            litigation?: number;
+            finance?: components["schemas"]["FinanceData"];
+        };
+        /** @description Данные бухгалтерской отчётности и анализа выписки (смоделированы) */
+        FinanceData: {
+            /** @description Валовая прибыль / выручка */
+            grossMargin: number;
+            /** @description Чистый операционный доход до обслуживания долга / выручка */
+            noiMargin: number;
+            /** @description Коэффициент текущей ликвидности */
+            currentRatio: number;
+            /** @description Аномалии в выписке: 0 нет, 1 незначительные, 2 существенные */
+            statementAnomaly: number;
         };
         Enrichment: {
             egrul?: components["schemas"]["EGRULRecord"];

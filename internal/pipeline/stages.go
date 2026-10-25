@@ -158,10 +158,19 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 	for i, f := range fin {
 		revenue[i] = f.Revenue
 	}
+	docs, err := p.s.ListDocuments(ctx, app.ID)
+	if err != nil {
+		return err
+	}
+	purposeDocs := false
+	for _, d := range docs {
+		purposeDocs = purposeDocs || d.Kind == "invoice" // an invoice or a contract backs the purpose and the amount
+	}
 	age := int(p.now().Sub(co.RegisteredAt.Time).Hours() / 24 / 30)
 	in := scoring.Input{
 		CompanyAgeMonths: age, MonthlyRevenue: revenue, MonthlyObligations: co.MonthlyObligations,
 		BKI: data.Enrichment.BKI, EGRUL: *data.Enrichment.EGRUL,
+		Collateral: data.Fields["collateral"], PurposeText: app.Purpose, PurposeDocs: purposeDocs,
 		Amount: app.Amount, TermMonths: int(app.TermMonths), RateBP: prod.BaseRateBP, OKVEDGroup: int(co.OkvedGroup), LGD: prod.LGD,
 	}
 	res := scoring.Score(in, p.cfg.Scoring)

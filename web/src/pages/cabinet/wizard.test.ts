@@ -6,7 +6,7 @@ const wc: Product = {
   id: 'working_capital', title: 'Кредит на оборотные средства', description: '', hint: '',
   minAmount: 30_000_000, maxAmount: 1_000_000_000, minTerm: 3, maxTerm: 24, baseRateBp: 1650, autoApproveLimit: 0, documents: [],
 }
-const ok: Form = { productId: 'working_capital', amount: '1000000', term: '12', purpose: 'Закупка сырья', contactName: '', position: '' }
+const ok: Form = { productId: 'working_capital', amount: '1000000', term: '12', purpose: 'Закупка сырья', contactName: '', position: '', collateral: 'none' }
 
 describe('validateStep1', () => {
   it('accepts a valid form', () => {

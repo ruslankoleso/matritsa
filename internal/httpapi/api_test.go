@@ -343,7 +343,7 @@ func TestFlow_Counter_Offer(t *testing.T) {
 		t.Fatalf("queue: %d %+v", code, q)
 	}
 	card := e.staffCard(app.Id.String())
-	if card.Scoring == nil || len(card.Scoring.Factors) != 6 || card.Recommended == nil || card.Enrichment == nil || card.Enrichment.Bki == nil {
+	if card.Scoring == nil || len(card.Scoring.Factors) != 12 || card.Recommended == nil || card.Enrichment == nil || card.Enrichment.Bki == nil {
 		t.Fatalf("staff card incomplete: %+v", card)
 	}
 	if !containsAction(card.AllowedActions, gen.StaffApplicationAllowedActionsReject) {
