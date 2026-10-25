@@ -63,7 +63,7 @@ function Breakdown({ card }: { card: StaffApplication }) {
         <ScoreRing score={s.score} grade={s.grade} />
         <div className="score-facts">
           <b>Класс {s.grade}: оценка заёмщика</b>
-          <span>Класс не зависит от суммы и срока заявки. Длина шкалы показывает вклад фактора.</span>
+          <span>Класс относится к этой заявке: чем больше сумма и срок, тем ниже покрытие платежей (DSCR) и баллы. Длина шкалы показывает вклад критерия.</span>
         </div>
       </div>
       <Affordability s={s} />
@@ -119,13 +119,21 @@ function Enrichment({ card }: { card: StaffApplication }) {
       <div className="kv-row"><span>Реестр (ЕГРЮЛ/ЕГРИП)</span><b>{e.egrul ? (e.egrul.status === 'active' ? 'Действующая' : e.egrul.status) : <span className="dash">—</span>}</b></div>
       {e.egrul?.bankrupt && <div className="kv-row"><span>Банкротство</span><b>Да</b></div>}
       {e.egrul && <div className="kv-row"><span>Судебные дела</span><b>{['нет', 'незначительные', 'крупные'][e.egrul.litigation ?? 0]}</b></div>}
-      {e.egrul?.finance && (
+      {e.egrul?.finance ? (
         <>
           <div className="kv-row"><span>Отчётность: рентабельность продаж</span><b>{formatPercent(e.egrul.finance.grossMargin)}</b></div>
-          <div className="kv-row"><span>Отчётность: операционная маржа</span><b>{formatPercent(e.egrul.finance.noiMargin)}</b></div>
           <div className="kv-row"><span>Отчётность: текущая ликвидность</span><b className="num">{e.egrul.finance.currentRatio.toLocaleString('ru-RU')}</b></div>
-          <div className="kv-row"><span>Выписка: аномалии</span><b>{['нет', 'незначительные', 'существенные'][e.egrul.finance.statementAnomaly] ?? '—'}</b></div>
         </>
+      ) : (
+        e.egrul && <div className="kv-row"><span>Бухгалтерская отчётность</span><b><span className="dash">нет данных</span></b></div>
+      )}
+      {e.egrul?.statement ? (
+        <>
+          <div className="kv-row"><span>Выписка: денежный поток к поступлениям</span><b>{formatPercent(e.egrul.statement.noiMargin)}</b></div>
+          <div className="kv-row"><span>Выписка: аномалии</span><b>{['нет', 'незначительные', 'существенные'][e.egrul.statement.anomaly] ?? '—'}</b></div>
+        </>
+      ) : (
+        e.egrul && <div className="kv-row"><span>Анализ выписки</span><b><span className="dash">нет данных</span></b></div>
       )}
       <div className="kv-row"><span>Бюро: балл</span><b>{e.bki?.hasHistory ? e.bki.score : <span className="dash">нет истории</span>}</b></div>
       <div className="kv-row"><span>Бюро: активные кредиты</span><b>{e.bki?.hasHistory ? e.bki.activeLoans : <span className="dash">—</span>}</b></div>

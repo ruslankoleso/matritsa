@@ -1087,17 +1087,21 @@ export interface components {
             /** @description Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано) */
             litigation?: number;
             finance?: components["schemas"]["FinanceData"];
+            statement?: components["schemas"]["StatementData"];
         };
-        /** @description Данные бухгалтерской отчётности и анализа выписки (смоделированы) */
+        /** @description Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет */
         FinanceData: {
             /** @description Валовая прибыль / выручка */
             grossMargin: number;
-            /** @description Чистый операционный доход до обслуживания долга / выручка */
-            noiMargin: number;
             /** @description Коэффициент текущей ликвидности */
             currentRatio: number;
-            /** @description Аномалии в выписке: 0 нет, 1 незначительные, 2 существенные */
-            statementAnomaly: number;
+        };
+        /** @description Результат анализа банковской выписки (смоделирован) */
+        StatementData: {
+            /** @description (Поступления минус операционные списания) / поступления; долговые платежи не вычитаются */
+            noiMargin: number;
+            /** @description Аномалии: 0 нет, 1 незначительные, 2 существенные */
+            anomaly: number;
         };
         Enrichment: {
             egrul?: components["schemas"]["EGRULRecord"];

@@ -145,50 +145,51 @@ func Synthesize(inn string) (Company, bool) {
 		return &integrations.BKIReport{HasHistory: true, ActiveLoans: loans, TotalDebt: int64(float64(base) * debtShare), MaxOverdueDays: overdue, Score: score, ClosedLoans: closed, TotalRepaid: int64(float64(base) * repaidShare)}
 	}
 
-	// The accounts of a synthetic company: the operating margin follows the industry as the old estimate did,
+	// The accounts and the statement of a synthetic company: the operating margin follows the industry as the old estimate did,
 	// the rest depends on the kind of company. A fraction of a percent is added per INN so that no two look alike.
 	noi := map[int]float64{1: 0.35, 2: 0.30, 3: 0.25}[act.group] + float64(between(-2, 2))/100
-	fin := func(gross, current float64, anomaly int) *integrations.Finance {
-		return &integrations.Finance{GrossMargin: gross + float64(between(0, 4))/100, NOIMargin: noi, CurrentRatio: current, StatementAnomaly: anomaly}
+	fin := func(gross, current float64, anomaly int) {
+		c.Finance = &integrations.Finance{GrossMargin: gross + float64(between(0, 4))/100, CurrentRatio: current}
+		c.Statement = &integrations.Statement{NOIMargin: noi, Anomaly: anomaly}
 	}
 
 	switch a {
 	case Reliable:
 		c.RegisteredAt = monthsAgo(between(66, 120))
-		c.Finance = fin(0.36, 1.6+float64(between(0, 6))/10, 0)
+		fin(0.36, 1.6+float64(between(0, 6))/10, 0)
 		base = int64(between(1500, 3500)) * 1000 * rub
 		c.MonthlyObligations = base * int64(between(3, 5)) / 100
 		c.Revenue = series(base, pattern, 12)
 		c.BKI = history(between(750, 820), 1, 0, 0.5, float64(between(3, 6)))
 	case Borderline:
 		c.RegisteredAt = monthsAgo(between(24, 60))
-		c.Finance = fin(0.24, 1.0+float64(between(0, 3))/10, between(0, 1))
+		fin(0.24, 1.0+float64(between(0, 3))/10, between(0, 1))
 		c.Litigation = between(0, 1)
 		c.MonthlyObligations = base * int64(between(5, 8)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12)
 		c.BKI = history(between(590, 640), 1, between(18, 30), 0.8, float64(between(1, 2)))
 	case Young:
 		c.RegisteredAt = monthsAgo(between(3, 8))
-		c.Finance = fin(0.40, 1.1+float64(between(0, 3))/10, 0)
+		fin(0.40, 1.1+float64(between(0, 3))/10, 0)
 		start := base / 3
 		c.Revenue = []int64{start, start * 13 / 10, start * 15 / 10, start * 17 / 10}
 		c.BKI = &integrations.BKIReport{HasHistory: false}
 	case Indebted:
 		c.RegisteredAt = monthsAgo(between(36, 96))
-		c.Finance = fin(0.22, 1.0+float64(between(0, 2))/10, 1)
+		fin(0.22, 1.0+float64(between(0, 2))/10, 1)
 		c.Litigation = between(0, 1)
 		c.MonthlyObligations = base * int64(between(9, 12)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12)
 		c.BKI = history(between(580, 625), 3, between(20, 40), 4.5, 1)
 	case Liquidated:
 		c.RegisteredAt = monthsAgo(between(60, 120))
-		c.Finance = fin(0.25, 1.2, 0)
+		fin(0.25, 1.2, 0)
 		c.Status = "liquidated"
 		c.Revenue = series(base, []float64{1.0, 0.9, 1.1}, 12)
 		c.BKI = history(700, 0, 0, 0, 1)
 	case Overdue:
 		c.RegisteredAt = monthsAgo(between(36, 96))
-		c.Finance = fin(0.15, 0.9, 1)
+		fin(0.15, 0.9, 1)
 		c.Litigation = 1
 		c.MonthlyObligations = base * int64(between(12, 16)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.7, 1.3, 0.9}, 12)

@@ -1059,15 +1059,21 @@ components:
         bankrupt: { type: boolean }
         litigation: { type: integer, description: "Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано)" }
         finance: { $ref: '#/components/schemas/FinanceData' }
+        statement: { $ref: '#/components/schemas/StatementData' }
     FinanceData:
       type: object
-      description: "Данные бухгалтерской отчётности и анализа выписки (смоделированы)"
-      required: [grossMargin, noiMargin, currentRatio, statementAnomaly]
+      description: "Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет"
+      required: [grossMargin, currentRatio]
       properties:
         grossMargin: { type: number, description: "Валовая прибыль / выручка" }
-        noiMargin: { type: number, description: "Чистый операционный доход до обслуживания долга / выручка" }
         currentRatio: { type: number, description: "Коэффициент текущей ликвидности" }
-        statementAnomaly: { type: integer, description: "Аномалии в выписке: 0 нет, 1 незначительные, 2 существенные" }
+    StatementData:
+      type: object
+      description: "Результат анализа банковской выписки (смоделирован)"
+      required: [noiMargin, anomaly]
+      properties:
+        noiMargin: { type: number, description: "(Поступления минус операционные списания) / поступления; долговые платежи не вычитаются" }
+        anomaly: { type: integer, description: "Аномалии: 0 нет, 1 незначительные, 2 существенные" }
     Enrichment:
       type: object
       required: [attempts]

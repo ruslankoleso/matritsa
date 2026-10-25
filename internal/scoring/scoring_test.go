@@ -19,11 +19,16 @@ func flatRevenue(monthly int64) []int64 {
 }
 
 func goodFinance() *integrations.Finance {
-	return &integrations.Finance{GrossMargin: 0.38, NOIMargin: 0.30, CurrentRatio: 1.8}
+	return &integrations.Finance{GrossMargin: 0.38, CurrentRatio: 1.8}
+}
+
+// goodStatement is the bank statement: the net flow (receipts minus operating write-offs) is 30% of revenue.
+func goodStatement() *integrations.Statement {
+	return &integrations.Statement{NOIMargin: 0.30}
 }
 
 func activeCompany() integrations.EGRULRecord {
-	return integrations.EGRULRecord{Status: "active", Finance: goodFinance()}
+	return integrations.EGRULRecord{Status: "active", Finance: goodFinance(), Statement: goodStatement()}
 }
 
 func goodBKI() *integrations.BKIReport {
@@ -71,16 +76,31 @@ func TestScore_NoData_MeansNoPoints_WithANoteSayingSo(t *testing.T) {
 		t.Fatalf("a missing history has no bureau score: %d", res.BKIScore)
 	}
 
+	// no accounts (a sole trader does not publish them): the statement still gives the cash flow
 	noAccounts := baseInput()
 	noAccounts.EGRUL.Finance = nil
 	res = Score(noAccounts, cfg)
-	for _, key := range []string{"dscr", "debt_ebitda", "profitability", "liquidity", "statement"} {
+	for _, key := range []string{"profitability", "liquidity"} {
 		if f := factor(t, res, key); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
 			t.Errorf("%s without the accounts: want 0 points and a note, got %d %q", key, f.Points, f.Note)
 		}
 	}
+	for _, key := range []string{"dscr", "debt_ebitda", "statement"} {
+		if f := factor(t, res, key); f.NoData {
+			t.Errorf("%s comes from the statement and needs no accounts: %+v", key, f)
+		}
+	}
+	// no statement: no cash flow to cover payments with
+	noStatement := baseInput()
+	noStatement.EGRUL.Statement = nil
+	res = Score(noStatement, cfg)
+	for _, key := range []string{"dscr", "debt_ebitda", "statement"} {
+		if f := factor(t, res, key); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
+			t.Errorf("%s without the statement: want 0 points and a note, got %d %q", key, f.Points, f.Note)
+		}
+	}
 	if res.MonthlyCashFlow <= 0 {
-		t.Error("the affordability limit still needs a cash flow: without accounts it is estimated by the industry")
+		t.Error("the affordability limit still needs a cash flow: without the statement it is estimated by the industry")
 	}
 
 	noRevenue := baseInput()
@@ -259,14 +279,25 @@ func TestScore_TwelveCriteria_NoRequestSizeFactors(t *testing.T) {
 	}
 }
 
-func TestScore_GradeDoesNotDependOnRequestSize(t *testing.T) {
+// The grade belongs to the loan: a bigger and longer request covers worse and never scores better.
+func TestScore_BiggerAndLongerRequest_NeverScoresBetter_AndCanFallToAnotherClass(t *testing.T) {
+	cfg := DefaultConfig()
 	small := baseInput()
 	small.Amount, small.TermMonths = 2_000_000*rub, 30
 	big := baseInput()
 	big.Amount, big.TermMonths = 20_000_000*rub, 40
-	a, b := Score(small, DefaultConfig()), Score(big, DefaultConfig())
-	if a.Score != b.Score || a.Grade != b.Grade {
-		t.Fatalf("the same borrower must get the same class: %s/%d vs %s/%d", a.Grade, a.Score, b.Grade, b.Score)
+	a, b := Score(small, cfg), Score(big, cfg)
+	if b.Score > a.Score {
+		t.Fatalf("a bigger loan scored better: %d vs %d", b.Score, a.Score)
+	}
+	if !(b.Score < a.Score) || a.Grade == b.Grade {
+		t.Fatalf("20 million must lose the DSCR points and the class (A for 2 million): %s/%d vs %s/%d", a.Grade, a.Score, b.Grade, b.Score)
+	}
+	// only DSCR moves: nothing else in the score depends on the size
+	for i, f := range a.Factors {
+		if f.Key != "dscr" && f.Points != b.Factors[i].Points {
+			t.Errorf("%s changed with the size of the request: %d vs %d", f.Key, f.Points, b.Factors[i].Points)
+		}
 	}
 }
 
@@ -397,7 +428,7 @@ func TestDSCR_IsCashFlowOverAllPayments(t *testing.T) {
 	cfg := DefaultConfig()
 	in := baseInput() // revenue 2 000 000, group 1, obligations 100 000
 	res := Score(in, cfg)
-	wantCash := int64(float64(2_000_000*rub) * in.EGRUL.Finance.NOIMargin) // the margin of the company's own accounts
+	wantCash := int64(float64(2_000_000*rub) * in.EGRUL.Statement.NOIMargin) // receipts minus write-offs on the statement
 	if res.MonthlyCashFlow != wantCash {
 		t.Fatalf("cash flow %d, want %d", res.MonthlyCashFlow, wantCash)
 	}
@@ -407,10 +438,10 @@ func TestDSCR_IsCashFlowOverAllPayments(t *testing.T) {
 	}
 }
 
-func TestDSCR_WithoutTheAccounts_MarginDependsOnTheIndustryGroup(t *testing.T) {
+func TestDSCR_WithoutTheStatement_MarginDependsOnTheIndustryGroup(t *testing.T) {
 	cfg := DefaultConfig()
 	low, high := baseInput(), baseInput()
-	low.EGRUL.Finance, high.EGRUL.Finance = nil, nil
+	low.EGRUL.Statement, high.EGRUL.Statement = nil, nil
 	low.OKVEDGroup, high.OKVEDGroup = 3, 1
 	if Score(low, cfg).MonthlyCashFlow >= Score(high, cfg).MonthlyCashFlow {
 		t.Fatal("a riskier industry keeps less cash from the same revenue")
@@ -449,7 +480,7 @@ func TestBothMeasuresMatter_EachCanBeTheBindingOne(t *testing.T) {
 	cfg := DefaultConfig()
 	// a thin margin makes the cash flow the limit although the load looks fine
 	thin := baseInput()
-	thin.EGRUL.Finance = nil
+	thin.EGRUL.Statement = nil
 	thin.OKVEDGroup = 3
 	thin.MonthlyObligations = 400_000 * rub
 	r := Score(thin, cfg)
@@ -458,7 +489,7 @@ func TestBothMeasuresMatter_EachCanBeTheBindingOne(t *testing.T) {
 	}
 	// no existing debt and a good margin: the load share is the stricter one
 	lean := baseInput()
-	lean.EGRUL.Finance = nil
+	lean.EGRUL.Statement = nil
 	lean.MonthlyObligations = 0
 	lean.OKVEDGroup = 1
 	lean.MonthlyRevenue = flatRevenue(1_000_000 * rub)

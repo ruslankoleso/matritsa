@@ -674,7 +674,7 @@ type EGRULRecord struct {
 	Bankrupt *bool   `json:"bankrupt,omitempty"`
 	Director *string `json:"director,omitempty"`
 
-	// Finance Данные бухгалтерской отчётности и анализа выписки (смоделированы)
+	// Finance Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет
 	Finance *FinanceData `json:"finance,omitempty"`
 	Inn     string       `json:"inn"`
 
@@ -683,7 +683,10 @@ type EGRULRecord struct {
 	Name         string     `json:"name"`
 	Okved        *string    `json:"okved,omitempty"`
 	RegisteredAt *time.Time `json:"registeredAt,omitempty"`
-	Status       string     `json:"status"`
+
+	// Statement Результат анализа банковской выписки (смоделирован)
+	Statement *StatementData `json:"statement,omitempty"`
+	Status    string         `json:"status"`
 }
 
 // Enrichment defines model for Enrichment.
@@ -744,19 +747,13 @@ type FeedCard struct {
 // FeedCardKind defines model for FeedCard.Kind.
 type FeedCardKind string
 
-// FinanceData Данные бухгалтерской отчётности и анализа выписки (смоделированы)
+// FinanceData Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет
 type FinanceData struct {
 	// CurrentRatio Коэффициент текущей ликвидности
 	CurrentRatio float32 `json:"currentRatio"`
 
 	// GrossMargin Валовая прибыль / выручка
 	GrossMargin float32 `json:"grossMargin"`
-
-	// NoiMargin Чистый операционный доход до обслуживания долга / выручка
-	NoiMargin float32 `json:"noiMargin"`
-
-	// StatementAnomaly Аномалии в выписке: 0 нет, 1 незначительные, 2 существенные
-	StatementAnomaly int `json:"statementAnomaly"`
 }
 
 // InfoRequest defines model for InfoRequest.
@@ -1018,6 +1015,15 @@ type StaffApplication struct {
 
 // StaffApplicationAllowedActions defines model for StaffApplication.AllowedActions.
 type StaffApplicationAllowedActions string
+
+// StatementData Результат анализа банковской выписки (смоделирован)
+type StatementData struct {
+	// Anomaly Аномалии: 0 нет, 1 незначительные, 2 существенные
+	Anomaly int `json:"anomaly"`
+
+	// NoiMargin (Поступления минус операционные списания) / поступления; долговые платежи не вычитаются
+	NoiMargin float32 `json:"noiMargin"`
+}
 
 // Status defines model for Status.
 type Status string

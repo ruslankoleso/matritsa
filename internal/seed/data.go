@@ -31,7 +31,8 @@ type Company struct {
 	Bankrupt           bool
 	BKI                *integrations.BKIReport // nil: company unknown to the bureau
 	Litigation         int                     // court cases: 0 none, 1 minor, 2 major
-	Finance            *integrations.Finance   // accounts and statement analysis (simulated)
+	Finance            *integrations.Finance   // published accounts (simulated)
+	Statement          *integrations.Statement // analysis of the bank statement (simulated)
 	Story              string                  // what this demo company illustrates
 }
 
@@ -60,7 +61,8 @@ func Companies() []Company {
 			Revenue:            series(2_400_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 1_200_000 * rub, MaxOverdueDays: 0, Score: 790, ClosedLoans: 3, TotalRepaid: 3_200_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.38, NOIMargin: 0.30, CurrentRatio: 1.8, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.38, CurrentRatio: 1.8},
+			Statement:          &integrations.Statement{NOIMargin: 0.30, Anomaly: 0},
 			Story:              "Надёжная пекарня: решение автоматически, без сотрудника",
 		},
 		{
@@ -71,7 +73,8 @@ func Companies() []Company {
 			Revenue:            series(700_000*rub, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 3, TotalDebt: 3_400_000 * rub, MaxOverdueDays: 25, Score: 610, ClosedLoans: 2, TotalRepaid: 1_500_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.22, NOIMargin: 0.30, CurrentRatio: 1.1, StatementAnomaly: 1},
+			Finance:            &integrations.Finance{GrossMargin: 0.22, CurrentRatio: 1.1},
+			Statement:          &integrations.Statement{NOIMargin: 0.30, Anomaly: 1},
 			Story:              "Закредитованный ИП: сотрудник предлагает меньшую сумму (встречное предложение)",
 		},
 		{
@@ -82,7 +85,8 @@ func Companies() []Company {
 			Revenue:            []int64{260_000 * rub, 340_000 * rub, 380_000 * rub, 430_000 * rub},
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: false},
-			Finance:            &integrations.Finance{GrossMargin: 0.45, NOIMargin: 0.28, CurrentRatio: 1.2, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.45, CurrentRatio: 1.2},
+			Statement:          &integrations.Statement{NOIMargin: 0.28, Anomaly: 0},
 			Story:              "Молодая компания без кредитной истории: заявку смотрит сотрудник",
 		},
 		{
@@ -93,7 +97,8 @@ func Companies() []Company {
 			Revenue:            series(700_000*rub, []float64{1.0, 0.9, 1.1}, 12),
 			Status:             "liquidated",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 0, Score: 700, ClosedLoans: 2, TotalRepaid: 1_800_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.25, NOIMargin: 0.30, CurrentRatio: 1.3, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.25, CurrentRatio: 1.3},
+			Statement:          &integrations.Statement{NOIMargin: 0.30, Anomaly: 0},
 			Story:              "Ликвидированная компания: автоматический отказ с понятной причиной",
 		},
 		{
@@ -104,7 +109,8 @@ func Companies() []Company {
 			Revenue:            series(600_000*rub, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 20, Score: 620, ClosedLoans: 1, TotalRepaid: 800_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.30, NOIMargin: 0.28, CurrentRatio: 1.3, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.30, CurrentRatio: 1.3},
+			Statement:          &integrations.Statement{NOIMargin: 0.28, Anomaly: 0},
 			Litigation:         1,
 			Story:              "Пограничный случай: решение принимает сотрудник",
 		},
@@ -116,7 +122,8 @@ func Companies() []Company {
 			Revenue:            series(1_500_000*rub, []float64{1.0, 0.7, 1.3, 0.9}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 9_000_000 * rub, MaxOverdueDays: 120, Score: 480, ClosedLoans: 1, TotalRepaid: 2_000_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.15, NOIMargin: 0.10, CurrentRatio: 0.9, StatementAnomaly: 1},
+			Finance:            &integrations.Finance{GrossMargin: 0.15, CurrentRatio: 0.9},
+			Statement:          &integrations.Statement{NOIMargin: 0.10, Anomaly: 1},
 			Litigation:         1,
 			Story:              "Просрочка более 90 дней: отказ по жёсткому правилу",
 		},
@@ -128,7 +135,8 @@ func Companies() []Company {
 			Revenue:            series(4_000_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 2_000_000 * rub, MaxOverdueDays: 0, Score: 800, ClosedLoans: 5, TotalRepaid: 12_000_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.35, NOIMargin: 0.30, CurrentRatio: 2.1, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.35, CurrentRatio: 2.1},
+			Statement:          &integrations.Statement{NOIMargin: 0.30, Anomaly: 0},
 			Story:              "Надёжная компания, но сумма выше лимита автоматического решения: рассматривает сотрудник",
 		},
 		{
@@ -139,7 +147,8 @@ func Companies() []Company {
 			Revenue:            series(1_200_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 0, Score: 770, ClosedLoans: 1, TotalRepaid: 360_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.33, NOIMargin: 0.28, CurrentRatio: 1.6, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.33, CurrentRatio: 1.6},
+			Statement:          &integrations.Statement{NOIMargin: 0.28, Anomaly: 0},
 			Story:              "Хороший заёмщик с малым опытом погашения: автоматического решения нет, рассматривает сотрудник",
 		},
 		{
@@ -150,7 +159,8 @@ func Companies() []Company {
 			Revenue:            series(500_000*rub, []float64{1.0, 0.9, 1.1, 0.95, 1.05}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 6_000_000 * rub, MaxOverdueDays: 15, Score: 600, ClosedLoans: 1, TotalRepaid: 1_000_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.18, NOIMargin: 0.20, CurrentRatio: 1.0, StatementAnomaly: 1},
+			Finance:            &integrations.Finance{GrossMargin: 0.18, CurrentRatio: 1.0},
+			Statement:          &integrations.Statement{NOIMargin: 0.20, Anomaly: 1},
 			Litigation:         1,
 			Story:              "Платежи по действующим кредитам съедают выручку: автоматический отказ по платёжеспособности",
 		},
@@ -162,7 +172,8 @@ func Companies() []Company {
 			Revenue:    series(2_000_000*rub, []float64{1.0, 0.8, 1.2, 0.9}, 12),
 			Status:     "active",
 			BKI:        &integrations.BKIReport{HasHistory: true, ActiveLoans: 2, TotalDebt: 4_000_000 * rub, MaxOverdueDays: 40, Score: 560, ClosedLoans: 2, TotalRepaid: 3_000_000 * rub},
-			Finance:    &integrations.Finance{GrossMargin: 0.12, NOIMargin: 0.08, CurrentRatio: 0.7, StatementAnomaly: 2},
+			Finance:    &integrations.Finance{GrossMargin: 0.12, CurrentRatio: 0.7},
+			Statement:  &integrations.Statement{NOIMargin: 0.08, Anomaly: 2},
 			Litigation: 2,
 			Story:      "Процедура банкротства: автоматический отказ по жёсткому правилу",
 		},
@@ -174,7 +185,8 @@ func Companies() []Company {
 			Revenue:            series(900_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
 			Status:             "active",
 			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 0, TotalDebt: 0, MaxOverdueDays: 0, Score: 760, ClosedLoans: 4, TotalRepaid: 5_000_000 * rub},
-			Finance:            &integrations.Finance{GrossMargin: 0.30, NOIMargin: 0.27, CurrentRatio: 1.7, StatementAnomaly: 0},
+			Finance:            &integrations.Finance{GrossMargin: 0.32, CurrentRatio: 1.7},
+			Statement:          &integrations.Statement{NOIMargin: 0.30, Anomaly: 0},
 			Story:              "Постоянный клиент: полная история заявок — выдача, отказ от предложения, черновик и отозванная заявка",
 		},
 	}
@@ -195,7 +207,7 @@ func (c Company) EGRUL() integrations.EGRULRecord {
 	return integrations.EGRULRecord{
 		INN: c.INN, Name: c.Name, Status: c.Status, RegisteredAt: c.RegisteredAt,
 		OKVED: c.OKVED, Director: c.Director, Address: c.Address, Bankrupt: c.Bankrupt,
-		Litigation: c.Litigation, Finance: c.Finance,
+		Litigation: c.Litigation, Finance: c.Finance, Statement: c.Statement,
 	}
 }
 

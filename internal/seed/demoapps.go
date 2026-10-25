@@ -60,7 +60,7 @@ func DemoApplications() []DemoApp {
 		{Login: "client10", Product: "working_capital", Amount: 1_000_000 * rub, Term: 12, Purpose: "Закупка материалов", Submit: true, Want: "REJECTED"},
 		// client11, a regular client with every kind of history
 		{Login: "client11", Product: "express", Amount: 400_000 * rub, Term: 6, Purpose: "Обновление оборудования", Submit: true, Client: "accept", Want: "DISBURSED"},
-		{Login: "client11", Product: "working_capital", Amount: 1_500_000 * rub, Term: 12, Purpose: "Закупка материалов", Submit: true, Client: "decline", Want: "DECLINED_BY_CLIENT"},
+		{Login: "client11", Product: "working_capital", Amount: 1_500_000 * rub, Term: 12, Purpose: "Закупка материалов и расходников для студии", Submit: true, Client: "decline", Want: "DECLINED_BY_CLIENT"},
 		{Login: "client11", Product: "express", Amount: 100_000 * rub, Term: 3, Purpose: "Временные расходы", Submit: true, Cancel: true, Want: "CANCELLED"},
 		{Login: "client11", Product: "equipment", Amount: 2_000_000 * rub, Term: 24, Purpose: "Покупка оборудования", NoDocs: true, Want: "DRAFT"},
 	}

@@ -209,3 +209,56 @@ func TestDecide_GradeD_WithEnoughData_StillRejects(t *testing.T) {
 		t.Fatalf("%+v", d)
 	}
 }
+
+// The class belongs to the loan: a request too big for the business can fall to class D, while a smaller amount
+// offered instead is scored again and gets its own class and rate.
+func TestDecide_TooBigRequestScoredD_StillGetsACounterOfferScoredOnItsOwn(t *testing.T) {
+	requested := result(scoring.GradeD, 800_000*rub)
+	requested.Score, requested.MissingPoints = 28, 0
+	requested.MaxAmountByLoad, requested.MaxAmountByDSCR = 2_000_000*rub, 800_000*rub
+	asked := []int64{}
+	rescore := func(amount int64) scoring.Result {
+		asked = append(asked, amount)
+		r := result(scoring.GradeB, 800_000*rub)
+		r.Score = 62
+		return r
+	}
+	d := DecideRescoring(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12, rescore)
+	if d.Outcome != Review || d.Recommended == nil || d.Recommended.Amount != 800_000*rub {
+		t.Fatalf("a counter-offer instead of a refusal: %+v", d)
+	}
+	if len(asked) != 1 || asked[0] != 800_000*rub {
+		t.Fatalf("the recommended amount is scored on its own: %v", asked)
+	}
+	if d.Recommended.RateBP != 1650+180 {
+		t.Fatalf("the rate follows the class of the recommended amount (B), got %d", d.Recommended.RateBP)
+	}
+	if !strings.Contains(strings.Join(d.Reasons, " "), "оценена отдельно: класс B, 62 баллов") {
+		t.Fatalf("the reasons say that the amount was scored separately: %v", d.Reasons)
+	}
+}
+
+func TestDecide_ClassD_EvenForTheSmallerAmount_IsARefusal(t *testing.T) {
+	requested := result(scoring.GradeD, 800_000*rub)
+	requested.Score = 20
+	rescore := func(int64) scoring.Result {
+		r := result(scoring.GradeD, 800_000*rub)
+		r.Score = 24
+		return r
+	}
+	if d := DecideRescoring(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12, rescore); d.Outcome != Reject {
+		t.Fatalf("%+v", d)
+	}
+	if d := Decide(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12); d.Outcome != Reject {
+		t.Fatalf("without rescoring the class of the request stands: %+v", d)
+	}
+}
+
+func TestDecide_NoRescoreWhenTheRequestFits(t *testing.T) {
+	called := false
+	rescore := func(int64) scoring.Result { called = true; return result(scoring.GradeA, 0) }
+	DecideRescoring(result(scoring.GradeB, 5_000_000*rub), prod(t, products.WorkingCapital), 1_000_000*rub, 12, rescore)
+	if called {
+		t.Fatal("an affordable request is scored once")
+	}
+}

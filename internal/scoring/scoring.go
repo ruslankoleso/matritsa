@@ -63,8 +63,9 @@ const (
 )
 
 // Input is everything the model needs; amounts are in kopecks.
-// The score uses the borrower and the request attributes that are not its size; the size feeds affordability
-// and expected loss only, so the same borrower keeps the grade whether they ask for 2 or 20 million.
+// The score uses the borrower, the way the request is made out (collateral, purpose) and, through DSCR, the
+// payment of the new loan: a bigger or longer loan covers worse and may get a lower class. The grade belongs to
+// the loan, as the quality category of a loan does under 590-P.
 type Input struct {
 	// Borrower.
 	CompanyAgeMonths   int
@@ -141,9 +142,10 @@ func Score(in Input, cfg Config) Result {
 	cash := cashFlow(in, avg, cfg)
 	// A criterion is scored only from data the bank has. No data means no points, with a note saying so:
 	// a young company or one without accounts cannot buy points with what is unknown about it.
-	known := in.EGRUL.Finance != nil && avg > 0
+	known := in.EGRUL.Statement != nil && avg > 0                  // the cash flow comes from the bank statement
+	payment := MonthlyPayment(in.Amount, in.RateBP, in.TermMonths) // at the base rate of the product: the premium depends on the class
 	factors := []Factor{
-		dscrFactor(cash, in.MonthlyObligations, known, cfg),
+		dscrFactor(cash, in.MonthlyObligations+payment, known, cfg),
 		debtEBITDAFactor(in.BKI, cash, known, cfg),
 		profitabilityFactor(in, avg, cfg),
 		liquidityFactor(in.EGRUL.Finance, cfg),
@@ -151,7 +153,7 @@ func Score(in Input, cfg Config) Result {
 		obligationsFactor(in, cfg),
 		ageFactor(in.CompanyAgeMonths, cfg),
 		okvedFactor(in.OKVEDGroup, cfg),
-		statementFactor(in.EGRUL.Finance, cfg),
+		statementFactor(in.EGRUL.Statement, cfg),
 		reputationFactor(in.EGRUL, cfg),
 		collateralFactor(in.Collateral, cfg),
 		purposeFactor(in, cfg),
@@ -189,7 +191,7 @@ func Score(in Input, cfg Config) Result {
 		}
 	}
 
-	res.Payment = MonthlyPayment(in.Amount, in.RateBP, in.TermMonths)
+	res.Payment = payment
 	if avg > 0 {
 		res.DebtLoad = float64(in.MonthlyObligations+res.Payment) / float64(avg)
 	}
@@ -203,12 +205,13 @@ func Score(in Input, cfg Config) Result {
 	return res
 }
 
-// cashFlow is the monthly cash flow before debt service: the margin of the company's own accounts when
-// they were received, otherwise an estimate by the industry group.
+// cashFlow is the monthly cash flow before debt service: receipts minus operating write-offs on the bank
+// statement. Without the statement, only for the limit on the amount, an estimate by the industry group is used;
+// it earns no points.
 func cashFlow(in Input, avg int64, cfg Config) int64 {
 	m := margin(in.OKVEDGroup, cfg)
-	if f := in.EGRUL.Finance; f != nil {
-		m = f.NOIMargin
+	if st := in.EGRUL.Statement; st != nil {
+		m = st.NOIMargin
 	}
 	if m <= 0 {
 		return 0
@@ -270,30 +273,30 @@ func pct(v float64) int { return int(math.Round(v * 100)) }
 
 func ratio(v float64) string { return strings.Replace(fmt.Sprintf("%.2f", v), ".", ",", 1) }
 
-// 1. DSCR: does the cash flow cover the payments the company already has (before the new loan).
-func dscrFactor(cash, obligations int64, known bool, cfg Config) Factor {
+// 1. DSCR: does the cash flow cover all loan payments, the ones the company already has and the new one.
+func dscrFactor(cash, payments int64, known bool, cfg Config) Factor {
 	f := Factor{Key: "dscr", Title: "Покрытие долга денежным потоком (DSCR)", Max: cfg.MaxDSCR}
 	switch {
 	case !known:
-		f.NoData, f.Note = true, "Нет данных: без бухгалтерской отчётности и выручки денежный поток не определить"
+		f.NoData, f.Note = true, "Нет данных: без анализа выписки денежный поток не определить"
 		return f
-	case obligations <= 0:
+	case payments <= 0:
 		f.Points, f.Note = cfg.MaxDSCR, "Платежей по кредитам нет: денежный поток ничем не занят, запас полный"
 		return f
 	case cash <= 0:
 		f.Note = "Денежного потока нет: платежи по кредитам нечем покрывать"
 		return f
 	}
-	d := float64(cash) / float64(obligations)
+	d := float64(cash) / float64(payments)
 	switch {
 	case d >= 1.5:
-		f.Points, f.Note = cfg.MaxDSCR, fmt.Sprintf("DSCR %s: сильный запас прочности", ratio(d))
+		f.Points, f.Note = cfg.MaxDSCR, fmt.Sprintf("DSCR %s с платежом по заявке: сильный запас прочности", ratio(d))
 	case d >= 1.25:
-		f.Points, f.Note = cfg.MaxDSCR*10/15, fmt.Sprintf("DSCR %s: стандартный банковский порог", ratio(d))
+		f.Points, f.Note = cfg.MaxDSCR*10/15, fmt.Sprintf("DSCR %s с платежом по заявке: стандартный банковский порог", ratio(d))
 	case d >= 1.0:
-		f.Points, f.Note = cfg.MaxDSCR*5/15, fmt.Sprintf("DSCR %s: пограничная зона, платежи покрываются впритык", ratio(d))
+		f.Points, f.Note = cfg.MaxDSCR*5/15, fmt.Sprintf("DSCR %s с платежом по заявке: пограничная зона, платежи покрываются впритык", ratio(d))
 	default:
-		f.Note = fmt.Sprintf("DSCR %s: денежного потока не хватает на текущие платежи", ratio(d))
+		f.Note = fmt.Sprintf("DSCR %s с платежом по заявке: денежного потока не хватает на платежи по кредитам", ratio(d))
 	}
 	return f
 }
@@ -306,7 +309,7 @@ func debtEBITDAFactor(b *integrations.BKIReport, cash int64, known bool, cfg Con
 		f.NoData, f.Note = true, "Нет данных: кредитной истории в бюро нет, долг не подтверждён"
 		return f
 	case !known:
-		f.NoData, f.Note = true, "Нет данных: без бухгалтерской отчётности EBITDA не определить"
+		f.NoData, f.Note = true, "Нет данных: без анализа выписки EBITDA не определить"
 		return f
 	case b.TotalDebt <= 0:
 		f.Points, f.Note = cfg.MaxDebtEBITDA, "Ссудной задолженности нет"
@@ -475,14 +478,14 @@ func okvedFactor(group int, cfg Config) Factor {
 }
 
 // 9. Anomalies found in the bank statement.
-func statementFactor(fin *integrations.Finance, cfg Config) Factor {
+func statementFactor(st *integrations.Statement, cfg Config) Factor {
 	f := Factor{Key: "statement", Title: "Аномалии в выписке", Max: cfg.MaxStatement}
 	switch {
-	case fin == nil:
+	case st == nil:
 		f.NoData, f.Note = true, "Нет данных: выписка не проанализирована"
-	case fin.StatementAnomaly == 0:
+	case st.Anomaly == 0:
 		f.Points, f.Note = cfg.MaxStatement, "Аномалий в выписке не найдено"
-	case fin.StatementAnomaly == 1:
+	case st.Anomaly == 1:
 		f.Points, f.Note = cfg.MaxStatement*2/5, "Незначительные аномалии: единичные скачки оборотов"
 	default:
 		f.Note = "Существенные аномалии: круговые переводы или сомнительные контрагенты"

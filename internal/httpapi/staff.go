@@ -166,7 +166,10 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			lit := g.Litigation
 			rec.Litigation = &lit
 			if f := g.Finance; f != nil {
-				rec.Finance = &gen.FinanceData{GrossMargin: float32(f.GrossMargin), NoiMargin: float32(f.NOIMargin), CurrentRatio: float32(f.CurrentRatio), StatementAnomaly: f.StatementAnomaly}
+				rec.Finance = &gen.FinanceData{GrossMargin: float32(f.GrossMargin), CurrentRatio: float32(f.CurrentRatio)}
+			}
+			if st := g.Statement; st != nil {
+				rec.Statement = &gen.StatementData{NoiMargin: float32(st.NOIMargin), Anomaly: st.Anomaly}
 			}
 			e.Egrul = &rec
 		}

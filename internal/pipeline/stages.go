@@ -174,7 +174,13 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 		Amount: app.Amount, TermMonths: int(app.TermMonths), RateBP: prod.BaseRateBP, OKVEDGroup: int(co.OkvedGroup), LGD: prod.LGD,
 	}
 	res := scoring.Score(in, p.cfg.Scoring)
-	dec := decision.Decide(res, prod, app.Amount, int(app.TermMonths))
+	// A counter-offer for a smaller amount is a loan of its own: DSCR counts its payment, so it is scored again.
+	rescore := func(amount int64) scoring.Result {
+		other := in
+		other.Amount = amount
+		return scoring.Score(other, p.cfg.Scoring)
+	}
+	dec := decision.DecideRescoring(res, prod, app.Amount, int(app.TermMonths), rescore)
 
 	save := func(ctx context.Context, q *db.Queries, a db.Application) error {
 		factors, _ := json.Marshal(res.Factors)

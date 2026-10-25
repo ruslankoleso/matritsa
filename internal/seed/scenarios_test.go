@@ -13,15 +13,24 @@ import (
 
 const rub = int64(100)
 
+// evaluate runs the same steps as the pipeline: score, decide, and score a counter-offer on its own.
 func evaluate(t *testing.T, c seed.Company, pid products.ID, amount int64, term int) (scoring.Result, decision.Decision) {
 	t.Helper()
 	p, _ := products.Get(pid)
 	age := int(time.Since(c.RegisteredAt).Hours() / 24 / 30)
-	res := scoring.Score(scoring.Input{
+	in := scoring.Input{
 		CompanyAgeMonths: age, MonthlyRevenue: c.Revenue, MonthlyObligations: c.MonthlyObligations,
-		BKI: c.BKI, EGRUL: c.EGRUL(), PurposeText: "Закупка сырья и материалов перед сезоном", PurposeDocs: pid == products.Equipment, Amount: amount, TermMonths: term, RateBP: p.BaseRateBP, OKVEDGroup: c.OKVEDGroup, LGD: p.LGD,
-	}, scoring.DefaultConfig())
-	return res, decision.Decide(res, p, amount, term)
+		BKI: c.BKI, EGRUL: c.EGRUL(), PurposeText: "Закупка сырья и материалов перед сезоном", PurposeDocs: pid == products.Equipment,
+		Amount: amount, TermMonths: term, RateBP: p.BaseRateBP, OKVEDGroup: c.OKVEDGroup, LGD: p.LGD,
+	}
+	cfg := scoring.DefaultConfig()
+	res := scoring.Score(in, cfg)
+	rescore := func(a int64) scoring.Result {
+		other := in
+		other.Amount = a
+		return scoring.Score(other, cfg)
+	}
+	return res, decision.DecideRescoring(res, p, amount, term, rescore)
 }
 
 func TestDemoCompanies_ProduceIntendedOutcomes(t *testing.T) {
@@ -88,14 +97,14 @@ func TestDemoCompanies_UniqueLoginsAndINNs(t *testing.T) {
 	}
 }
 
-// The complaint that started the rework: one borrower must not get a different risk class
-// just because the request is bigger or longer.
-func TestDemoCompanies_ClassDoesNotChangeWithTheRequest(t *testing.T) {
+// The grade belongs to the loan: for the same borrower a bigger and longer loan covers worse, never better,
+// and carries more expected loss.
+func TestDemoCompanies_BiggerLoanNeverScoresBetter(t *testing.T) {
 	for _, c := range seed.Companies() {
 		small, _ := evaluate(t, c, products.Equipment, 2_000_000*rub, 30)
 		big, _ := evaluate(t, c, products.Equipment, 20_000_000*rub, 40)
-		if small.Grade != big.Grade || small.Score != big.Score {
-			t.Errorf("%s: class %s/%d on 2M/30 vs %s/%d on 20M/40", c.Name, small.Grade, small.Score, big.Grade, big.Score)
+		if big.Score > small.Score {
+			t.Errorf("%s: %d points on 20M/40 vs %d on 2M/30", c.Name, big.Score, small.Score)
 		}
 		if !(big.ExpectedLoss > small.ExpectedLoss) {
 			t.Errorf("%s: the bigger and longer loan must carry more expected loss (%d vs %d)", c.Name, small.ExpectedLoss, big.ExpectedLoss)
@@ -103,9 +112,11 @@ func TestDemoCompanies_ClassDoesNotChangeWithTheRequest(t *testing.T) {
 	}
 }
 
-func TestDemoCompanies_BigRequestIsHandledByAffordabilityNotByClass(t *testing.T) {
-	c, _ := seed.ByINN("771234500005") // Kuznetsova, class B
+func TestDemoCompanies_BigRequestIsAnsweredWithACounterOffer(t *testing.T) {
+	c, _ := seed.ByINN("771234500005") // Kuznetsova
+	small, _ := evaluate(t, c, products.Equipment, 2_000_000*rub, 30)
 	res, d := evaluate(t, c, products.Equipment, 20_000_000*rub, 40)
+	t.Logf("2M/30: %s %d; 20M/40: %s %d, load %.0f%%, offer %+v", small.Grade, small.Score, res.Grade, res.Score, res.DebtLoad*100, d.Recommended)
 	if res.DebtLoad < 1 {
 		t.Fatalf("20M is far beyond what this business can pay: load %.0f%%", res.DebtLoad*100)
 	}

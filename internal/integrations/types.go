@@ -37,17 +37,23 @@ type EGRULRecord struct {
 	// Litigation is the weight of court cases against the company and its director (arbitration cases,
 	// disqualification): 0 none, 1 minor, 2 major. Simulated, as the whole record.
 	Litigation int `json:"litigation,omitempty"`
-	// Finance comes from the published accounts and the analysis of the bank statement. Nil: not received.
-	Finance *Finance `json:"finance,omitempty"`
+	// Finance is the published accounts, Statement the analysis of the bank statement. Nil: not received.
+	Finance   *Finance   `json:"finance,omitempty"`
+	Statement *Statement `json:"statement,omitempty"`
 }
 
-// Finance holds what the model needs from the accounts and the statement. The bank has revenue by month
-// from the statement; the rest is simulated, as a real model would take it from the reports of the company.
+// Finance holds what the model takes from the published accounts. A sole trader often publishes none.
+// Simulated, as the whole record: a real model would read the reports of the company.
 type Finance struct {
 	GrossMargin  float64 `json:"grossMargin"`  // gross profit / revenue
-	NOIMargin    float64 `json:"noiMargin"`    // net operating income (before debt service) / revenue
 	CurrentRatio float64 `json:"currentRatio"` // current assets / short-term liabilities
-	// StatementAnomaly is the finding of the statement analysis: 0 none, 1 minor, 2 major
+}
+
+// Statement is what the bank sees in the statement of the settlement account. The cash flow is the receipts minus
+// the operating write-offs of the month; debt service is not taken out of it (it is the denominator of DSCR).
+type Statement struct {
+	NOIMargin float64 `json:"noiMargin"` // (receipts - operating write-offs) / receipts
+	// Anomaly is the finding of the analysis: 0 none, 1 minor, 2 major
 	// (circular transfers, sudden jumps in turnover, doubtful counterparties).
-	StatementAnomaly int `json:"statementAnomaly"`
+	Anomaly int `json:"anomaly"`
 }

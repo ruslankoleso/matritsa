@@ -51,6 +51,9 @@ func TestScorecard_CardCarries590PCategoryAndTheNewSources(t *testing.T) {
 	if eg == nil || eg.Finance == nil || eg.Finance.CurrentRatio <= 0 || eg.Litigation == nil {
 		t.Fatalf("the simulated registry and accounts must reach the card: %+v", eg)
 	}
+	if eg.Statement == nil || eg.Statement.NoiMargin <= 0 {
+		t.Fatalf("the analysis of the bank statement must reach the card: %+v", eg)
+	}
 	if card.Enrichment.Bki == nil || card.Enrichment.Bki.Restructured == nil {
 		t.Fatalf("the bureau record carries the restructuring mark: %+v", card.Enrichment.Bki)
 	}
