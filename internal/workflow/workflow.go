@@ -91,6 +91,41 @@ func Allowed(from Status) []Event {
 
 func IsTerminal(s Status) bool { return len(transitions[s]) == 0 }
 
+// ClientLabel is the short name of a status as the client sees it.
+func ClientLabel(s Status) string {
+	switch s {
+	case Draft:
+		return "Черновик"
+	case Submitted:
+		return "Отправлена"
+	case IntakeCheck:
+		return "Проверка полноты"
+	case NeedsInfo:
+		return "Нужно уточнение"
+	case Enrichment:
+		return "Сверка данных"
+	case Scoring:
+		return "Оценка"
+	case AnalystReview:
+		return "У сотрудника банка"
+	case OfferMade:
+		return "Есть предложение"
+	case Rejected:
+		return "Отказ"
+	case Signing:
+		return "Подписание"
+	case Disbursed:
+		return "Деньги выданы"
+	case DeclinedByClient:
+		return "Вы отказались"
+	case Expired:
+		return "Срок истёк"
+	case Cancelled:
+		return "Отозвана"
+	}
+	return string(s)
+}
+
 // ClientMessage explains in plain language what is going on in the status.
 func ClientMessage(s Status) string {
 	switch s {

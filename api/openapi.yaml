@@ -172,6 +172,26 @@ paths:
               schema: { $ref: '#/components/schemas/Recommendation' }
         '422': { $ref: '#/components/responses/Error' }
 
+  /assistant/chat:
+    post:
+      tags: [reference]
+      operationId: chatWithAssistant
+      summary: Вопрос помощнику о кредитах и работе кабинета
+      description: "Помощник отвечает только по кредитам для бизнеса и работе кабинета; вопросы не по теме отклоняются в коде до обращения к модели. Отвечает по справочнику, а при включённой модели свободнее. Ограничения: до 500 символов в вопросе, не более 30 вопросов за 10 минут."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+      responses:
+        '200':
+          description: Ответ помощника
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatReply' }
+        '422': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
   /applications:
     get:
       tags: [client]
@@ -627,6 +647,29 @@ components:
         okved: { type: string }
         director: { type: string }
         address: { type: string }
+    ChatTurn:
+      type: object
+      required: [role, text]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        text: { type: string, maxLength: 1000 }
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, maxLength: 500 }
+        history:
+          type: array
+          maxItems: 12
+          description: Предыдущие реплики этого разговора, от старых к новым
+          items: { $ref: '#/components/schemas/ChatTurn' }
+    ChatReply:
+      type: object
+      required: [text, source, offTopic]
+      properties:
+        text: { type: string }
+        source: { type: string, enum: [ai, rules], description: "ai: ответила открытая модель; rules: ответ по справочнику" }
+        offTopic: { type: boolean, description: "Вопрос не по теме, помощник вежливо отказался" }
     RecommendRequest:
       type: object
       required: [text]

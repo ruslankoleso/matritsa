@@ -163,6 +163,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Вопрос помощнику о кредитах и работе кабинета
+         * @description Помощник отвечает только по кредитам для бизнеса и работе кабинета; вопросы не по теме отклоняются в коде до обращения к модели. Отвечает по справочнику, а при включённой модели свободнее. Ограничения: до 500 символов в вопросе, не более 30 вопросов за 10 минут.
+         */
+        post: operations["chatWithAssistant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications": {
         parameters: {
             query?: never;
@@ -610,6 +630,26 @@ export interface components {
             okved: string;
             director: string;
             address: string;
+        };
+        ChatTurn: {
+            /** @enum {string} */
+            role: "user" | "assistant";
+            text: string;
+        };
+        ChatRequest: {
+            message: string;
+            /** @description Предыдущие реплики этого разговора, от старых к новым */
+            history?: components["schemas"]["ChatTurn"][];
+        };
+        ChatReply: {
+            text: string;
+            /**
+             * @description ai: ответила открытая модель; rules: ответ по справочнику
+             * @enum {string}
+             */
+            source: "ai" | "rules";
+            /** @description Вопрос не по теме, помощник вежливо отказался */
+            offTopic: boolean;
         };
         RecommendRequest: {
             /** @example Нужно купить станок для мастерской */
@@ -1154,6 +1194,32 @@ export interface operations {
                 };
             };
             422: components["responses"]["Error"];
+        };
+    };
+    chatWithAssistant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Ответ помощника */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatReply"];
+                };
+            };
+            422: components["responses"]["Error"];
+            429: components["responses"]["Error"];
         };
     };
     listApplications: {

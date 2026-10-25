@@ -86,7 +86,7 @@ func run() error {
 	}
 	handler := httpapi.New(httpapi.Deps{
 		Store: st, Pipeline: pipe, Hub: hub, Issuer: auth.NewIssuer(cfg.JWTSecret), Lookup: client,
-		Assistant: ai.NewAssistant(llm), Explainer: ai.NewExplainer(llm), DataDir: cfg.DataDir,
+		Assistant: ai.NewAssistant(llm), Chat: ai.NewChat(llm), Explainer: ai.NewExplainer(llm), DataDir: cfg.DataDir,
 		LoginLimiter: auth.NewLimiter(5, time.Minute),
 	}).Handler()
 

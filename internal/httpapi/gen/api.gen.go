@@ -47,6 +47,42 @@ func (e ApplicationAllowedActions) Valid() bool {
 	}
 }
 
+// Defines values for ChatReplySource.
+const (
+	ChatReplySourceAi    ChatReplySource = "ai"
+	ChatReplySourceRules ChatReplySource = "rules"
+)
+
+// Valid indicates whether the value is a known member of the ChatReplySource enum.
+func (e ChatReplySource) Valid() bool {
+	switch e {
+	case ChatReplySourceAi:
+		return true
+	case ChatReplySourceRules:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatTurnRole.
+const (
+	Assistant ChatTurnRole = "assistant"
+	User      ChatTurnRole = "user"
+)
+
+// Valid indicates whether the value is a known member of the ChatTurnRole enum.
+func (e ChatTurnRole) Valid() bool {
+	switch e {
+	case Assistant:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CompanyKind.
 const (
 	CompanyKindIp  CompanyKind = "ip"
@@ -473,6 +509,35 @@ type BKIReport struct {
 	// TotalRepaid Сумма погашенных кредитов в копейках
 	TotalRepaid *int64 `json:"totalRepaid,omitempty"`
 }
+
+// ChatReply defines model for ChatReply.
+type ChatReply struct {
+	// OffTopic Вопрос не по теме, помощник вежливо отказался
+	OffTopic bool `json:"offTopic"`
+
+	// Source ai: ответила открытая модель; rules: ответ по справочнику
+	Source ChatReplySource `json:"source"`
+	Text   string          `json:"text"`
+}
+
+// ChatReplySource ai: ответила открытая модель; rules: ответ по справочнику
+type ChatReplySource string
+
+// ChatRequest defines model for ChatRequest.
+type ChatRequest struct {
+	// History Предыдущие реплики этого разговора, от старых к новым
+	History *[]ChatTurn `json:"history,omitempty"`
+	Message string      `json:"message"`
+}
+
+// ChatTurn defines model for ChatTurn.
+type ChatTurn struct {
+	Role ChatTurnRole `json:"role"`
+	Text string       `json:"text"`
+}
+
+// ChatTurnRole defines model for ChatTurn.Role.
+type ChatTurnRole string
 
 // Company defines model for Company.
 type Company struct {
@@ -939,6 +1004,9 @@ type UploadDocumentMultipartRequestBody UploadDocumentMultipartBody
 // RespondToInfoRequestJSONRequestBody defines body for RespondToInfoRequest for application/json ContentType.
 type RespondToInfoRequestJSONRequestBody = InfoResponse
 
+// ChatWithAssistantJSONRequestBody defines body for ChatWithAssistant for application/json ContentType.
+type ChatWithAssistantJSONRequestBody = ChatRequest
+
 // RecommendProductJSONRequestBody defines body for RecommendProduct for application/json ContentType.
 type RecommendProductJSONRequestBody = RecommendRequest
 
@@ -989,6 +1057,9 @@ type ServerInterface interface {
 	// GetTimeline История заявки человеческим языком
 	// (GET /applications/{id}/timeline)
 	GetTimeline(w http.ResponseWriter, r *http.Request, id ApplicationId)
+	// ChatWithAssistant Вопрос помощнику о кредитах и работе кабинета
+	// (POST /assistant/chat)
+	ChatWithAssistant(w http.ResponseWriter, r *http.Request)
 	// RecommendProduct Подобрать продукт по описанию потребности (ИИ либо правила)
 	// (POST /assistant/recommend)
 	RecommendProduct(w http.ResponseWriter, r *http.Request)
@@ -1112,6 +1183,12 @@ func (_ Unimplemented) SubmitApplication(w http.ResponseWriter, r *http.Request,
 // GetTimeline История заявки человеческим языком
 // (GET /applications/{id}/timeline)
 func (_ Unimplemented) GetTimeline(w http.ResponseWriter, r *http.Request, id ApplicationId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ChatWithAssistant Вопрос помощнику о кредитах и работе кабинета
+// (POST /assistant/chat)
+func (_ Unimplemented) ChatWithAssistant(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1513,6 +1590,20 @@ func (siw *ServerInterfaceWrapper) GetTimeline(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetTimeline(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ChatWithAssistant operation middleware
+func (siw *ServerInterfaceWrapper) ChatWithAssistant(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ChatWithAssistant(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2078,6 +2169,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/assistant/recommend", wrapper.RecommendProduct)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/assistant/chat", wrapper.ChatWithAssistant)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/applications", wrapper.ListApplications)

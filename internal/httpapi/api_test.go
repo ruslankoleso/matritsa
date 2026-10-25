@@ -802,3 +802,71 @@ func TestAutomaticDecisions_AreMarkedOnTheApplicationAndInTheQueue(t *testing.T)
 		t.Fatalf("a rejection by an analyst says so: %+v", after.Application.Rejection)
 	}
 }
+
+func chatBody(msg string) map[string]any { return map[string]any{"message": msg} }
+
+func TestChat_AnswersFromTheHandbook_AndRefusesOtherTopics(t *testing.T) {
+	e := newEnv(t)
+	tok := e.token("client1")
+	code, raw := e.do("POST", "/api/v1/assistant/chat", tok, chatBody("Какие документы нужны для овердрафта?"))
+	var r gen.ChatReply
+	mustJSON(t, raw, &r)
+	if code != 200 || r.OffTopic || !strings.Contains(r.Text, "Выписка по расчётному счёту") || r.Source != gen.ChatReplySourceRules {
+		t.Fatalf("%d %+v", code, r)
+	}
+	code, raw = e.do("POST", "/api/v1/assistant/chat", tok, chatBody("Расскажи анекдот про программистов"))
+	mustJSON(t, raw, &r)
+	if code != 200 || !r.OffTopic || !strings.Contains(r.Text, "кредит") {
+		t.Fatalf("%d %+v", code, r)
+	}
+}
+
+func TestChat_StatusAnswerUsesOnlyTheCallersOwnApplications(t *testing.T) {
+	e := newEnv(t)
+	e.run("client2", e.draft("client2", products.Overdraft, 500_000*rub, 12, true))
+	ask := func(login string) string {
+		_, raw := e.do("POST", "/api/v1/assistant/chat", e.token(login), chatBody("Что с моей заявкой?"))
+		var r gen.ChatReply
+		mustJSON(t, raw, &r)
+		return r.Text
+	}
+	if own := ask("client2"); !strings.Contains(own, "Овердрафт") || !strings.Contains(own, "500 000") {
+		t.Fatalf("the owner sees the application: %q", own)
+	}
+	if other := ask("client3"); strings.Contains(other, "Овердрафт") || !strings.Contains(other, "нет заявок") {
+		t.Fatalf("another person must not see it: %q", other)
+	}
+}
+
+func TestChat_Validation_AndLimits(t *testing.T) {
+	e := newEnv(t)
+	tok := e.token("client1")
+	if code, _ := e.do("POST", "/api/v1/assistant/chat", tok, chatBody("   ")); code != 422 {
+		t.Errorf("empty message: %d", code)
+	}
+	if code, _ := e.do("POST", "/api/v1/assistant/chat", tok, chatBody(strings.Repeat("кредит ", 100))); code != 422 {
+		t.Errorf("a message over 500 characters: %d", code)
+	}
+	if code, _ := e.do("POST", "/api/v1/assistant/chat", "", chatBody("кредит")); code != 401 {
+		t.Errorf("without a token: %d", code)
+	}
+	if code, _ := e.do("POST", "/api/v1/assistant/chat", e.token("staff1"), chatBody("кредит")); code != 403 {
+		t.Errorf("bank staff use their own workspace: %d", code)
+	}
+}
+
+func TestChat_RateLimitedPerPerson(t *testing.T) {
+	e := newEnv(t)
+	tok := e.token("client1")
+	var last int
+	for i := 0; i < 40; i++ {
+		last, _ = e.do("POST", "/api/v1/assistant/chat", tok, chatBody("Какие у вас ставки?"))
+		if last == 429 {
+			if i < 20 {
+				t.Fatalf("the limit must leave room for a real talk, stopped at %d", i)
+			}
+			return
+		}
+	}
+	t.Fatalf("a flood of messages must be stopped, last status %d", last)
+}

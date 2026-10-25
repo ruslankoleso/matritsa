@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { AppShell, type BellInfo, type NavEntry } from '../../design/AppShell'
+import { ChatWidget } from '../../design/ChatWidget'
 import { IconHome, IconList, IconPlus } from '../../design/icons'
 import { ToastProvider, useToast } from '../../design/Toast'
 import { useLiveUpdates } from '../../lib/events'
@@ -63,6 +64,7 @@ function Cabinet() {
         <Route path="profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/cabinet" replace />} />
       </Routes>
+      <ChatWidget />
     </AppShell>
   )
 }

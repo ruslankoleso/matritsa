@@ -1,5 +1,5 @@
 import type {
-  Application, ApplicationInput, ApplicationSummary, ApiErrorBody, CompanyLookup, DecisionRequest, Document, Explanation,
+  Application, ApplicationInput, ApplicationSummary, ApiErrorBody, ChatReply, ChatTurn, CompanyLookup, DecisionRequest, Document, Explanation,
   FeedCard, Me, Notification, Product, Queue, Recommendation, RegisterRequest, RegistrationExample, StaffApplication, TimelineEntry,
 } from './types'
 
@@ -156,6 +156,7 @@ export const api = {
   me: () => request<Me>('GET', '/me'),
   products: () => request<Product[]>('GET', '/products'),
   lookupCompany: (inn: string) => request<CompanyLookup>('GET', `/company/lookup${q({ inn })}`),
+  chat: (message: string, history: ChatTurn[]) => request<ChatReply>('POST', '/assistant/chat', { message, history }),
   recommend: (text: string) => request<Recommendation>('POST', '/assistant/recommend', { text }),
 
   applications: () => request<ApplicationSummary[]>('GET', '/applications'),

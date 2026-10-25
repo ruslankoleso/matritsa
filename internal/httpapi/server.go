@@ -22,12 +22,15 @@ import (
 
 // Deps are the collaborators of the HTTP layer.
 type Deps struct {
-	Store        *store.Store
-	Pipeline     *pipeline.Pipeline
-	Hub          *events.Hub
-	Issuer       *auth.Issuer
-	Lookup       pipeline.Sources // EGRUL lookup for the wizard
-	Assistant    *ai.Assistant
+	Store     *store.Store
+	Pipeline  *pipeline.Pipeline
+	Hub       *events.Hub
+	Issuer    *auth.Issuer
+	Lookup    pipeline.Sources // EGRUL lookup for the wizard
+	Assistant *ai.Assistant
+	Chat      *ai.Chat
+	// ChatLimiter counts every question a person asks the helper.
+	ChatLimiter  *auth.Limiter
 	Explainer    *ai.Explainer
 	DataDir      string
 	LoginLimiter *auth.Limiter
@@ -50,6 +53,12 @@ func New(d Deps) *Server {
 	}
 	if d.LoginLimiter == nil {
 		d.LoginLimiter = auth.NewLimiter(5, time.Minute)
+	}
+	if d.Chat == nil {
+		d.Chat = ai.NewChat(nil)
+	}
+	if d.ChatLimiter == nil {
+		d.ChatLimiter = auth.NewLimiter(30, 10*time.Minute)
 	}
 	if d.RegisterLimiter == nil {
 		d.RegisterLimiter = auth.NewLimiter(10, time.Hour)

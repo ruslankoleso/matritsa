@@ -178,6 +178,23 @@ test.describe('credit pipeline, end to end', () => {
     await expect(staff.getByText(/Долговая нагрузка не позволяет выдать/)).toBeVisible()
   })
 
+  test('the helper chat answers about credit and politely refuses other topics', async ({ page }) => {
+    await loginAs(page, /Тёплый хлеб/)
+    await page.getByRole('button', { name: 'Задать вопрос помощнику' }).click()
+    const win = page.getByRole('dialog', { name: 'Помощник по кредитам' })
+    await win.getByLabel('Ваш вопрос').fill('Какие документы нужны для овердрафта?')
+    await win.getByLabel('Ваш вопрос').press('Enter')
+    await expect(win.getByText(/Выписка по расчётному счёту/)).toBeVisible()
+    await win.getByLabel('Ваш вопрос').fill('Расскажи рецепт борща')
+    await win.getByLabel('Ваш вопрос').press('Enter')
+    await expect(win.getByText(/Я помогаю только с вопросами о кредитах/)).toBeVisible()
+    await win.getByLabel('Ваш вопрос').fill('Что с моей заявкой?')
+    await win.getByLabel('Ваш вопрос').press('Enter')
+    await expect(win.getByText(/Ваши заявки/)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(win).toHaveCount(0)
+  })
+
   test('the greeting with the name appears after signing in and goes away', async ({ browser }) => {
     const context = await browser.newContext({ reducedMotion: 'no-preference' })
     const page = await context.newPage()
