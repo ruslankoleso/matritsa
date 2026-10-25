@@ -123,8 +123,9 @@ func (s *Server) StreamEvents(w http.ResponseWriter, r *http.Request, _ gen.Stre
 	userCh, cancelUser := s.Hub.Subscribe(claims.UserID)
 	defer cancelUser()
 	var staffCh <-chan eventsEvent
-	if claims.Role == "staff" {
-		ch, cancel := s.Hub.Subscribe("staff")
+	switch claims.Role {
+	case "staff", "support": // the bank team shares one stream per kind of work
+		ch, cancel := s.Hub.Subscribe(claims.Role)
 		defer cancel()
 		staffCh = ch
 	}

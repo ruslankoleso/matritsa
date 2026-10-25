@@ -15,6 +15,7 @@ tags:
   - name: reference
   - name: client
   - name: staff
+  - name: support
   - name: realtime
 
 paths:
@@ -173,11 +174,22 @@ paths:
         '422': { $ref: '#/components/responses/Error' }
 
   /assistant/chat:
+    get:
+      tags: [reference]
+      operationId: getChat
+      summary: Мой разговор с помощником
+      description: "Один разговор на клиента: сообщения клиента, помощника и сотрудника поддержки, если он подключался. Последние 100 сообщений."
+      responses:
+        '200':
+          description: Разговор
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatThread' }
     post:
       tags: [reference]
-      operationId: chatWithAssistant
-      summary: Вопрос помощнику о кредитах и работе кабинета
-      description: "Помощник отвечает только по кредитам для бизнеса и работе кабинета; вопросы не по теме отклоняются в коде до обращения к модели. Отвечает по справочнику, а при включённой модели свободнее. Ограничения: до 500 символов в вопросе, не более 30 вопросов за 10 минут."
+      operationId: sendChatMessage
+      summary: Написать в чат
+      description: "Помощник отвечает только по кредитам для бизнеса и работе кабинета; вопросы не по теме отклоняются в коде до обращения к модели. Если клиент просит сотрудника, разговор встаёт в очередь поддержки, помощник продолжает отвечать до подключения сотрудника; когда сотрудник подключился, помощник молчит. Ограничения: до 500 символов, не более 30 сообщений за 10 минут."
       requestBody:
         required: true
         content:
@@ -185,12 +197,34 @@ paths:
             schema: { $ref: '#/components/schemas/ChatRequest' }
       responses:
         '200':
-          description: Ответ помощника
+          description: Разговор с ответом
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ChatReply' }
+              schema: { $ref: '#/components/schemas/ChatThread' }
         '422': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
+  /assistant/chat/operator:
+    post:
+      tags: [reference]
+      operationId: requestChatOperator
+      summary: Позвать сотрудника поддержки
+      responses:
+        '200':
+          description: Разговор в очереди поддержки
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatThread' }
+    delete:
+      tags: [reference]
+      operationId: cancelChatOperator
+      summary: Вернуться к помощнику
+      description: "Отменяет запрос или завершает разговор с сотрудником; дальше отвечает помощник."
+      responses:
+        '200':
+          description: Разговор с помощником
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatThread' }
 
   /applications:
     get:
@@ -518,6 +552,89 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /support/chats:
+    get:
+      tags: [support]
+      operationId: listSupportChats
+      summary: Обращения, которым нужен человек
+      description: "Сначала ожидающие сотрудника, самые давние сверху; затем разговоры в работе."
+      responses:
+        '200':
+          description: Обращения
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportChatList' }
+        '403': { $ref: '#/components/responses/Error' }
+  /support/chats/{id}:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    get:
+      tags: [support]
+      operationId: getSupportChat
+      summary: Разговор с клиентом и сведения для ответа
+      responses:
+        '200':
+          description: Разговор
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportChat' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /support/chats/{id}/join:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [support]
+      operationId: joinSupportChat
+      summary: Подключиться к разговору
+      responses:
+        '200':
+          description: Разговор
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportChat' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /support/chats/{id}/messages:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [support]
+      operationId: sendSupportMessage
+      summary: Ответить клиенту
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SupportMessageRequest' }
+      responses:
+        '200':
+          description: Разговор
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportChat' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /support/chats/{id}/close:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [support]
+      operationId: closeSupportChat
+      summary: Завершить разговор и вернуть клиента помощнику
+      responses:
+        '200':
+          description: Разговор
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupportChat' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -585,7 +702,7 @@ components:
       properties:
         accessToken: { type: string }
         refreshToken: { type: string }
-        role: { type: string, enum: [client, staff] }
+        role: { type: string, enum: [client, staff, support] }
         fullName: { type: string }
     Me:
       type: object
@@ -593,7 +710,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         login: { type: string }
-        role: { type: string, enum: [client, staff] }
+        role: { type: string, enum: [client, staff, support] }
         fullName: { type: string }
         company: { $ref: '#/components/schemas/Company' }
         consentedAt: { type: string, format: date-time, description: "Когда человек согласился на обработку данных при регистрации; у демонстрационных аккаунтов поля нет" }
@@ -647,29 +764,79 @@ components:
         okved: { type: string }
         director: { type: string }
         address: { type: string }
-    ChatTurn:
-      type: object
-      required: [role, text]
-      properties:
-        role: { type: string, enum: [user, assistant] }
-        text: { type: string, maxLength: 1000 }
     ChatRequest:
       type: object
       required: [message]
       properties:
         message: { type: string, maxLength: 500 }
-        history:
-          type: array
-          maxItems: 12
-          description: Предыдущие реплики этого разговора, от старых к новым
-          items: { $ref: '#/components/schemas/ChatTurn' }
-    ChatReply:
+    SupportMessageRequest:
       type: object
-      required: [text, source, offTopic]
+      required: [message]
       properties:
+        message: { type: string, maxLength: 1000 }
+    ChatMessage:
+      type: object
+      required: [id, author, text, offTopic, at]
+      properties:
+        id: { type: integer, format: int64 }
+        author: { type: string, enum: [client, assistant, agent, system] }
         text: { type: string }
-        source: { type: string, enum: [ai, rules], description: "ai: ответила открытая модель; rules: ответ по справочнику" }
+        source: { type: string, enum: [ai, rules], description: "Только у помощника. ai: ответила открытая модель; rules: ответ по справочнику" }
         offTopic: { type: boolean, description: "Вопрос не по теме, помощник вежливо отказался" }
+        agentName: { type: string, description: "Имя сотрудника поддержки, только у его сообщений" }
+        at: { type: string, format: date-time }
+    ChatThread:
+      type: object
+      required: [id, status, messages]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [bot, waiting, live], description: "bot: отвечает помощник; waiting: клиент ждёт сотрудника, помощник продолжает отвечать; live: пишет сотрудник" }
+        agentName: { type: string, description: "Кто из сотрудников подключён (имя и должность)" }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/ChatMessage' }
+    SupportChatItem:
+      type: object
+      required: [id, status, clientName, companyName, lastText, waitingMinutes, mine]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [waiting, live] }
+        clientName: { type: string }
+        companyName: { type: string }
+        lastText: { type: string, description: "Последнее сообщение клиента или сотрудника" }
+        waitingMinutes: { type: integer, description: "Сколько клиент ждёт сотрудника" }
+        agentName: { type: string }
+        mine: { type: boolean, description: "Разговор ведёт текущий сотрудник" }
+    SupportChatList:
+      type: object
+      required: [items, waiting, live]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SupportChatItem' }
+        waiting: { type: integer }
+        live: { type: integer }
+    SupportApplicationFact:
+      type: object
+      required: [productTitle, amount, termMonths, statusLabel]
+      properties:
+        productTitle: { type: string }
+        amount: { type: integer, format: int64 }
+        termMonths: { type: integer }
+        statusLabel: { type: string, description: "Статус так, как его видит клиент" }
+    SupportChat:
+      type: object
+      required: [thread, clientName, companyName, applications, mine]
+      properties:
+        thread: { $ref: '#/components/schemas/ChatThread' }
+        clientName: { type: string }
+        companyName: { type: string }
+        inn: { type: string }
+        mine: { type: boolean }
+        applications:
+          type: array
+          description: Заявки клиента со статусами, без оценки и решений
+          items: { $ref: '#/components/schemas/SupportApplicationFact' }
     RecommendRequest:
       type: object
       required: [text]

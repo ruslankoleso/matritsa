@@ -182,8 +182,11 @@ func (c Company) EGRUL() integrations.EGRULRecord {
 }
 
 // Staff accounts.
-type Staff struct{ Login, FullName string }
+type Staff struct{ Login, FullName, Role string }
 
 func StaffAccounts() []Staff {
-	return []Staff{{Login: "staff1", FullName: "Анна Сергеевна Белова, кредитный аналитик"}}
+	return []Staff{
+		{Login: "staff1", FullName: "Анна Сергеевна Белова, кредитный аналитик", Role: "staff"},
+		{Login: "support1", FullName: "Мария Игоревна Громова, специалист поддержки", Role: "support"},
+	}
 }

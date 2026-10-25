@@ -7,8 +7,9 @@ import (
 )
 
 type Event struct {
-	Type          string    `json:"type"` // status | notification | queue
+	Type          string    `json:"type"` // status | notification | queue | chat
 	ApplicationID string    `json:"applicationId,omitempty"`
+	ThreadID      string    `json:"threadId,omitempty"`
 	Status        string    `json:"status,omitempty"`
 	Text          string    `json:"text,omitempty"`
 	At            time.Time `json:"at"`

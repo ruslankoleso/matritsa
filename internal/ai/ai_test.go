@@ -336,6 +336,10 @@ func TestOllama_StripsLeakedThinkingTags(t *testing.T) {
 		`{"productId":"express"}`:                              `{"productId":"express"}`,
 		"Сравнение: 3 > 2, и это не тег.":                      "Сравнение: 3 > 2, и это не тег.",
 		"Модель написала </think> посреди и продолжила текст.": "посреди и продолжила текст.",
+		"assistant Для овердрафта нужна выписка.":              "Для овердрафта нужна выписка.",
+		"assistant\nСтавка от 15 %.":                           "Ставка от 15 %.",
+		"Assistant: Ставка от 15 %.":                           "Ставка от 15 %.",
+		"Assistants в банке не работают.":                      "Assistants в банке не работают.",
 	} {
 		srv, _ := capture(t, in)
 		got, err := NewOllama(srv.URL, "m").Complete(context.Background(), "s", "u")

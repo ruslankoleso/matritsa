@@ -41,7 +41,7 @@ func Seed(ctx context.Context, s *Store) error {
 		}
 		for _, st := range seed.StaffAccounts() {
 			if _, err := q.UpsertUser(ctx, db.UpsertUserParams{
-				Login: st.Login, PasswordHash: string(hash), Role: "staff", FullName: st.FullName,
+				Login: st.Login, PasswordHash: string(hash), Role: st.Role, FullName: st.FullName,
 			}); err != nil {
 				return fmt.Errorf("staff %s: %w", st.Login, err)
 			}

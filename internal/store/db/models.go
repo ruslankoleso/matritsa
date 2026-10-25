@@ -37,6 +37,27 @@ type ApplicationEvent struct {
 	Payload       []byte             `json:"payload"`
 }
 
+type ChatMessage struct {
+	ID        int64              `json:"id"`
+	ThreadID  string             `json:"thread_id"`
+	Author    string             `json:"author"`
+	Text      string             `json:"text"`
+	Source    pgtype.Text        `json:"source"`
+	OffTopic  bool               `json:"off_topic"`
+	AgentName pgtype.Text        `json:"agent_name"`
+	At        pgtype.Timestamptz `json:"at"`
+}
+
+type ChatThread struct {
+	ID          string             `json:"id"`
+	UserID      string             `json:"user_id"`
+	Status      string             `json:"status"`
+	AgentID     *string            `json:"agent_id"`
+	RequestedAt pgtype.Timestamptz `json:"requested_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Company struct {
 	ID                 string      `json:"id"`
 	Inn                string      `json:"inn"`

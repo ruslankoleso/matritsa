@@ -115,9 +115,9 @@ func TestChat_StatusQuestion_UsesThePersonsOwnApplications(t *testing.T) {
 }
 
 func TestChat_TheModelGetsTheHandbookAndOnlyThePersonsOwnFacts(t *testing.T) {
-	m := &capLLM{reply: "Для овердрафта нужна выписка по расчётному счёту."}
+	m := &capLLM{reply: "Вам подойдёт овердрафт: сумма до 5 000 000 ₽, срок 12 месяцев."}
 	cc := ChatContext{Applications: []AppFact{{ProductTitle: "Овердрафт", Amount: 500_000 * rub, TermMonths: 12, StatusLabel: "Есть предложение"}}}
-	r := NewChat(m).Reply(context.Background(), nil, "Какие документы нужны для овердрафта?", cc)
+	r := NewChat(m).Reply(context.Background(), nil, "Хочу взять 800 тысяч на год, что мне подойдёт?", cc)
 	if r.Source != "ai" || m.calls != 1 {
 		t.Fatalf("%+v calls=%d", r, m.calls)
 	}
@@ -126,7 +126,7 @@ func TestChat_TheModelGetsTheHandbookAndOnlyThePersonsOwnFacts(t *testing.T) {
 			t.Errorf("the model must be given %q:\n%s", want, m.system)
 		}
 	}
-	if !strings.Contains(m.user, "Какие документы нужны") {
+	if !strings.Contains(m.user, "800 тысяч") {
 		t.Fatalf("the question must reach the model: %q", m.user)
 	}
 }
@@ -140,16 +140,16 @@ func TestChat_AModelThatPromisesApprovalOrGoesAstray_IsReplacedByTheHandbook(t *
 		strings.Repeat("Очень длинный ответ. ", 100),
 	} {
 		m := &capLLM{reply: reply}
-		r := NewChat(m).Reply(context.Background(), nil, "Какие документы нужны для овердрафта?", noFacts)
-		if r.Source != "rules" || !strings.Contains(r.Text, "Выписка по расчётному счёту") {
-			t.Errorf("reply %.40q must be replaced: %+v", reply, r)
+		r := NewChat(m).Reply(context.Background(), nil, "Что мне подойдёт для кредита?", noFacts)
+		if m.calls != 1 || r.Source != "rules" || !strings.Contains(r.Text, "Овердрафт") {
+			t.Errorf("reply %.40q must be replaced by the product overview: %+v calls=%d", reply, r, m.calls)
 		}
 	}
 }
 
 func TestChat_ModelDown_FallsBackToTheHandbook(t *testing.T) {
 	m := &capLLM{err: errors.New("connection refused")}
-	r := NewChat(m).Reply(context.Background(), nil, "Какие документы нужны для овердрафта?", noFacts)
+	r := NewChat(m).Reply(context.Background(), nil, "Что мне подойдёт для кредита?", noFacts)
 	if r.Source != "rules" || r.Text == "" {
 		t.Fatalf("%+v", r)
 	}
@@ -161,7 +161,7 @@ func TestChat_OnlyTheLatestTurnsAndALimitedMessageReachTheModel(t *testing.T) {
 		h = append(h, ChatTurn{Role: "user", Text: "вопрос про кредит номер " + strings.Repeat("x", i)})
 	}
 	m := &capLLM{reply: "Ответ про кредит."}
-	long := "Какие документы нужны для кредита? " + strings.Repeat("очень ", 400)
+	long := "Что подойдёт для кредита? " + strings.Repeat("очень ", 400)
 	NewChat(m).Reply(context.Background(), h, long, noFacts)
 	if strings.Count(m.user, "вопрос про кредит") > 6 {
 		t.Fatalf("too much history was sent: %d", strings.Count(m.user, "вопрос про кредит"))
@@ -173,7 +173,7 @@ func TestChat_OnlyTheLatestTurnsAndALimitedMessageReachTheModel(t *testing.T) {
 
 func TestChat_AnUnknownOnTopicQuestion_GetsAnHonestAnswerWithSuggestions(t *testing.T) {
 	r := NewChat(nil).Reply(context.Background(), nil, "Можно ли взять кредит под залог квартиры?", noFacts)
-	if r.OffTopic || r.Source != "rules" || !strings.Contains(r.Text, "не вхо") {
+	if r.OffTopic || r.Source != "rules" || !strings.Contains(r.Text, "нет точного ответа") || !strings.Contains(r.Text, "сотрудник") {
 		t.Fatalf("a credit question outside the catalog must be answered honestly: %+v", r)
 	}
 }
@@ -192,5 +192,121 @@ func TestChat_AShortOffTopicRemark_AfterAnOnTopicQuestion_IsStillRefused(t *test
 		if r := NewChat(nil).Reply(context.Background(), h, q, noFacts); r.OffTopic {
 			t.Errorf("%q is a follow-up and must be answered", q)
 		}
+	}
+}
+
+// The study behind docs/ai-chat.md: a model answering exact questions invented terms ("3-7 рабочих дней",
+// "без штрафа", a hotline). Exact questions are therefore answered from the handbook, and an open question that
+// the handbook does not cover gets an honest answer, not a guess.
+func TestChat_ExactAndUnknownQuestions_NeverReachTheModel(t *testing.T) {
+	for _, q := range []string{
+		"Какие документы нужны для овердрафта?",
+		"Какая ставка по кредиту на оборудование?",
+		"Сколько ждать решения по заявке?",
+		"Что значит класс B в оценке?",
+		"Почему мне могут отказать?",
+		"Что с моей заявкой?",
+		"Нужен ли залог для экспресс-кредита?",
+		"Можно ли досрочно погасить кредит без штрафа?",
+		"Какие комиссии берёт банк за кредит?",
+	} {
+		m := &capLLM{reply: "Ответ модели про кредит, овердрафт и заявку."}
+		r := NewChat(m).Reply(context.Background(), nil, q, noFacts)
+		if m.calls != 0 || r.Source != "rules" || r.OffTopic {
+			t.Errorf("%q must be answered without the model: %+v calls=%d", q, r, m.calls)
+		}
+	}
+}
+
+func TestChat_RateAndSecurityQuestions_NameOnlyTheProductAsked(t *testing.T) {
+	r := NewChat(nil).Reply(context.Background(), nil, "Какая ставка по кредиту на оборудование?", noFacts)
+	if !strings.Contains(r.Text, "15 %") || strings.Contains(r.Text, "Овердрафт") {
+		t.Fatalf("only the asked product's rate is expected: %q", r.Text)
+	}
+	r = NewChat(nil).Reply(context.Background(), nil, "Нужен ли залог для экспресс-кредита?", noFacts)
+	if !strings.Contains(r.Text, "без залога") {
+		t.Fatalf("the express product is offered without pledge: %q", r.Text)
+	}
+}
+
+func TestChat_AskedForAGuarantee_TheAnswerIsNo(t *testing.T) {
+	r := NewChat(nil).Reply(context.Background(), nil, "Гарантируете ли вы, что одобрите кредит?", noFacts)
+	if !strings.Contains(r.Text, "не гарантир") {
+		t.Fatalf("%q", r.Text)
+	}
+}
+
+func TestChat_AnAdviceQuestion_IsAnsweredByTheModelWhenItStaysWithinTheFacts(t *testing.T) {
+	m := &capLLM{reply: "Под 800 000 ₽ на год подойдёт кредит на оборотные средства: сумма от 300 000 ₽ до 10 000 000 ₽, срок от 3 до 24 месяцев."}
+	r := NewChat(m).Reply(context.Background(), nil, "Хочу взять 800 тысяч на год, что мне подойдёт?", noFacts)
+	if r.Source != "ai" || r.OffTopic {
+		t.Fatalf("%+v", r)
+	}
+}
+
+func TestChat_ATextWithInventedFiguresOrTerms_IsNotShown(t *testing.T) {
+	for _, reply := range []string{
+		"Решение примут за 3 рабочих дня после подачи заявки на кредит.",
+		"Ставка по кредиту составит 9,9 % годовых.",
+		"Для заявки позвоните на горячую линию банка по кредитам.",
+		"Досрочное погашение кредита возможно без штрафа.",
+		"Одобрение по заявке на кредит займёт 5 дней.",
+	} {
+		m := &capLLM{reply: reply}
+		r := NewChat(m).Reply(context.Background(), nil, "Посоветуйте кредит для моего бизнеса", noFacts)
+		if r.Source != "rules" {
+			t.Errorf("%q must be replaced: %+v", reply, r)
+		}
+	}
+}
+
+func TestChat_AnElaborationOfAnExactAnswer_GoesToTheModel(t *testing.T) {
+	h := []ChatTurn{{Role: "user", Text: "Какие документы нужны для овердрафта?"}, {Role: "assistant", Text: "Нужна выписка по расчётному счёту за 12 месяцев."}}
+	m := &capLLM{reply: "Выписка по расчётному счёту за 12 месяцев показывает обороты по вашему счёту."}
+	r := NewChat(m).Reply(context.Background(), h, "А подробнее про выписку?", noFacts)
+	if r.Source != "ai" || m.calls != 1 {
+		t.Fatalf("%+v calls=%d", r, m.calls)
+	}
+}
+
+func TestChat_UnknownAnswer_MentionsTheRequestAlreadyMade(t *testing.T) {
+	r := NewChat(nil).Reply(context.Background(), nil, "Можно ли досрочно погасить кредит?", ChatContext{OperatorRequested: true})
+	if !strings.Contains(r.Text, "уже передан") || strings.Contains(r.Text, "нажмите") {
+		t.Fatalf("%q", r.Text)
+	}
+}
+
+func TestWantsOperator(t *testing.T) {
+	for _, q := range []string{
+		"Хочу поговорить с живым сотрудником",
+		"Соедините меня с оператором",
+		"Позовите человека",
+		"Можно связаться с менеджером?",
+		"оператор",
+		"Переключите на специалиста поддержки",
+		"Нужен живой человек",
+		"Мне нужен сотрудник банка, который ответит",
+	} {
+		if !WantsOperator(q) {
+			t.Errorf("%q asks for a person", q)
+		}
+	}
+	for _, q := range []string{
+		"Какие документы проверяет сотрудник?",
+		"Что делает аналитик с моей заявкой?",
+		"Какая ставка по овердрафту",
+		"Расскажи, как работает кабинет",
+		"Сотрудник банка рассматривает заявку?",
+	} {
+		if WantsOperator(q) {
+			t.Errorf("%q is a question, not a request for a person", q)
+		}
+	}
+}
+
+func TestChat_OperatorWords_AreNotAttacksOrOffTopic(t *testing.T) {
+	r := NewChat(nil).Reply(context.Background(), nil, "Соедините с оператором", noFacts)
+	if r.OffTopic {
+		t.Fatalf("a request for a person is on topic: %+v", r)
 	}
 }

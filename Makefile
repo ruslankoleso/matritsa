@@ -17,7 +17,7 @@ test-web:
 e2e:       ## Playwright end-to-end scenarios against the running stack
 	cd e2e && npm install && npx playwright test
 
-smoke:     ## quick check of the three main scenarios against the running stack
+smoke:     ## quick check of the four main scenarios against the running stack
 	BASE_URL=http://localhost:3000 go run ./cmd/smoke
 
 gen:       ## regenerate code from the contract and SQL

@@ -47,36 +47,63 @@ func (e ApplicationAllowedActions) Valid() bool {
 	}
 }
 
-// Defines values for ChatReplySource.
+// Defines values for ChatMessageAuthor.
 const (
-	ChatReplySourceAi    ChatReplySource = "ai"
-	ChatReplySourceRules ChatReplySource = "rules"
+	ChatMessageAuthorAgent     ChatMessageAuthor = "agent"
+	ChatMessageAuthorAssistant ChatMessageAuthor = "assistant"
+	ChatMessageAuthorClient    ChatMessageAuthor = "client"
+	ChatMessageAuthorSystem    ChatMessageAuthor = "system"
 )
 
-// Valid indicates whether the value is a known member of the ChatReplySource enum.
-func (e ChatReplySource) Valid() bool {
+// Valid indicates whether the value is a known member of the ChatMessageAuthor enum.
+func (e ChatMessageAuthor) Valid() bool {
 	switch e {
-	case ChatReplySourceAi:
+	case ChatMessageAuthorAgent:
 		return true
-	case ChatReplySourceRules:
+	case ChatMessageAuthorAssistant:
+		return true
+	case ChatMessageAuthorClient:
+		return true
+	case ChatMessageAuthorSystem:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for ChatTurnRole.
+// Defines values for ChatMessageSource.
 const (
-	Assistant ChatTurnRole = "assistant"
-	User      ChatTurnRole = "user"
+	ChatMessageSourceAi    ChatMessageSource = "ai"
+	ChatMessageSourceRules ChatMessageSource = "rules"
 )
 
-// Valid indicates whether the value is a known member of the ChatTurnRole enum.
-func (e ChatTurnRole) Valid() bool {
+// Valid indicates whether the value is a known member of the ChatMessageSource enum.
+func (e ChatMessageSource) Valid() bool {
 	switch e {
-	case Assistant:
+	case ChatMessageSourceAi:
 		return true
-	case User:
+	case ChatMessageSourceRules:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatThreadStatus.
+const (
+	ChatThreadStatusBot     ChatThreadStatus = "bot"
+	ChatThreadStatusLive    ChatThreadStatus = "live"
+	ChatThreadStatusWaiting ChatThreadStatus = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the ChatThreadStatus enum.
+func (e ChatThreadStatus) Valid() bool {
+	switch e {
+	case ChatThreadStatusBot:
+		return true
+	case ChatThreadStatusLive:
+		return true
+	case ChatThreadStatusWaiting:
 		return true
 	default:
 		return false
@@ -208,8 +235,9 @@ func (e InfoRequestRequestedBy) Valid() bool {
 
 // Defines values for MeRole.
 const (
-	MeRoleClient MeRole = "client"
-	MeRoleStaff  MeRole = "staff"
+	MeRoleClient  MeRole = "client"
+	MeRoleStaff   MeRole = "staff"
+	MeRoleSupport MeRole = "support"
 )
 
 // Valid indicates whether the value is a known member of the MeRole enum.
@@ -218,6 +246,8 @@ func (e MeRole) Valid() bool {
 	case MeRoleClient:
 		return true
 	case MeRoleStaff:
+		return true
+	case MeRoleSupport:
 		return true
 	default:
 		return false
@@ -410,10 +440,29 @@ func (e Status) Valid() bool {
 	}
 }
 
+// Defines values for SupportChatItemStatus.
+const (
+	SupportChatItemStatusLive    SupportChatItemStatus = "live"
+	SupportChatItemStatusWaiting SupportChatItemStatus = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the SupportChatItemStatus enum.
+func (e SupportChatItemStatus) Valid() bool {
+	switch e {
+	case SupportChatItemStatusLive:
+		return true
+	case SupportChatItemStatusWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TokenPairRole.
 const (
-	TokenPairRoleClient TokenPairRole = "client"
-	TokenPairRoleStaff  TokenPairRole = "staff"
+	TokenPairRoleClient  TokenPairRole = "client"
+	TokenPairRoleStaff   TokenPairRole = "staff"
+	TokenPairRoleSupport TokenPairRole = "support"
 )
 
 // Valid indicates whether the value is a known member of the TokenPairRole enum.
@@ -422,6 +471,8 @@ func (e TokenPairRole) Valid() bool {
 	case TokenPairRoleClient:
 		return true
 	case TokenPairRoleStaff:
+		return true
+	case TokenPairRoleSupport:
 		return true
 	default:
 		return false
@@ -510,34 +561,46 @@ type BKIReport struct {
 	TotalRepaid *int64 `json:"totalRepaid,omitempty"`
 }
 
-// ChatReply defines model for ChatReply.
-type ChatReply struct {
+// ChatMessage defines model for ChatMessage.
+type ChatMessage struct {
+	// AgentName Имя сотрудника поддержки, только у его сообщений
+	AgentName *string           `json:"agentName,omitempty"`
+	At        time.Time         `json:"at"`
+	Author    ChatMessageAuthor `json:"author"`
+	Id        int64             `json:"id"`
+
 	// OffTopic Вопрос не по теме, помощник вежливо отказался
 	OffTopic bool `json:"offTopic"`
 
-	// Source ai: ответила открытая модель; rules: ответ по справочнику
-	Source ChatReplySource `json:"source"`
-	Text   string          `json:"text"`
+	// Source Только у помощника. ai: ответила открытая модель; rules: ответ по справочнику
+	Source *ChatMessageSource `json:"source,omitempty"`
+	Text   string             `json:"text"`
 }
 
-// ChatReplySource ai: ответила открытая модель; rules: ответ по справочнику
-type ChatReplySource string
+// ChatMessageAuthor defines model for ChatMessage.Author.
+type ChatMessageAuthor string
+
+// ChatMessageSource Только у помощника. ai: ответила открытая модель; rules: ответ по справочнику
+type ChatMessageSource string
 
 // ChatRequest defines model for ChatRequest.
 type ChatRequest struct {
-	// History Предыдущие реплики этого разговора, от старых к новым
-	History *[]ChatTurn `json:"history,omitempty"`
-	Message string      `json:"message"`
+	Message string `json:"message"`
 }
 
-// ChatTurn defines model for ChatTurn.
-type ChatTurn struct {
-	Role ChatTurnRole `json:"role"`
-	Text string       `json:"text"`
+// ChatThread defines model for ChatThread.
+type ChatThread struct {
+	// AgentName Кто из сотрудников подключён (имя и должность)
+	AgentName *string            `json:"agentName,omitempty"`
+	Id        openapi_types.UUID `json:"id"`
+	Messages  []ChatMessage      `json:"messages"`
+
+	// Status bot: отвечает помощник; waiting: клиент ждёт сотрудника, помощник продолжает отвечать; live: пишет сотрудник
+	Status ChatThreadStatus `json:"status"`
 }
 
-// ChatTurnRole defines model for ChatTurn.Role.
-type ChatTurnRole string
+// ChatThreadStatus bot: отвечает помощник; waiting: клиент ждёт сотрудника, помощник продолжает отвечать; live: пишет сотрудник
+type ChatThreadStatus string
 
 // Company defines model for Company.
 type Company struct {
@@ -922,6 +985,60 @@ type StaffApplicationAllowedActions string
 // Status defines model for Status.
 type Status string
 
+// SupportApplicationFact defines model for SupportApplicationFact.
+type SupportApplicationFact struct {
+	Amount       int64  `json:"amount"`
+	ProductTitle string `json:"productTitle"`
+
+	// StatusLabel Статус так, как его видит клиент
+	StatusLabel string `json:"statusLabel"`
+	TermMonths  int    `json:"termMonths"`
+}
+
+// SupportChat defines model for SupportChat.
+type SupportChat struct {
+	// Applications Заявки клиента со статусами, без оценки и решений
+	Applications []SupportApplicationFact `json:"applications"`
+	ClientName   string                   `json:"clientName"`
+	CompanyName  string                   `json:"companyName"`
+	Inn          *string                  `json:"inn,omitempty"`
+	Mine         bool                     `json:"mine"`
+	Thread       ChatThread               `json:"thread"`
+}
+
+// SupportChatItem defines model for SupportChatItem.
+type SupportChatItem struct {
+	AgentName   *string            `json:"agentName,omitempty"`
+	ClientName  string             `json:"clientName"`
+	CompanyName string             `json:"companyName"`
+	Id          openapi_types.UUID `json:"id"`
+
+	// LastText Последнее сообщение клиента или сотрудника
+	LastText string `json:"lastText"`
+
+	// Mine Разговор ведёт текущий сотрудник
+	Mine   bool                  `json:"mine"`
+	Status SupportChatItemStatus `json:"status"`
+
+	// WaitingMinutes Сколько клиент ждёт сотрудника
+	WaitingMinutes int `json:"waitingMinutes"`
+}
+
+// SupportChatItemStatus defines model for SupportChatItem.Status.
+type SupportChatItemStatus string
+
+// SupportChatList defines model for SupportChatList.
+type SupportChatList struct {
+	Items   []SupportChatItem `json:"items"`
+	Live    int               `json:"live"`
+	Waiting int               `json:"waiting"`
+}
+
+// SupportMessageRequest defines model for SupportMessageRequest.
+type SupportMessageRequest struct {
+	Message string `json:"message"`
+}
+
 // TimelineEntry defines model for TimelineEntry.
 type TimelineEntry struct {
 	// Actor system | client | staff
@@ -1004,8 +1121,8 @@ type UploadDocumentMultipartRequestBody UploadDocumentMultipartBody
 // RespondToInfoRequestJSONRequestBody defines body for RespondToInfoRequest for application/json ContentType.
 type RespondToInfoRequestJSONRequestBody = InfoResponse
 
-// ChatWithAssistantJSONRequestBody defines body for ChatWithAssistant for application/json ContentType.
-type ChatWithAssistantJSONRequestBody = ChatRequest
+// SendChatMessageJSONRequestBody defines body for SendChatMessage for application/json ContentType.
+type SendChatMessageJSONRequestBody = ChatRequest
 
 // RecommendProductJSONRequestBody defines body for RecommendProduct for application/json ContentType.
 type RecommendProductJSONRequestBody = RecommendRequest
@@ -1021,6 +1138,9 @@ type RegisterJSONRequestBody = RegisterRequest
 
 // MakeDecisionJSONRequestBody defines body for MakeDecision for application/json ContentType.
 type MakeDecisionJSONRequestBody = DecisionRequest
+
+// SendSupportMessageJSONRequestBody defines body for SendSupportMessage for application/json ContentType.
+type SendSupportMessageJSONRequestBody = SupportMessageRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1057,9 +1177,18 @@ type ServerInterface interface {
 	// GetTimeline История заявки человеческим языком
 	// (GET /applications/{id}/timeline)
 	GetTimeline(w http.ResponseWriter, r *http.Request, id ApplicationId)
-	// ChatWithAssistant Вопрос помощнику о кредитах и работе кабинета
+	// GetChat Мой разговор с помощником
+	// (GET /assistant/chat)
+	GetChat(w http.ResponseWriter, r *http.Request)
+	// SendChatMessage Написать в чат
 	// (POST /assistant/chat)
-	ChatWithAssistant(w http.ResponseWriter, r *http.Request)
+	SendChatMessage(w http.ResponseWriter, r *http.Request)
+	// CancelChatOperator Вернуться к помощнику
+	// (DELETE /assistant/chat/operator)
+	CancelChatOperator(w http.ResponseWriter, r *http.Request)
+	// RequestChatOperator Позвать сотрудника поддержки
+	// (POST /assistant/chat/operator)
+	RequestChatOperator(w http.ResponseWriter, r *http.Request)
 	// RecommendProduct Подобрать продукт по описанию потребности (ИИ либо правила)
 	// (POST /assistant/recommend)
 	RecommendProduct(w http.ResponseWriter, r *http.Request)
@@ -1114,6 +1243,21 @@ type ServerInterface interface {
 	// GetQueue Очередь заявок (сначала ожидающие решения сотрудника)
 	// (GET /staff/queue)
 	GetQueue(w http.ResponseWriter, r *http.Request, params GetQueueParams)
+	// ListSupportChats Обращения, которым нужен человек
+	// (GET /support/chats)
+	ListSupportChats(w http.ResponseWriter, r *http.Request)
+	// GetSupportChat Разговор с клиентом и сведения для ответа
+	// (GET /support/chats/{id})
+	GetSupportChat(w http.ResponseWriter, r *http.Request, id ApplicationId)
+	// CloseSupportChat Завершить разговор и вернуть клиента помощнику
+	// (POST /support/chats/{id}/close)
+	CloseSupportChat(w http.ResponseWriter, r *http.Request, id ApplicationId)
+	// JoinSupportChat Подключиться к разговору
+	// (POST /support/chats/{id}/join)
+	JoinSupportChat(w http.ResponseWriter, r *http.Request, id ApplicationId)
+	// SendSupportMessage Ответить клиенту
+	// (POST /support/chats/{id}/messages)
+	SendSupportMessage(w http.ResponseWriter, r *http.Request, id ApplicationId)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1186,9 +1330,27 @@ func (_ Unimplemented) GetTimeline(w http.ResponseWriter, r *http.Request, id Ap
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// ChatWithAssistant Вопрос помощнику о кредитах и работе кабинета
+// GetChat Мой разговор с помощником
+// (GET /assistant/chat)
+func (_ Unimplemented) GetChat(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SendChatMessage Написать в чат
 // (POST /assistant/chat)
-func (_ Unimplemented) ChatWithAssistant(w http.ResponseWriter, r *http.Request) {
+func (_ Unimplemented) SendChatMessage(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CancelChatOperator Вернуться к помощнику
+// (DELETE /assistant/chat/operator)
+func (_ Unimplemented) CancelChatOperator(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RequestChatOperator Позвать сотрудника поддержки
+// (POST /assistant/chat/operator)
+func (_ Unimplemented) RequestChatOperator(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1297,6 +1459,36 @@ func (_ Unimplemented) GetExplanation(w http.ResponseWriter, r *http.Request, id
 // GetQueue Очередь заявок (сначала ожидающие решения сотрудника)
 // (GET /staff/queue)
 func (_ Unimplemented) GetQueue(w http.ResponseWriter, r *http.Request, params GetQueueParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListSupportChats Обращения, которым нужен человек
+// (GET /support/chats)
+func (_ Unimplemented) ListSupportChats(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetSupportChat Разговор с клиентом и сведения для ответа
+// (GET /support/chats/{id})
+func (_ Unimplemented) GetSupportChat(w http.ResponseWriter, r *http.Request, id ApplicationId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CloseSupportChat Завершить разговор и вернуть клиента помощнику
+// (POST /support/chats/{id}/close)
+func (_ Unimplemented) CloseSupportChat(w http.ResponseWriter, r *http.Request, id ApplicationId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// JoinSupportChat Подключиться к разговору
+// (POST /support/chats/{id}/join)
+func (_ Unimplemented) JoinSupportChat(w http.ResponseWriter, r *http.Request, id ApplicationId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// SendSupportMessage Ответить клиенту
+// (POST /support/chats/{id}/messages)
+func (_ Unimplemented) SendSupportMessage(w http.ResponseWriter, r *http.Request, id ApplicationId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1599,11 +1791,53 @@ func (siw *ServerInterfaceWrapper) GetTimeline(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
-// ChatWithAssistant operation middleware
-func (siw *ServerInterfaceWrapper) ChatWithAssistant(w http.ResponseWriter, r *http.Request) {
+// GetChat operation middleware
+func (siw *ServerInterfaceWrapper) GetChat(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ChatWithAssistant(w, r)
+		siw.Handler.GetChat(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) SendChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendChatMessage(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelChatOperator operation middleware
+func (siw *ServerInterfaceWrapper) CancelChatOperator(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelChatOperator(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestChatOperator operation middleware
+func (siw *ServerInterfaceWrapper) RequestChatOperator(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestChatOperator(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2030,6 +2264,124 @@ func (siw *ServerInterfaceWrapper) GetQueue(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// ListSupportChats operation middleware
+func (siw *ServerInterfaceWrapper) ListSupportChats(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSupportChats(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSupportChat operation middleware
+func (siw *ServerInterfaceWrapper) GetSupportChat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSupportChat(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CloseSupportChat operation middleware
+func (siw *ServerInterfaceWrapper) CloseSupportChat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CloseSupportChat(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JoinSupportChat operation middleware
+func (siw *ServerInterfaceWrapper) JoinSupportChat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JoinSupportChat(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SendSupportMessage operation middleware
+func (siw *ServerInterfaceWrapper) SendSupportMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SendSupportMessage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -2171,7 +2523,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/assistant/recommend", wrapper.RecommendProduct)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/assistant/chat", wrapper.ChatWithAssistant)
+		r.Get(options.BaseURL+"/assistant/chat", wrapper.GetChat)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/assistant/chat", wrapper.SendChatMessage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/assistant/chat/operator", wrapper.CancelChatOperator)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/assistant/chat/operator", wrapper.RequestChatOperator)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/applications", wrapper.ListApplications)
@@ -2232,6 +2593,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/staff/applications/{id}/explanation", wrapper.GetExplanation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/support/chats", wrapper.ListSupportChats)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/support/chats/{id}", wrapper.GetSupportChat)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/support/chats/{id}/join", wrapper.JoinSupportChat)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/support/chats/{id}/messages", wrapper.SendSupportMessage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/support/chats/{id}/close", wrapper.CloseSupportChat)
 	})
 
 	return r

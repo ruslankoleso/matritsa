@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -85,13 +86,16 @@ func (o *Ollama) chat(ctx context.Context, system, user string, asJSON bool) (st
 	return cleanAnswer(out.Message.Content), nil
 }
 
-// cleanAnswer drops what some Qwen3-based models leak into the text: the end of their reasoning ("</think>"),
-// a stray ">" line and the empty lines before the answer.
+// cleanAnswer drops what some models leak into the text: the end of Qwen3 reasoning ("</think>"),
+// a stray ">" line, the role name T-lite prints before its answer and the empty lines before the answer.
 func cleanAnswer(s string) string {
 	if i := strings.LastIndex(s, "</think>"); i >= 0 {
 		s = s[i+len("</think>"):]
 	}
 	s = strings.TrimSpace(s)
 	s = strings.TrimSpace(strings.TrimPrefix(s, ">\n"))
-	return s
+	return leakedRole.ReplaceAllString(s, "")
 }
+
+// leakedRole is a chat-template role name at the very start: "assistant Text", "assistant\nText", "Assistant: Text".
+var leakedRole = regexp.MustCompile(`^(?i:assistant)(?::\s*|\s+)`)

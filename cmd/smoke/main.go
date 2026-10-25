@@ -168,5 +168,28 @@ func main() {
 	waitStatus(c4, id4, "REJECTED")
 	fmt.Println("✓ client4: automatic rejection with reasons")
 
+	// Scenario 4: a client asks for a person, a support specialist joins and answers in the same talk.
+	c3 := login("client3")
+	code, thread, raw := call("POST", "/api/v1/assistant/chat", c3, map[string]any{"message": "Соедините меня с живым сотрудником"})
+	if code != 200 || thread["status"] != "waiting" {
+		fail("chat request for a person: %d %s", code, raw)
+	}
+	chatID := thread["id"].(string)
+	sup := login("support1")
+	if code, _, raw = call("POST", "/api/v1/support/chats/"+chatID+"/join", sup, nil); code != 200 {
+		fail("support join: %d %s", code, raw)
+	}
+	if code, _, raw = call("POST", "/api/v1/support/chats/"+chatID+"/messages", sup, map[string]any{"message": "Здравствуйте! Чем помочь?"}); code != 200 {
+		fail("support message: %d %s", code, raw)
+	}
+	code, thread, raw = call("GET", "/api/v1/assistant/chat", c3, nil)
+	if code != 200 || thread["status"] != "live" {
+		fail("client sees the talk: %d %s", code, raw)
+	}
+	if code, _, raw = call("POST", "/api/v1/support/chats/"+chatID+"/close", sup, nil); code != 200 {
+		fail("support close: %d %s", code, raw)
+	}
+	fmt.Println("✓ client3: asked for a person, a support specialist answered and closed the talk")
+
 	fmt.Println("SMOKE OK")
 }

@@ -117,6 +117,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 	authed := auth.Authenticate(s.Issuer)
 	authedQuery := auth.AuthenticateWithQuery(s.Issuer)
 	staffOnly := auth.RequireRole("staff")
+	supportOnly := auth.RequireRole("support")
 	clientOnly := auth.RequireRole("client")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -129,6 +130,8 @@ func (s *Server) guard(next http.Handler) http.Handler {
 			authed(next).ServeHTTP(w, r)
 		case strings.HasPrefix(p, "/api/v1/staff/"):
 			authed(staffOnly(next)).ServeHTTP(w, r)
+		case strings.HasPrefix(p, "/api/v1/support/"):
+			authed(supportOnly(next)).ServeHTTP(w, r)
 		default:
 			authed(clientOnly(next)).ServeHTTP(w, r)
 		}
