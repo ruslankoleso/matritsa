@@ -170,14 +170,39 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Мой разговор с помощником
+         * @description Один разговор на клиента: сообщения клиента, помощника и сотрудника поддержки, если он подключался. Последние 100 сообщений.
+         */
+        get: operations["getChat"];
         put?: never;
         /**
-         * Вопрос помощнику о кредитах и работе кабинета
-         * @description Помощник отвечает только по кредитам для бизнеса и работе кабинета; вопросы не по теме отклоняются в коде до обращения к модели. Отвечает по справочнику, а при включённой модели свободнее. Ограничения: до 500 символов в вопросе, не более 30 вопросов за 10 минут.
+         * Написать в чат
+         * @description Помощник отвечает только по кредитам для бизнеса и работе кабинета; вопросы не по теме отклоняются в коде до обращения к модели. Если клиент просит сотрудника, разговор встаёт в очередь поддержки, помощник продолжает отвечать до подключения сотрудника; когда сотрудник подключился, помощник молчит. Ограничения: до 500 символов, не более 30 сообщений за 10 минут.
          */
-        post: operations["chatWithAssistant"];
+        post: operations["sendChatMessage"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assistant/chat/operator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Позвать сотрудника поддержки */
+        post: operations["requestChatOperator"];
+        /**
+         * Вернуться к помощнику
+         * @description Отменяет запрос или завершает разговор с сотрудником; дальше отвечает помощник.
+         */
+        delete: operations["cancelChatOperator"];
         options?: never;
         head?: never;
         patch?: never;
@@ -519,6 +544,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/support/chats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Обращения, которым нужен человек
+         * @description Сначала ожидающие сотрудника, самые давние сверху; затем разговоры в работе.
+         */
+        get: operations["listSupportChats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support/chats/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        /** Разговор с клиентом и сведения для ответа */
+        get: operations["getSupportChat"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support/chats/{id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Подключиться к разговору */
+        post: operations["joinSupportChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support/chats/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ответить клиенту */
+        post: operations["sendSupportMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/support/chats/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Завершить разговор и вернуть клиента помощнику */
+        post: operations["closeSupportChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -565,7 +686,7 @@ export interface components {
             accessToken: string;
             refreshToken: string;
             /** @enum {string} */
-            role: "client" | "staff";
+            role: "client" | "staff" | "support";
             fullName: string;
         };
         Me: {
@@ -573,7 +694,7 @@ export interface components {
             id: string;
             login: string;
             /** @enum {string} */
-            role: "client" | "staff";
+            role: "client" | "staff" | "support";
             fullName: string;
             company?: components["schemas"]["Company"];
             /**
@@ -631,25 +752,78 @@ export interface components {
             director: string;
             address: string;
         };
-        ChatTurn: {
-            /** @enum {string} */
-            role: "user" | "assistant";
-            text: string;
-        };
         ChatRequest: {
             message: string;
-            /** @description Предыдущие реплики этого разговора, от старых к новым */
-            history?: components["schemas"]["ChatTurn"][];
         };
-        ChatReply: {
+        SupportMessageRequest: {
+            message: string;
+        };
+        ChatMessage: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            author: "client" | "assistant" | "agent" | "system";
             text: string;
             /**
-             * @description ai: ответила открытая модель; rules: ответ по справочнику
+             * @description Только у помощника. ai: ответила открытая модель; rules: ответ по справочнику
              * @enum {string}
              */
-            source: "ai" | "rules";
+            source?: "ai" | "rules";
             /** @description Вопрос не по теме, помощник вежливо отказался */
             offTopic: boolean;
+            /** @description Имя сотрудника поддержки, только у его сообщений */
+            agentName?: string;
+            /** Format: date-time */
+            at: string;
+        };
+        ChatThread: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description bot: отвечает помощник; waiting: клиент ждёт сотрудника, помощник продолжает отвечать; live: пишет сотрудник
+             * @enum {string}
+             */
+            status: "bot" | "waiting" | "live";
+            /** @description Кто из сотрудников подключён (имя и должность) */
+            agentName?: string;
+            messages: components["schemas"]["ChatMessage"][];
+        };
+        SupportChatItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "waiting" | "live";
+            clientName: string;
+            companyName: string;
+            /** @description Последнее сообщение клиента или сотрудника */
+            lastText: string;
+            /** @description Сколько клиент ждёт сотрудника */
+            waitingMinutes: number;
+            agentName?: string;
+            /** @description Разговор ведёт текущий сотрудник */
+            mine: boolean;
+        };
+        SupportChatList: {
+            items: components["schemas"]["SupportChatItem"][];
+            waiting: number;
+            live: number;
+        };
+        SupportApplicationFact: {
+            productTitle: string;
+            /** Format: int64 */
+            amount: number;
+            termMonths: number;
+            /** @description Статус так, как его видит клиент */
+            statusLabel: string;
+        };
+        SupportChat: {
+            thread: components["schemas"]["ChatThread"];
+            clientName: string;
+            companyName: string;
+            inn?: string;
+            mine: boolean;
+            /** @description Заявки клиента со статусами, без оценки и решений */
+            applications: components["schemas"]["SupportApplicationFact"][];
         };
         RecommendRequest: {
             /** @example Нужно купить станок для мастерской */
@@ -1196,7 +1370,27 @@ export interface operations {
             422: components["responses"]["Error"];
         };
     };
-    chatWithAssistant: {
+    getChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Разговор */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatThread"];
+                };
+            };
+        };
+    };
+    sendChatMessage: {
         parameters: {
             query?: never;
             header?: never;
@@ -1209,17 +1403,57 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Ответ помощника */
+            /** @description Разговор с ответом */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ChatReply"];
+                    "application/json": components["schemas"]["ChatThread"];
                 };
             };
             422: components["responses"]["Error"];
             429: components["responses"]["Error"];
+        };
+    };
+    requestChatOperator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Разговор в очереди поддержки */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatThread"];
+                };
+            };
+        };
+    };
+    cancelChatOperator: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Разговор с помощником */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatThread"];
+                };
+            };
         };
     };
     listApplications: {
@@ -1715,6 +1949,131 @@ export interface operations {
             };
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];
+        };
+    };
+    listSupportChats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Обращения */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportChatList"];
+                };
+            };
+            403: components["responses"]["Error"];
+        };
+    };
+    getSupportChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Разговор */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportChat"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    joinSupportChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Разговор */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportChat"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    sendSupportMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Разговор */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportChat"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    closeSupportChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Разговор */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportChat"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
 }

@@ -182,17 +182,81 @@ test.describe('credit pipeline, end to end', () => {
     await loginAs(page, /Тёплый хлеб/)
     await page.getByRole('button', { name: 'Задать вопрос помощнику' }).click()
     const win = page.getByRole('dialog', { name: 'Помощник по кредитам' })
-    await win.getByLabel('Ваш вопрос').fill('Какие документы нужны для овердрафта?')
-    await win.getByLabel('Ваш вопрос').press('Enter')
+    await win.getByLabel('Ваше сообщение').fill('Какие документы нужны для овердрафта?')
+    await win.getByLabel('Ваше сообщение').press('Enter')
     await expect(win.getByText(/Выписка по расчётному счёту/)).toBeVisible()
-    await win.getByLabel('Ваш вопрос').fill('Расскажи рецепт борща')
-    await win.getByLabel('Ваш вопрос').press('Enter')
+    await win.getByLabel('Ваше сообщение').fill('Расскажи рецепт борща')
+    await win.getByLabel('Ваше сообщение').press('Enter')
     await expect(win.getByText(/Я помогаю только с вопросами о кредитах/)).toBeVisible()
-    await win.getByLabel('Ваш вопрос').fill('Что с моей заявкой?')
-    await win.getByLabel('Ваш вопрос').press('Enter')
+    await win.getByLabel('Ваше сообщение').fill('Что с моей заявкой?')
+    await win.getByLabel('Ваше сообщение').press('Enter')
     await expect(win.getByText(/Ваши заявки/)).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(win).toHaveCount(0)
+  })
+
+  test('a client asks for a person; a support specialist joins in the same talk, answers and closes it', async ({ browser }) => {
+    const clientCtx = await browser.newContext()
+    const supportCtx = await browser.newContext()
+    const client = await newPage(clientCtx, /Тёплый хлеб/)
+    await client.getByRole('button', { name: 'Задать вопрос помощнику' }).click()
+    const win = client.getByRole('dialog', { name: 'Помощник по кредитам' })
+    // the database outlives a test run: start from a talk with the helper
+    const back = win.getByRole('button', { name: 'Вернуться к помощнику' })
+    await expect(win.getByRole('button', { name: /Связаться с сотрудником|Вернуться к помощнику/ })).toBeVisible()
+    if (await back.isVisible()) await back.click()
+    await expect(win.getByRole('button', { name: 'Связаться с сотрудником' })).toBeVisible()
+    await win.getByLabel('Ваше сообщение').fill('Соедините меня с живым сотрудником')
+    await win.getByLabel('Ваше сообщение').press('Enter')
+    await expect(win.getByText(/Запрос передан сотруднику поддержки/).last()).toBeVisible()
+    await expect(win.getByText('Ожидаем сотрудника')).toBeVisible()
+
+    // while waiting, the helper still answers
+    await win.getByLabel('Ваше сообщение').fill('Какая ставка по кредиту на оборудование?')
+    await win.getByLabel('Ваше сообщение').press('Enter')
+    await expect(win.getByText(/Базовая ставка/).last()).toBeVisible()
+
+    // the specialist sees the request without any reload of the list
+    const support = await newPage(supportCtx, /Мария Громова/)
+    await expect(support).toHaveURL(/\/support/)
+    const row = support.getByRole('navigation', { name: 'Обращения клиентов' }).getByRole('link', { name: /Тёплый хлеб/ })
+    await expect(row).toBeVisible()
+    await row.click()
+    await expect(support.getByRole('log', { name: 'Переписка с клиентом' }).getByText('Какая ставка по кредиту на оборудование?').last()).toBeVisible()
+    await support.getByRole('button', { name: 'Подключиться' }).click()
+
+    // the client page was not reloaded: the join arrives over SSE
+    await expect(win.getByText(/Сотрудник на связи/)).toBeVisible()
+    await support.getByLabel('Ответ клиенту').fill('Здравствуйте! Чем помочь?')
+    await support.getByLabel('Ответ клиенту').press('Enter')
+    await expect(win.getByText('Здравствуйте! Чем помочь?').last()).toBeVisible()
+
+    // while the specialist is in the talk, the helper is silent
+    const answered = await win.getByText(/Выписка по расчётному счёту/).count()
+    await win.getByLabel('Ваше сообщение').fill('Какие документы нужны для овердрафта?')
+    await win.getByLabel('Ваше сообщение').press('Enter')
+    await expect(support.getByText('Какие документы нужны для овердрафта?').last()).toBeVisible()
+    await support.waitForTimeout(1500)
+    await expect(win.getByText(/Выписка по расчётному счёту/)).toHaveCount(answered)
+
+    await support.getByRole('button', { name: 'Завершить разговор' }).click()
+    await expect(win.getByText('Помощник по кредитам', { exact: true })).toBeVisible()
+    await expect(win.getByText(/Сотрудник завершил разговор/).last()).toBeVisible()
+    await clientCtx.close()
+    await supportCtx.close()
+  })
+
+  test('a client and a bank analyst cannot open the support workspace', async ({ browser }) => {
+    const ctx = await browser.newContext()
+    const staff = await newPage(ctx, /Анна Белова/)
+    await staff.goto('/support')
+    await expect(staff).toHaveURL(/\/staff/)
+    await ctx.close()
+    const ctx2 = await browser.newContext()
+    const client = await newPage(ctx2, /Тёплый хлеб/)
+    await client.goto('/support')
+    await expect(client).toHaveURL(/\/cabinet/)
+    await ctx2.close()
   })
 
   test('the greeting with the name appears after signing in and goes away', async ({ browser }) => {

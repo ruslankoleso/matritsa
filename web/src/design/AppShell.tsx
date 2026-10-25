@@ -48,7 +48,7 @@ interface Props {
   children: ReactNode
 }
 
-const ROLE = { client: 'Предприниматель', staff: 'Сотрудник банка' } as const
+const ROLE = { client: 'Предприниматель', staff: 'Сотрудник банка', support: 'Специалист поддержки' } as const
 
 export function AppShell({ variant, nav, bell, children }: Props) {
   const { session, logout } = useAuth()
@@ -131,7 +131,7 @@ export function AppShell({ variant, nav, bell, children }: Props) {
             ) : (
               <>
                 <b>{shortName}</b>
-                <span>{ROLE.staff}</span>
+                <span>{ROLE[role]}</span>
               </>
             )}
           </button>

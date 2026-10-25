@@ -9,7 +9,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 const company = { id: 'c1', inn: '7700000016', name: 'ООО «Северторг»', kind: 'ooo', registeredAt: '2019-03-04', okved: '47.11', director: 'Иванов Иван Иванович', address: 'г. Казань, ул. Кремлёвская, 12' }
 
-function setup(role: 'client' | 'staff', me: unknown, applications: unknown[] = []) {
+function setup(role: 'client' | 'staff' | 'support', me: unknown, applications: unknown[] = []) {
   vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(url.endsWith('/me') ? json(me) : json(applications))))
   const value = {
     session: { accessToken: 'a', refreshToken: 'r', role, fullName: 'x' },
@@ -53,6 +53,15 @@ describe('Profile', () => {
     expect(screen.getByText('Сотрудник банка')).toBeInTheDocument()
     expect(screen.queryByText('Компания')).not.toBeInTheDocument()
     expect(screen.queryByText('Заявки')).not.toBeInTheDocument()
+  })
+
+  it('a support specialist is not shown as a client', async () => {
+    setup('support', { id: 'u4', login: 'support1', role: 'support', fullName: 'Мария Игоревна Громова, специалист поддержки' })
+    expect(await screen.findByText('support1')).toBeInTheDocument()
+    expect(screen.getByText('Специалист поддержки')).toBeInTheDocument()
+    expect(screen.queryByText('Компания')).not.toBeInTheDocument()
+    expect(screen.queryByText('Заявки')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Перейти к обращениям' })).toHaveAttribute('href', '/support')
   })
 
   it('tells the person when the profile cannot be loaded', async () => {

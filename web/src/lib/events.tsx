@@ -4,8 +4,9 @@ import { api, eventsUrl } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 
 export interface LiveEvent {
-  type: 'status' | 'notification' | 'queue'
+  type: 'status' | 'notification' | 'queue' | 'chat'
   applicationId?: string
+  threadId?: string
   status?: string
   text?: string
 }
@@ -37,6 +38,8 @@ export function useLiveUpdates(onEvent?: (e: LiveEvent) => void) {
       void qc.invalidateQueries({ queryKey: ['feed'] })
       void qc.invalidateQueries({ queryKey: ['notifications'] })
       void qc.invalidateQueries({ queryKey: ['queue'] })
+      void qc.invalidateQueries({ queryKey: ['chat'] })
+      void qc.invalidateQueries({ queryKey: ['support'] })
       if (appId) {
         void qc.invalidateQueries({ queryKey: ['application', appId] })
         void qc.invalidateQueries({ queryKey: ['timeline', appId] })
@@ -50,7 +53,7 @@ export function useLiveUpdates(onEvent?: (e: LiveEvent) => void) {
       es.onopen = () => {
         retry.current = 0
       }
-      ['status', 'notification', 'queue'].forEach((t) => es!.addEventListener(t, touch as EventListener))
+      ['status', 'notification', 'queue', 'chat'].forEach((t) => es!.addEventListener(t, touch as EventListener))
       es.onerror = () => {
         es?.close()
         const wait = Math.min(15_000, 1000 * 2 ** retry.current++)

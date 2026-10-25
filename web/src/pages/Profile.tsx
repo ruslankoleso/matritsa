@@ -18,11 +18,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
+const ROLE_LABEL = { client: 'Предприниматель', staff: 'Сотрудник банка', support: 'Специалист поддержки' } as const
+
 /** "Who am I in this product": the account, the company the bank sees, and the consent. Shared by clients and bank staff. */
 export default function Profile() {
   const { session } = useAuth()
   const me = useMe()
-  const isClient = session?.role !== 'staff'
+  const isClient = (session?.role ?? 'client') === 'client'
   const apps = useQuery({ queryKey: ['applications'], queryFn: api.applications, enabled: isClient })
 
   if (me.isLoading) return <Loading />
@@ -52,7 +54,7 @@ export default function Profile() {
             <div className="kv">
               <Row label="ФИО">{p.fullName}</Row>
               <Row label="Логин">{p.login}</Row>
-              <Row label="Роль">{p.role === 'staff' ? 'Сотрудник банка' : 'Предприниматель'}</Row>
+              <Row label="Роль">{ROLE_LABEL[p.role]}</Row>
               <Row label="Согласие на обработку данных">
                 {p.consentedAt ? `дано ${formatFullDateTime(p.consentedAt)}` : <small>демонстрационный аккаунт: согласие не запрашивалось</small>}
               </Row>
@@ -95,8 +97,17 @@ export default function Profile() {
           ) : (
             <section className="card" aria-labelledby="ws-h">
               <div className="card-head"><h2 id="ws-h">Рабочее место</h2></div>
-              <p className="sub">Очередь заявок, разбор оценки и решения доступны в разделе «Очередь заявок».</p>
-              <p className="sub" style={{ marginTop: 10 }}><Link to="/staff">Перейти к очереди</Link></p>
+              {session?.role === 'support' ? (
+                <>
+                  <p className="sub">Чаты с клиентами, которые попросили связаться с сотрудником, доступны в разделе «Обращения».</p>
+                  <p className="sub" style={{ marginTop: 10 }}><Link to="/support">Перейти к обращениям</Link></p>
+                </>
+              ) : (
+                <>
+                  <p className="sub">Очередь заявок, разбор оценки и решения доступны в разделе «Очередь заявок».</p>
+                  <p className="sub" style={{ marginTop: 10 }}><Link to="/staff">Перейти к очереди</Link></p>
+                </>
+              )}
             </section>
           )}
         </div>

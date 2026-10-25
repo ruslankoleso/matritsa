@@ -8,7 +8,7 @@ export const DOC = path.join(__dirname, 'fixtures', 'statement.pdf')
 export async function loginAs(page: Page, who: RegExp) {
   await page.goto('/login')
   await page.getByRole('button', { name: who }).click()
-  await page.waitForURL(/\/(cabinet|staff)/)
+  await page.waitForURL(/\/(cabinet|staff|support)/)
 }
 
 export async function newPage(context: BrowserContext, who: RegExp) {

@@ -144,6 +144,13 @@ export default function Login() {
             </span>
             <span className="go" aria-hidden>→</span>
           </button>
+          <button type="button" className="demo-item" disabled={busy} onClick={() => void signIn('support1', 'demo1234')}>
+            <span style={{ margin: 0 }}>
+              <b>Мария Громова, специалист поддержки</b>
+              <span>Чаты с клиентами: подключается, когда клиент просит сотрудника</span>
+            </span>
+            <span className="go" aria-hidden>→</span>
+          </button>
         </div>
         </>}
       </aside>

@@ -1,6 +1,6 @@
 import type {
-  Application, ApplicationInput, ApplicationSummary, ApiErrorBody, ChatReply, ChatTurn, CompanyLookup, DecisionRequest, Document, Explanation,
-  FeedCard, Me, Notification, Product, Queue, Recommendation, RegisterRequest, RegistrationExample, StaffApplication, TimelineEntry,
+  Application, ApplicationInput, ApplicationSummary, ApiErrorBody, ChatThread, CompanyLookup, DecisionRequest, Document, Explanation,
+  FeedCard, Me, Notification, Product, Queue, Recommendation, RegisterRequest, RegistrationExample, Role, StaffApplication, SupportChat, SupportChatList, TimelineEntry,
 } from './types'
 
 const BASE = '/api/v1'
@@ -9,7 +9,7 @@ const STORE_KEY = 'matritsa.session'
 export interface Session {
   accessToken: string
   refreshToken: string
-  role: 'client' | 'staff'
+  role: Role
   fullName: string
 }
 
@@ -156,7 +156,15 @@ export const api = {
   me: () => request<Me>('GET', '/me'),
   products: () => request<Product[]>('GET', '/products'),
   lookupCompany: (inn: string) => request<CompanyLookup>('GET', `/company/lookup${q({ inn })}`),
-  chat: (message: string, history: ChatTurn[]) => request<ChatReply>('POST', '/assistant/chat', { message, history }),
+  chat: () => request<ChatThread>('GET', '/assistant/chat'),
+  sendChat: (message: string) => request<ChatThread>('POST', '/assistant/chat', { message }),
+  requestOperator: () => request<ChatThread>('POST', '/assistant/chat/operator'),
+  cancelOperator: () => request<ChatThread>('DELETE', '/assistant/chat/operator'),
+  supportChats: () => request<SupportChatList>('GET', '/support/chats'),
+  supportChat: (id: string) => request<SupportChat>('GET', `/support/chats/${id}`),
+  joinSupport: (id: string) => request<SupportChat>('POST', `/support/chats/${id}/join`),
+  replySupport: (id: string, message: string) => request<SupportChat>('POST', `/support/chats/${id}/messages`, { message }),
+  closeSupport: (id: string) => request<SupportChat>('POST', `/support/chats/${id}/close`),
   recommend: (text: string) => request<Recommendation>('POST', '/assistant/recommend', { text }),
 
   applications: () => request<ApplicationSummary[]>('GET', '/applications'),
