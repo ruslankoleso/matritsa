@@ -1,11 +1,13 @@
 package httpapi_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/products"
+	"matritsa/internal/seed"
 )
 
 func factorOf(card gen.StaffApplication, key string) (gen.Factor, bool) {
@@ -87,5 +89,43 @@ func TestScorecard_CollateralFromTheWizardChangesTheScore_NotTheDecisionRules(t 
 	}
 	if none, full, partial := score("none"), score("full"), score("partial"); none != 0 || full != 5 || partial != 2 {
 		t.Fatalf("collateral points: none %d, partial %d, full %d", none, partial, full)
+	}
+}
+
+// A company the registry marks (disqualified director, unreliable data) is refused by a hard stop, whatever its points.
+func TestScorecard_RegistryMarks_RefuseByAHardStop(t *testing.T) {
+	e := newEnv(t)
+	for _, kind := range []string{"disqualified", "unreliable"} {
+		var inn string
+		for n := int64(7_700_000_000); n < 7_700_200_000 && inn == ""; n++ {
+			cand := fmt.Sprintf("%010d", n)
+			if !seed.ValidINN(cand) || seed.ArchetypeOf(cand) != seed.Flagged {
+				continue
+			}
+			if c, _ := seed.Synthesize(cand); (kind == "disqualified") == c.DirectorDisqualified {
+				inn = cand
+			}
+		}
+		if inn == "" {
+			t.Fatalf("no INN of kind %s found", kind)
+		}
+		login := "flag_" + kind
+		code, raw := e.do("POST", "/api/v1/auth/register", "", signup(login, inn))
+		if code != 201 {
+			t.Fatalf("%s: register %d %s", kind, code, raw)
+		}
+		var tp gen.TokenPair
+		mustJSON(t, raw, &tp)
+		e.mu.Lock()
+		e.tok[login] = tp.AccessToken
+		e.mu.Unlock()
+		app := e.run(login, e.draft(login, products.Express, 200_000*rub, 6, true))
+		if app.Status != gen.REJECTED || app.Rejection == nil {
+			t.Fatalf("%s: want a rejection, got %s", kind, app.Status)
+		}
+		want := map[string]string{"disqualified": "дисквалифицирован", "unreliable": "недостоверность"}[kind]
+		if !strings.Contains(strings.Join(app.Rejection.Reasons, " "), want) {
+			t.Fatalf("%s: the reason must say why: %v", kind, app.Rejection.Reasons)
+		}
 	}
 }

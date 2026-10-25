@@ -129,7 +129,7 @@ func TestDemoCompanies_BigRequestIsAnsweredWithACounterOffer(t *testing.T) {
 func TestSyntheticCompanies_ProduceTheOutcomeOfTheirKind(t *testing.T) {
 	want := map[seed.Archetype]decision.Outcome{
 		seed.Reliable: decision.AutoOffer, seed.Borderline: decision.Review, seed.Young: decision.Review,
-		seed.Indebted: decision.Review, seed.Liquidated: decision.Reject, seed.Overdue: decision.Reject,
+		seed.Indebted: decision.Review, seed.Liquidated: decision.Reject, seed.Overdue: decision.Reject, seed.Flagged: decision.Reject,
 	}
 	seen := map[seed.Archetype]int{}
 	for n := int64(7_900_000_000); n < 7_900_020_000; n++ {

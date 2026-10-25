@@ -1057,6 +1057,8 @@ components:
         director: { type: string }
         address: { type: string }
         bankrupt: { type: boolean }
+        directorDisqualified: { type: boolean, description: "Руководитель в реестре дисквалифицированных лиц (смоделировано)" }
+        unreliableData: { type: boolean, description: "В реестре отмечена недостоверность сведений о компании (смоделировано)" }
         litigation: { type: integer, description: "Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано)" }
         finance: { $ref: '#/components/schemas/FinanceData' }
         statement: { $ref: '#/components/schemas/StatementData' }

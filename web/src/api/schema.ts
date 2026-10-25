@@ -1084,6 +1084,10 @@ export interface components {
             director?: string;
             address?: string;
             bankrupt?: boolean;
+            /** @description Руководитель в реестре дисквалифицированных лиц (смоделировано) */
+            directorDisqualified?: boolean;
+            /** @description В реестре отмечена недостоверность сведений о компании (смоделировано) */
+            unreliableData?: boolean;
             /** @description Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано) */
             litigation?: number;
             finance?: components["schemas"]["FinanceData"];

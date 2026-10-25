@@ -249,6 +249,12 @@ func hardStops(in Input, avg int64, cfg Config) []string {
 	if in.EGRUL.Bankrupt {
 		stops = append(stops, "В отношении компании ведётся процедура банкротства")
 	}
+	if in.EGRUL.DirectorDisqualified {
+		stops = append(stops, "Руководитель компании дисквалифицирован")
+	}
+	if in.EGRUL.UnreliableData {
+		stops = append(stops, "В реестре отмечена недостоверность сведений о компании")
+	}
 	if in.BKI != nil && in.BKI.MaxOverdueDays > cfg.HardStopOverdueDays {
 		stops = append(stops, fmt.Sprintf("В кредитной истории есть просрочка более %d дней", cfg.HardStopOverdueDays))
 	}
@@ -499,6 +505,10 @@ func reputationFactor(e integrations.EGRULRecord, cfg Config) Factor {
 	switch {
 	case e.Bankrupt:
 		f.Note = "Идёт процедура банкротства"
+	case e.DirectorDisqualified:
+		f.Note = "Руководитель дисквалифицирован"
+	case e.UnreliableData:
+		f.Note = "В реестре отмечена недостоверность сведений"
 	case e.Litigation == 0:
 		f.Points, f.Note = cfg.MaxReputation, "Репутация чистая: крупных споров нет"
 	case e.Litigation == 1:

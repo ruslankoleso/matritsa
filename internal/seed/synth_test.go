@@ -42,7 +42,7 @@ func TestSynthesize_KindFollowsINNLength(t *testing.T) {
 
 func TestExampleINNs_CoverEveryArchetype_AndAreSyntheticCompaniesOfThatKind(t *testing.T) {
 	ex := ExampleINNs()
-	if len(ex) != 6 {
+	if len(ex) != 7 {
 		t.Fatalf("want one example per archetype, got %d", len(ex))
 	}
 	for _, e := range ex {
@@ -61,6 +61,10 @@ func TestExampleINNs_CoverEveryArchetype_AndAreSyntheticCompaniesOfThatKind(t *t
 		case Overdue:
 			if c.BKI == nil || c.BKI.MaxOverdueDays <= 90 {
 				t.Errorf("%s must have an overdue above 90 days", e.INN)
+			}
+		case Flagged:
+			if !c.DirectorDisqualified && !c.UnreliableData {
+				t.Errorf("%s must carry a stop from the registry", e.INN)
 			}
 		case Young:
 			if c.BKI == nil || c.BKI.HasHistory || len(c.Revenue) > 6 {

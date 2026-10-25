@@ -163,8 +163,8 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 				rec.RegisteredAt = &g.RegisteredAt
 			}
 			rec.Okved, rec.Director, rec.Address = &g.OKVED, &g.Director, &g.Address
-			lit := g.Litigation
-			rec.Litigation = &lit
+			lit, dq, ur := g.Litigation, g.DirectorDisqualified, g.UnreliableData
+			rec.Litigation, rec.DirectorDisqualified, rec.UnreliableData = &lit, &dq, &ur
 			if f := g.Finance; f != nil {
 				rec.Finance = &gen.FinanceData{GrossMargin: float32(f.GrossMargin), CurrentRatio: float32(f.CurrentRatio)}
 			}

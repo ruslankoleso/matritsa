@@ -31,9 +31,12 @@ type Company struct {
 	Bankrupt           bool
 	BKI                *integrations.BKIReport // nil: company unknown to the bureau
 	Litigation         int                     // court cases: 0 none, 1 minor, 2 major
-	Finance            *integrations.Finance   // published accounts (simulated)
-	Statement          *integrations.Statement // analysis of the bank statement (simulated)
-	Story              string                  // what this demo company illustrates
+	// Registry marks that stop the scoring.
+	DirectorDisqualified bool
+	UnreliableData       bool
+	Finance              *integrations.Finance   // published accounts (simulated)
+	Statement            *integrations.Statement // analysis of the bank statement (simulated)
+	Story                string                  // what this demo company illustrates
 }
 
 func monthsAgo(n int) time.Time {
@@ -208,6 +211,7 @@ func (c Company) EGRUL() integrations.EGRULRecord {
 		INN: c.INN, Name: c.Name, Status: c.Status, RegisteredAt: c.RegisteredAt,
 		OKVED: c.OKVED, Director: c.Director, Address: c.Address, Bankrupt: c.Bankrupt,
 		Litigation: c.Litigation, Finance: c.Finance, Statement: c.Statement,
+		DirectorDisqualified: c.DirectorDisqualified, UnreliableData: c.UnreliableData,
 	}
 }
 

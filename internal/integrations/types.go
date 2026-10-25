@@ -34,6 +34,10 @@ type EGRULRecord struct {
 	Director     string    `json:"director"`
 	Address      string    `json:"address"`
 	Bankrupt     bool      `json:"bankrupt"`
+	// DirectorDisqualified: the head of the company is in the register of disqualified persons.
+	DirectorDisqualified bool `json:"directorDisqualified,omitempty"`
+	// UnreliableData: the registry has marked the data about the company as unreliable.
+	UnreliableData bool `json:"unreliableData,omitempty"`
 	// Litigation is the weight of court cases against the company and its director (arbitration cases,
 	// disqualification): 0 none, 1 minor, 2 major. Simulated, as the whole record.
 	Litigation int `json:"litigation,omitempty"`

@@ -167,7 +167,7 @@ func TestSignupLookupAndExamples_ArePublic(t *testing.T) {
 	code, raw = e.do("GET", "/api/v1/auth/registration-examples", "", nil)
 	var ex []gen.RegistrationExample
 	mustJSON(t, raw, &ex)
-	if code != 200 || len(ex) != 6 {
+	if code != 200 || len(ex) != 7 {
 		t.Fatalf("%d %s", code, raw)
 	}
 	for _, x := range ex {

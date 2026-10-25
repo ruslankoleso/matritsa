@@ -48,6 +48,7 @@ const (
 	Indebted   Archetype = "indebted"   // heavy existing payments
 	Liquidated Archetype = "liquidated" // not an active company: automatic decline
 	Overdue    Archetype = "overdue"    // payment overdue by more than 90 days: hard stop
+	Flagged    Archetype = "flagged"    // the registry marks the director as disqualified or the data as unreliable: hard stop
 )
 
 var archetypeNote = map[Archetype]string{
@@ -57,6 +58,7 @@ var archetypeNote = map[Archetype]string{
 	Indebted:   "Закредитованная компания: сотрудник предложит меньшую сумму",
 	Liquidated: "Ликвидированная компания: автоматический отказ",
 	Overdue:    "Просрочка более 90 дней: отказ по жёсткому правилу",
+	Flagged:    "Дисквалификация руководителя или недостоверные сведения в реестре: отказ по жёсткому правилу",
 }
 
 func seedOf(inn string) uint64 {
@@ -78,10 +80,13 @@ func ArchetypeOf(inn string) Archetype {
 	case 7, 8:
 		return Indebted
 	}
-	if seedOf(inn)/10%2 == 0 {
+	switch seedOf(inn) / 10 % 3 {
+	case 0:
 		return Liquidated
+	case 1:
+		return Overdue
 	}
-	return Overdue
+	return Flagged
 }
 
 var (
@@ -187,6 +192,18 @@ func Synthesize(inn string) (Company, bool) {
 		c.Status = "liquidated"
 		c.Revenue = series(base, []float64{1.0, 0.9, 1.1}, 12)
 		c.BKI = history(700, 0, 0, 0, 1)
+	case Flagged:
+		c.RegisteredAt = monthsAgo(between(36, 96))
+		c.MonthlyObligations = base * int64(between(3, 5)) / 100
+		c.Revenue = series(base, pattern, 12)
+		c.BKI = history(between(700, 780), 1, 0, 0.5, float64(between(2, 4)))
+		fin(0.30, 1.4, 0)
+		// the two marks are told apart by the INN, so that both kinds appear
+		if seedOf(inn)/30%2 == 0 {
+			c.DirectorDisqualified = true
+		} else {
+			c.UnreliableData = true
+		}
 	case Overdue:
 		c.RegisteredAt = monthsAgo(between(36, 96))
 		fin(0.15, 0.9, 1)
@@ -202,7 +219,7 @@ func Synthesize(inn string) (Company, bool) {
 func ExampleINNs() []Example {
 	var out []Example
 	seen := map[Archetype]bool{}
-	want := []Archetype{Reliable, Borderline, Young, Indebted, Liquidated, Overdue}
+	want := []Archetype{Reliable, Borderline, Young, Indebted, Liquidated, Overdue, Flagged}
 	// The INNs below are searched once at start-up from a fixed range, so the list is stable.
 	for n := int64(7_700_000_000); len(seen) < len(want) && n < 7_700_100_000; n++ {
 		inn := fmt.Sprintf("%010d", n)

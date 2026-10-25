@@ -118,6 +118,8 @@ function Enrichment({ card }: { card: StaffApplication }) {
     <div className="kv">
       <div className="kv-row"><span>Реестр (ЕГРЮЛ/ЕГРИП)</span><b>{e.egrul ? (e.egrul.status === 'active' ? 'Действующая' : e.egrul.status) : <span className="dash">—</span>}</b></div>
       {e.egrul?.bankrupt && <div className="kv-row"><span>Банкротство</span><b>Да</b></div>}
+      {e.egrul?.directorDisqualified && <div className="kv-row"><span>Руководитель</span><b>Дисквалифицирован</b></div>}
+      {e.egrul?.unreliableData && <div className="kv-row"><span>Сведения в реестре</span><b>Отмечены как недостоверные</b></div>}
       {e.egrul && <div className="kv-row"><span>Судебные дела</span><b>{['нет', 'незначительные', 'крупные'][e.egrul.litigation ?? 0]}</b></div>}
       {e.egrul?.finance ? (
         <>

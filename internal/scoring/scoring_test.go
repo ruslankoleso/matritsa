@@ -149,6 +149,30 @@ func TestScore_HardStop_Bankrupt(t *testing.T) {
 	}
 }
 
+// The analyst's stop list: a disqualified director and false data in the registry end the scoring too.
+func TestScore_HardStop_DisqualifiedDirector_AndUnreliableRegistryData(t *testing.T) {
+	cases := map[string]func(*Input){
+		"disqualified director": func(in *Input) { in.EGRUL.DirectorDisqualified = true },
+		"unreliable data":       func(in *Input) { in.EGRUL.UnreliableData = true },
+	}
+	for name, set := range cases {
+		in := baseInput()
+		set(&in)
+		res := Score(in, DefaultConfig())
+		if len(res.HardStops) != 1 || res.Grade != GradeD {
+			t.Errorf("%s: want one hard stop and grade D, got %v %s", name, res.HardStops, res.Grade)
+		}
+		if f := factor(t, res, "reputation"); f.Points != 0 {
+			t.Errorf("%s: the reputation earns nothing, got %d", name, f.Points)
+		}
+	}
+	in := baseInput()
+	in.EGRUL.DirectorDisqualified, in.EGRUL.UnreliableData = true, true
+	if got := Score(in, DefaultConfig()).HardStops; len(got) != 2 {
+		t.Errorf("both reasons are named: %v", got)
+	}
+}
+
 func TestScore_HardStop_Overdue91Days(t *testing.T) {
 	in := baseInput()
 	in.BKI = &integrations.BKIReport{HasHistory: true, Score: 700, MaxOverdueDays: 91}

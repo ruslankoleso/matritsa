@@ -674,6 +674,9 @@ type EGRULRecord struct {
 	Bankrupt *bool   `json:"bankrupt,omitempty"`
 	Director *string `json:"director,omitempty"`
 
+	// DirectorDisqualified Руководитель в реестре дисквалифицированных лиц (смоделировано)
+	DirectorDisqualified *bool `json:"directorDisqualified,omitempty"`
+
 	// Finance Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет
 	Finance *FinanceData `json:"finance,omitempty"`
 	Inn     string       `json:"inn"`
@@ -687,6 +690,9 @@ type EGRULRecord struct {
 	// Statement Результат анализа банковской выписки (смоделирован)
 	Statement *StatementData `json:"statement,omitempty"`
 	Status    string         `json:"status"`
+
+	// UnreliableData В реестре отмечена недостоверность сведений о компании (смоделировано)
+	UnreliableData *bool `json:"unreliableData,omitempty"`
 }
 
 // Enrichment defines model for Enrichment.
