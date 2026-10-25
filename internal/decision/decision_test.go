@@ -188,77 +188,63 @@ func TestDecide_TooBigRequest_NamesTheLimitThatBinds(t *testing.T) {
 	}
 }
 
-// A class D that comes from missing data is not a reason to refuse by itself: a person looks at it.
-func TestDecide_GradeD_FromMissingData_GoesToAPerson(t *testing.T) {
-	r := result(scoring.GradeD, 5_000_000*rub)
-	r.Score, r.MissingPoints = 24, 25 // 24 + 25 would be class C
-	r.Factors = []scoring.Factor{{Title: "Просрочки за 36 месяцев", Max: 15, NoData: true}, {Title: "Обеспечение", Max: 5}}
+// Decisions 7.1 and 7.2 of the analyst: a gap in the data is never a reason for the machine to decide, in either
+// direction. The application goes to a person with the list of gaps and with what the system would have done.
+func withGap(r scoring.Result) scoring.Result {
+	r.Factors = append(r.Factors, scoring.Factor{Title: "Просрочки за 36 месяцев", Max: 15, NoData: true})
+	r.MissingPoints = 15
+	return r
+}
+
+func TestDecide_AGapInTheData_StopsAnAutomaticOffer(t *testing.T) {
+	r := withGap(result(scoring.GradeA, 5_000_000*rub))
+	d := Decide(r, prod(t, products.WorkingCapital), 1_000_000*rub, 12)
+	if d.Outcome != Review || d.Offer != nil || d.Recommended == nil || d.Recommended.Amount != 1_000_000*rub {
+		t.Fatalf("an automatic offer becomes a recommendation for the analyst: %+v", d)
+	}
+	joined := strings.Join(d.Reasons, " ")
+	if !strings.Contains(joined, "Просрочки за 36 месяцев") || !strings.Contains(joined, "одобрила бы автоматически") {
+		t.Fatalf("the reasons name the gap and what the system would have done: %v", d.Reasons)
+	}
+}
+
+func TestDecide_AGapInTheData_StopsAnAutomaticRefusal_WhateverTheClass(t *testing.T) {
+	// even a class D that stays D with every missing point added is not refused by the machine
+	r := withGap(result(scoring.GradeD, 100_000*rub))
+	r.Score = 5
 	d := Decide(r, prod(t, products.Express), 100_000*rub, 6)
 	if d.Outcome != Review || d.Offer != nil {
 		t.Fatalf("missing data must not produce an automatic refusal: %+v", d)
 	}
-	if !strings.Contains(strings.Join(d.Reasons, " "), "Просрочки за 36 месяцев") {
-		t.Fatalf("the reason names the criteria without data: %v", d.Reasons)
+	joined := strings.Join(d.Reasons, " ")
+	if !strings.Contains(joined, "Просрочки за 36 месяцев") || !strings.Contains(joined, "отказала бы") {
+		t.Fatalf("the reasons name the gap and the refusal the system would have given: %v", d.Reasons)
+	}
+	// the same for a refusal by affordability
+	low := withGap(result(scoring.GradeC, 100_000*rub))
+	if d := Decide(low, prod(t, products.WorkingCapital), 1_000_000*rub, 12); d.Outcome != Review {
+		t.Fatalf("a refusal by affordability with a gap also goes to a person: %+v", d)
 	}
 }
 
-func TestDecide_GradeD_WithEnoughData_StillRejects(t *testing.T) {
+func TestDecide_AGapInTheData_DoesNotSoftenAStopFactor(t *testing.T) {
+	r := withGap(result(scoring.GradeD, 0, "Компания ликвидирована"))
+	if d := Decide(r, prod(t, products.Express), 100_000*rub, 6); d.Outcome != Reject {
+		t.Fatalf("a stop factor is a condition of admission, not a gap in the data: %+v", d)
+	}
+}
+
+func TestDecide_ClassD_WithoutAnyGap_IsRefused(t *testing.T) {
 	r := result(scoring.GradeD, 5_000_000*rub)
-	r.Score, r.MissingPoints = 12, 10 // even with the missing points it stays below class C
+	r.Score = 12
 	if d := Decide(r, prod(t, products.Express), 100_000*rub, 6); d.Outcome != Reject {
 		t.Fatalf("%+v", d)
 	}
 }
 
-// The class belongs to the loan: a request too big for the business can fall to class D, while a smaller amount
-// offered instead is scored again and gets its own class and rate.
-func TestDecide_TooBigRequestScoredD_StillGetsACounterOfferScoredOnItsOwn(t *testing.T) {
-	requested := result(scoring.GradeD, 800_000*rub)
-	requested.Score, requested.MissingPoints = 28, 0
-	requested.MaxAmountByLoad, requested.MaxAmountByDSCR = 2_000_000*rub, 800_000*rub
-	asked := []int64{}
-	rescore := func(amount int64) scoring.Result {
-		asked = append(asked, amount)
-		r := result(scoring.GradeB, 800_000*rub)
-		r.Score = 62
-		return r
-	}
-	d := DecideRescoring(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12, rescore)
-	if d.Outcome != Review || d.Recommended == nil || d.Recommended.Amount != 800_000*rub {
-		t.Fatalf("a counter-offer instead of a refusal: %+v", d)
-	}
-	if len(asked) != 1 || asked[0] != 800_000*rub {
-		t.Fatalf("the recommended amount is scored on its own: %v", asked)
-	}
-	if d.Recommended.RateBP != 1650+180 {
-		t.Fatalf("the rate follows the class of the recommended amount (B), got %d", d.Recommended.RateBP)
-	}
-	if !strings.Contains(strings.Join(d.Reasons, " "), "оценена отдельно: класс B, 62 баллов") {
-		t.Fatalf("the reasons say that the amount was scored separately: %v", d.Reasons)
-	}
-}
-
-func TestDecide_ClassD_EvenForTheSmallerAmount_IsARefusal(t *testing.T) {
-	requested := result(scoring.GradeD, 800_000*rub)
-	requested.Score = 20
-	rescore := func(int64) scoring.Result {
-		r := result(scoring.GradeD, 800_000*rub)
-		r.Score = 24
-		return r
-	}
-	if d := DecideRescoring(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12, rescore); d.Outcome != Reject {
+func TestDecide_NoGap_NothingChanges(t *testing.T) {
+	d := Decide(result(scoring.GradeA, 5_000_000*rub), prod(t, products.WorkingCapital), 1_000_000*rub, 12)
+	if d.Outcome != AutoOffer {
 		t.Fatalf("%+v", d)
-	}
-	if d := Decide(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12); d.Outcome != Reject {
-		t.Fatalf("without rescoring the class of the request stands: %+v", d)
-	}
-}
-
-func TestDecide_NoRescoreWhenTheRequestFits(t *testing.T) {
-	called := false
-	rescore := func(int64) scoring.Result { called = true; return result(scoring.GradeA, 0) }
-	DecideRescoring(result(scoring.GradeB, 5_000_000*rub), prod(t, products.WorkingCapital), 1_000_000*rub, 12, rescore)
-	if called {
-		t.Fatal("an affordable request is scored once")
 	}
 }

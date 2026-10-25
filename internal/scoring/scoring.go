@@ -541,6 +541,8 @@ func purposeFactor(in Input, cfg Config) Factor {
 		f.Points, f.Note = cfg.MaxPurpose, "Цель и сумма подтверждены документом (счёт или договор)"
 	case utf8.RuneCountInString(strings.TrimSpace(in.PurposeText)) >= 20:
 		f.Points, f.Note = cfg.MaxPurpose*2/5, "Цель названа, но документов, подтверждающих сумму, нет: нужно уточнение"
+	case strings.TrimSpace(in.PurposeText) != "":
+		f.Note = "Цель названа слишком кратко и ничем не подтверждена"
 	default:
 		f.NoData, f.Note = true, "Нет данных: цель не описана и документов нет"
 	}

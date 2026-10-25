@@ -97,6 +97,7 @@ func TestCriteria_Tiers(t *testing.T) {
 			in.PurposeDocs = false
 			in.PurposeText = "Закупка сырья перед сезоном"
 		}, 2},
+		{"purpose named too briefly", "purpose", func(in *Input) { in.PurposeDocs = false; in.PurposeText = "Ремонт печи" }, 0},
 		{"purpose not given", "purpose", func(in *Input) { in.PurposeDocs = false; in.PurposeText = "" }, 0},
 	}
 	for _, c := range cases {
@@ -212,5 +213,19 @@ func TestCashFlow_ComesFromTheStatement(t *testing.T) {
 	in.EGRUL.Finance = nil // no accounts: the cash flow does not change
 	if got := Score(in, cfg).MonthlyCashFlow; got != int64(float64(2_000_000*rub)*0.20) {
 		t.Fatalf("the accounts are not needed for the cash flow: %d", got)
+	}
+}
+
+// A short purpose is stated, only weakly: it earns nothing but it is not a gap that sends the application to a person.
+func TestPurpose_ShortIsNotAGap_EmptyIs(t *testing.T) {
+	cfg := DefaultConfig()
+	in := baseInput()
+	in.PurposeText = "Ремонт печи"
+	if f := factor(t, Score(in, cfg), "purpose"); f.NoData || f.Points != 0 {
+		t.Fatalf("%+v", f)
+	}
+	in.PurposeText = "  "
+	if f := factor(t, Score(in, cfg), "purpose"); !f.NoData {
+		t.Fatalf("%+v", f)
 	}
 }

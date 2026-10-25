@@ -88,16 +88,32 @@ func rejectD(res scoring.Result) Decision {
 	return Decision{Outcome: Reject, Reasons: []string{reason}}
 }
 
+// DecideRescoring decides on the scored request. A gap in the data (a criterion without data) is never a reason
+// for the machine to decide: neither an automatic offer nor an automatic refusal is given, the application goes to
+// an analyst with the list of gaps and with what the system would have done (decisions 7.1 and 7.2 of the analyst).
+// A stop factor is a condition of admission, not a gap, and still refuses at once.
 func DecideRescoring(res scoring.Result, p products.Product, amount int64, term int, rescore Rescorer) Decision {
+	d := decideKnown(res, p, amount, term, rescore)
+	if res.MissingPoints == 0 || len(res.HardStops) > 0 {
+		return d
+	}
+	gap := fmt.Sprintf("По критериям без данных (%s) баллы не начислены: автоматическое решение не принимается, заявку рассматривает сотрудник", noDataCriteria(res))
+	switch d.Outcome {
+	case AutoOffer:
+		rec := *d.Offer
+		rec.Source = "recommended"
+		return Decision{Outcome: Review, Recommended: &rec, Reasons: []string{gap, "Без пробелов в данных система одобрила бы автоматически на запрошенных условиях"}}
+	case Reject:
+		return Decision{Outcome: Review, Reasons: append([]string{gap, "Без пробелов в данных система автоматически отказала бы:"}, d.Reasons...)}
+	}
+	d.Reasons = append([]string{gap}, d.Reasons...)
+	return d
+}
+
+func decideKnown(res scoring.Result, p products.Product, amount int64, term int, rescore Rescorer) Decision {
 	cfg := scoring.DefaultConfig()
 	if len(res.HardStops) > 0 {
 		return Decision{Outcome: Reject, Reasons: append([]string(nil), res.HardStops...)}
-	}
-	if res.Grade == scoring.GradeD && res.Score+res.MissingPoints >= cfg.GradeCFrom {
-		// The class is D only because there is little data: not a refusal for the bank to give on its own.
-		return Decision{Outcome: Review, Reasons: []string{
-			fmt.Sprintf("Оценка %d баллов из 100, но по части критериев нет данных (%s): автоматический отказ не выдаётся, решение принимает сотрудник", res.Score, noDataCriteria(res)),
-		}}
 	}
 	if res.MaxAffordableAmount < p.MinAmount {
 		if res.Grade == scoring.GradeD {
