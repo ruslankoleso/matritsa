@@ -36,7 +36,10 @@ erDiagram
 Ключ (`company_id`, `month`), поле `revenue`. По этим данным считаются средняя выручка и её стабильность.
 
 ### users — пользователи
-`login` уникальный, `password_hash` (bcrypt), `role` (`client` или `staff`), `company_id` (у сотрудника пусто), `full_name`, `consented_at` (когда человек при регистрации согласился на обработку данных; у демо-аккаунтов пусто, миграция 0003).
+`login` уникальный, `password_hash` (bcrypt), `role` (`client`, `staff` — аналитик или `support` — специалист поддержки), `company_id` (у сотрудников пусто), `full_name`, `consented_at` (когда человек при регистрации согласился на обработку данных; у демо-аккаунтов пусто, миграция 0003).
+
+### chat_threads, chat_messages — чат с помощником и сотрудником (миграция 0004)
+Один разговор на клиента: `chat_threads.user_id` уникален. `status` — `bot`, `waiting` или `live`, `agent_id` — подключённый специалист, `requested_at` — когда клиент попросил сотрудника. Сообщения в `chat_messages`: `author` (`client`, `assistant`, `agent`, `system`), `text`, `source` (`ai` или `rules`, только у помощника), `off_topic`, `agent_name`. Подробнее: [ai-chat.md](ai-chat.md).
 
 ### applications — заявки
 | Поле | Смысл |
