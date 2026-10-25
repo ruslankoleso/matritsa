@@ -54,7 +54,7 @@ export default function Affordability({ s }: { s: Scoring }) {
         {binding && <span> — {binding}</span>}
       </p>
       {hasCover && s.monthlyCashFlow != null && (
-        <p className="field-hint">Денежный поток оценён как доля выручки по группе отрасли: {formatMoney(s.monthlyCashFlow)} в месяц. Показатели дополняют друг друга и учитываются вместе.</p>
+        <p className="field-hint">Денежный поток до платежей по кредитам: {formatMoney(s.monthlyCashFlow)} в месяц. Считается по операционной марже из отчётности компании, без отчётности — по доле выручки для группы отрасли. Показатели дополняют друг друга и учитываются вместе.</p>
       )}
     </div>
   )

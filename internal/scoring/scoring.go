@@ -278,7 +278,7 @@ func dscrFactor(cash, obligations int64, known bool, cfg Config) Factor {
 		f.NoData, f.Note = true, "Нет данных: без бухгалтерской отчётности и выручки денежный поток не определить"
 		return f
 	case obligations <= 0:
-		f.Points, f.Note = cfg.MaxDSCR, "Платежей по кредитам нет: покрывать нечем, запас полный"
+		f.Points, f.Note = cfg.MaxDSCR, "Платежей по кредитам нет: денежный поток ничем не занят, запас полный"
 		return f
 	case cash <= 0:
 		f.Note = "Денежного потока нет: платежи по кредитам нечем покрывать"
