@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { homeFor } from '../auth/RequireRole'
 import { ApiError, api } from '../api/client'
 import Register from './Register'
+import ScoreMatrix from './ScoreMatrix'
 import type { RegistrationExample } from '../api/types'
 import { Button } from '../design/Button'
 import { FloatField } from '../design/FloatField'
@@ -58,6 +59,16 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const demoRef = useRef<HTMLElement>(null)
+
+  // The light in the dot grid of the right panel follows the pointer; it is set straight on the element, no re-render.
+  const onPointer = (e: PointerEvent<HTMLElement>) => {
+    const el = demoRef.current
+    if (!el || e.pointerType === 'touch') return
+    const r = el.getBoundingClientRect()
+    el.style.setProperty('--mx', `${e.clientX - r.left}px`)
+    el.style.setProperty('--my', `${e.clientY - r.top}px`)
+  }
 
   const signIn = async (l: string, p: string) => {
     setBusy(true)
@@ -90,6 +101,7 @@ export default function Login() {
           </span>
           Матрица
         </Link>
+        <ScoreMatrix />
         <h1>{mode === 'login' ? 'Вход в кабинет' : 'Создать аккаунт'}</h1>
         <div className="login-tabs" role="tablist" aria-label="Вход или регистрация">
           <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')}>Войти</button>
@@ -114,7 +126,7 @@ export default function Login() {
         <p className="login-back"><Link to="/">← На главную</Link></p>
       </main>
 
-      <aside className="login-demo" aria-labelledby="demo-h">
+      <aside className="login-demo" aria-labelledby="demo-h" ref={demoRef} onPointerMove={onPointer}>
         {mode === 'register' ? <Examples onPick={setSignupInn} /> : <>
         <h2 id="demo-h">Демо-доступы для проверки</h2>
         <p>Все компании синтетические. У каждой своя история — так видно разные исходы: автоматическое решение, ручная проверка, отказ. Пароль у всех: demo1234.</p>
@@ -125,8 +137,8 @@ export default function Login() {
         )}
         <div className="demo-group">Предприниматели</div>
         <div className="demo-list">
-          {DEMO_CLIENTS.map((c) => (
-            <button type="button" key={c.login} className="demo-item" data-hit={c.inn === inn} disabled={busy} onClick={() => void signIn(c.login, 'demo1234')}>
+          {DEMO_CLIENTS.map((c, i) => (
+            <button type="button" key={c.login} className="demo-item" style={{ ['--i' as string]: i }} data-hit={c.inn === inn} disabled={busy} onClick={() => void signIn(c.login, 'demo1234')}>
               <span style={{ margin: 0 }}>
                 <b>{c.name}</b>
                 <span>{c.story}</span>

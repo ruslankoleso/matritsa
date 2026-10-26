@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { fillAndSubmit, loginAs, newPage } from './helpers'
+import { fillAndSubmit, loginAs, newPage, SAMPLE_DOCS } from './helpers'
 
 test.describe('credit pipeline, end to end', () => {
   test('a reliable company gets an automatic offer, accepts it and sees the money (demo)', async ({ page }) => {
@@ -63,6 +63,15 @@ test.describe('credit pipeline, end to end', () => {
     await expect(factor('Соответствие цели и суммы')).toContainText('5 из 5')
     await clientCtx.close()
     await staffCtx.close()
+  })
+
+  test('the sample documents of the jury fit every upload zone of every product', async ({ page }) => {
+    await loginAs(page, /Тёплый хлеб/)
+    const pledge = { kind: /Недвижимость/, value: '3000000' }
+    await fillAndSubmit(page, { product: /оборотные средства/, amount: '1000000', term: '12', purposeDocAmount: '1000000', collateral: pledge, docs: SAMPLE_DOCS })
+    await fillAndSubmit(page, { product: /оборудование/, amount: '2000000', term: '36', purposeDocAmount: '2000000', collateral: pledge, docs: SAMPLE_DOCS })
+    await fillAndSubmit(page, { product: /Овердрафт/, amount: '1200000', collateral: pledge, docs: SAMPLE_DOCS })
+    await fillAndSubmit(page, { product: /Экспресс/, amount: '500000', term: '6', collateral: pledge, docs: SAMPLE_DOCS })
   })
 
   test('a liquidated company is declined automatically with plain reasons', async ({ page }) => {

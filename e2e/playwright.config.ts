@@ -5,6 +5,7 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
+  testIgnore: 'demo-video/**', // the demo film is recorded on demand: make demo-video
   timeout: 90_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
