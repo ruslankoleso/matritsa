@@ -12,6 +12,5 @@
 | [test-scenarios.md](test-scenarios.md) | Ручные сценарии и перечень автоматических тестов | проверяющим |
 | [demo-script.md](demo-script.md) | Сценарий показа жюри | команде |
 | [postman/](postman/) | Коллекция запросов (генерируется из контракта: `make docs`) | разработчикам |
-| [design/](design/) | Ранний макет визуального стиля | дизайну |
 
 Контракт API — [api/openapi.yaml](../api/openapi.yaml), он же открывается в Swagger UI на http://localhost:3000/docs/.
