@@ -7,3 +7,6 @@ e2e/node_modules
 data
 *.md
 docs
+*.pdf
+*.docx
+e2e

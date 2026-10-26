@@ -1,0 +1,17 @@
+# Isolated stack for the end-to-end tests: its own project name, database and uploads, no published
+# ports except the site on :3100. The tests sign up, submit and decide, so running them against the
+# demo stack would leave their applications in the demo accounts.
+#   docker compose -p matritsa-e2e -f docker-compose.yml -f docker-compose.e2e.yml up -d --build --wait
+# `make e2e` does this, runs the tests and removes the stack with its volumes.
+services:
+  postgres:
+    ports: !reset []
+  mock-bki:
+    ports: !reset []
+  mock-egrul:
+    ports: !reset []
+  api:
+    ports: !reset []
+  web:
+    ports: !override
+      - "3100:80"

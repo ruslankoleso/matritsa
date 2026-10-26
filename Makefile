@@ -1,10 +1,16 @@
-.PHONY: up down test test-go test-web e2e smoke gen docs
+.PHONY: up down reset test test-go test-web e2e smoke gen docs
+
+E2E = docker compose -p matritsa-e2e -f docker-compose.yml -f docker-compose.e2e.yml
 
 up:        ## run the whole stack (web on :3000, api on :8080)
 	docker compose up -d --build
 
 down:
 	docker compose down
+
+reset:     ## drop the database and uploads and start again with the demo data only
+	docker compose down -v
+	docker compose up -d --build --wait
 
 test: test-go test-web   ## unit and integration tests (needs `docker compose up -d postgres` for Go integration tests)
 
@@ -14,8 +20,9 @@ test-go:
 test-web:
 	cd web && npm test
 
-e2e:       ## Playwright end-to-end scenarios against the running stack
-	cd e2e && npm install && npx playwright test
+e2e:       ## Playwright end-to-end scenarios on a separate stack (site on :3100); the demo data stays untouched
+	$(E2E) up -d --build --wait
+	cd e2e && npm ci && BASE_URL=http://localhost:3100 npx playwright test; status=$$?; cd .. && $(E2E) down -v; exit $$status
 
 smoke:     ## quick check of the four main scenarios against the running stack
 	BASE_URL=http://localhost:3000 go run ./cmd/smoke

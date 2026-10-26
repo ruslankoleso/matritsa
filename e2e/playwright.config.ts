@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
-// Runs against a live stack: `docker compose up -d` first (BASE_URL defaults to the nginx entry point).
+// `make e2e` starts a separate stack on :3100 and runs these tests against it, so the demo accounts stay clean.
+// Against another stack: BASE_URL=http://localhost:3000 npx playwright test (the tests will add their applications there).
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',

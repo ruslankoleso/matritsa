@@ -1,0 +1,66 @@
+# Checks every push and pull request: Go and web tests, generated code in sync with the contract,
+# and that the Docker images build. The end-to-end tests need the whole stack: run them with `make e2e`.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_USER: matritsa
+          POSTGRES_PASSWORD: matritsa
+          POSTGRES_DB: matritsa
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U matritsa -d matritsa"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Generated code matches the contract and the SQL
+        run: |
+          go tool oapi-codegen -config oapi-codegen.yaml api/openapi.yaml
+          go tool sqlc generate
+          git diff --exit-code -- internal/httpapi/gen internal/store/db
+      - run: go vet ./...
+      - run: go test ./... -race
+
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: TypeScript types match the contract
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.ts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  images:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build

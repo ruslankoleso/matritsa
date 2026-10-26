@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# One Dockerfile for all Go services: docker build --build-arg CMD=api|mock-bki|mock-egrul .
+# One Dockerfile for all Go services: docker build -f deploy/api.Dockerfile --build-arg CMD=api|mock-bki|mock-egrul .
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./

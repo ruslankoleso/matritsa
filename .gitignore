@@ -9,3 +9,6 @@ e2e/playwright-report/
 *.log
 .DS_Store
 docs/superpowers/
+
+# The case brief from the organisers: their material, kept locally, not redistributed with the code
+/Альфа_Хак_*.pdf
