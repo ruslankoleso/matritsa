@@ -74,6 +74,9 @@ RETURNING *;
 -- name: ListDocuments :many
 SELECT * FROM documents WHERE application_id = $1 ORDER BY uploaded_at;
 
+-- name: GetDocument :one
+SELECT * FROM documents WHERE id = $1 AND application_id = $2;
+
 -- name: UpsertScoringResult :exec
 INSERT INTO scoring_results (application_id, score, grade, factors, hard_stops, max_affordable, debt_load, enrichment, metrics)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)

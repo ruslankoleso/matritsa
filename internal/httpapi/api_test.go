@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"matritsa/internal/appdata"
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/products"
@@ -242,6 +244,35 @@ func TestUpload_BadType_415(t *testing.T) {
 	}
 }
 
+func TestDocument_OwnerAndAnalystCanOpenIt(t *testing.T) {
+	e := newEnv(t)
+	app := e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, false)
+	code, raw := e.upload(e.token("client1"), app.Id.String(), "bank_statement", "выписка.pdf", pdfBytes)
+	if code != 201 {
+		t.Fatalf("upload: %d %s", code, raw)
+	}
+	var doc gen.Document
+	mustJSON(t, raw, &doc)
+	own := "/api/v1/applications/" + app.Id.String() + "/documents/" + doc.Id.String()
+	if code, body := e.do("GET", own, e.token("client1"), nil); code != 200 || !bytes.Equal(body, pdfBytes) {
+		t.Fatalf("owner download: %d, %d bytes", code, len(body))
+	}
+	if code, _ := e.do("GET", own, e.token("client2"), nil); code != 404 {
+		t.Errorf("another client must not get the file: %d", code)
+	}
+	staff := "/api/v1/staff/applications/" + app.Id.String() + "/documents/" + doc.Id.String()
+	if code, body := e.do("GET", staff, e.token("staff1"), nil); code != 200 || !bytes.Equal(body, pdfBytes) {
+		t.Fatalf("analyst download: %d, %d bytes", code, len(body))
+	}
+	if code, _ := e.do("GET", staff, e.token("client1"), nil); code != 403 {
+		t.Errorf("a client must not use the staff path: %d", code)
+	}
+	other := "/api/v1/applications/" + app.Id.String() + "/documents/" + uuid.NewString()
+	if code, _ := e.do("GET", other, e.token("client1"), nil); code != 404 {
+		t.Errorf("unknown document: %d", code)
+	}
+}
+
 func TestUpload_NumberOfFilesIsLimited(t *testing.T) {
 	e := newEnv(t)
 	app := e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, false)
@@ -327,6 +358,15 @@ func TestFlow_Rejected_ShowsReasons(t *testing.T) {
 	if len(app.AllowedActions) != 0 {
 		t.Errorf("no actions after rejection: %v", app.AllowedActions)
 	}
+	// The company is liquidated: a smaller amount would be refused too, so the client is not pushed to reapply.
+	if app.Rejection.CanReapply || strings.Contains(app.Rejection.Advice, "меньшую сумму") {
+		t.Errorf("hard stop must not suggest reapplying: %+v", app.Rejection)
+	}
+	// The scoring note ("Класс риска D, 88 баллов") is the bank's: the client's history does not show it.
+	code, raw := e.do("GET", "/api/v1/applications/"+app.Id.String()+"/timeline", e.token("client4"), nil)
+	if code != 200 || strings.Contains(string(raw), "Класс риска") || strings.Contains(string(raw), "баллов") {
+		t.Errorf("client timeline leaks the scoring note: %d %s", code, raw)
+	}
 }
 
 func TestFlow_Counter_Offer(t *testing.T) {
@@ -353,7 +393,8 @@ func TestFlow_Counter_Offer(t *testing.T) {
 	if sc.Pd == nil || sc.Lgd == nil || sc.Ead == nil || sc.ExpectedLoss == nil || sc.CumulativePd == nil || sc.RiskPremiumBp == nil {
 		t.Fatalf("the analyst must see PD, LGD, EAD and the expected loss: %+v", sc)
 	}
-	if *sc.Lgd != 0.6 || *sc.Ead != 3_000_000*rub || *sc.ExpectedLoss <= 0 {
+	// EAD is the average debt over the 24-month schedule: between half the amount and all of it.
+	if *sc.Lgd != 0.6 || *sc.Ead <= 1_500_000*rub || *sc.Ead >= 3_000_000*rub || *sc.ExpectedLoss <= 0 {
 		t.Fatalf("EL inputs wrong: LGD=%v EAD=%d EL=%d", *sc.Lgd, *sc.Ead, *sc.ExpectedLoss)
 	}
 	want := float64(*sc.Ead) * float64(*sc.CumulativePd) * float64(*sc.Lgd)
@@ -628,7 +669,7 @@ func TestSSE_ClientGetsStatusChangeAfterStaffDecision(t *testing.T) {
 	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
 	card := e.staffCard(app.Id.String())
 
-	req, _ := http.NewRequest("GET", e.srv.URL+"/api/v1/events?access_token="+e.token("client2"), nil)
+	req, _ := http.NewRequest("GET", e.srv.URL+"/api/v1/events?ticket="+e.eventsTicket("client2"), nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
@@ -673,13 +714,24 @@ func TestSSE_ClientGetsStatusChangeAfterStaffDecision(t *testing.T) {
 	}
 }
 
-func TestSSE_RequiresToken(t *testing.T) {
+func TestSSE_RequiresTicket(t *testing.T) {
 	e := newEnv(t)
 	if code, _ := e.do("GET", "/api/v1/events", "", nil); code != 401 {
 		t.Fatalf("want 401, got %d", code)
 	}
-	if code, _ := e.do("GET", "/api/v1/events?access_token=garbage", "", nil); code != 401 {
+	if code, _ := e.do("GET", "/api/v1/events?ticket=garbage", "", nil); code != 401 {
 		t.Fatalf("want 401, got %d", code)
+	}
+	// An access token in the address is refused: the address ends up in logs, and the token opens the whole API.
+	if code, _ := e.do("GET", "/api/v1/events?access_token="+e.token("client1"), "", nil); code != 401 {
+		t.Fatalf("access token in the query must not open the stream: %d", code)
+	}
+	if code, _ := e.do("GET", "/api/v1/events?ticket="+e.token("client1"), "", nil); code != 401 {
+		t.Fatalf("an access token is not a ticket: %d", code)
+	}
+	// And a ticket is not an access token.
+	if code, _ := e.do("GET", "/api/v1/applications", e.eventsTicket("client1"), nil); code != 401 {
+		t.Fatalf("a ticket must not open the API: %d", code)
 	}
 }
 
@@ -800,5 +852,29 @@ func TestAutomaticDecisions_AreMarkedOnTheApplicationAndInTheQueue(t *testing.T)
 	after := e.staffCard(review.Id.String())
 	if after.Application.Rejection == nil || after.Application.Rejection.By != gen.RejectionByStaff {
 		t.Fatalf("a rejection by an analyst says so: %+v", after.Application.Rejection)
+	}
+}
+
+func TestProcessMetrics(t *testing.T) {
+	e := newEnv(t)
+	auto := e.run("client1", e.draft("client1", products.Express, 300_000*rub, 6, true))
+	review := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+	if auto.Status != gen.OFFERMADE || review.Status != gen.ANALYSTREVIEW {
+		t.Fatalf("setup: %s, %s", auto.Status, review.Status)
+	}
+	if code, raw := e.do("POST", "/api/v1/applications/"+auto.Id.String()+"/offer/accept", e.token("client1"), nil); code != 200 {
+		t.Fatalf("accept: %d %s", code, raw)
+	}
+	code, raw := e.do("GET", "/api/v1/staff/metrics", e.token("staff1"), nil)
+	var m gen.ProcessMetrics
+	mustJSON(t, raw, &m)
+	if code != 200 || m.Submitted != 2 || m.Decided != 1 || m.DecidedAuto != 1 || m.AutoShare != 1 || m.WaitingAnalyst != 1 {
+		t.Fatalf("metrics: %d %+v", code, m)
+	}
+	if m.Accepted != 1 || m.AcceptanceShare != 1 {
+		t.Errorf("one offer accepted of one answered: %+v", m)
+	}
+	if code, _ := e.do("GET", "/api/v1/staff/metrics", e.token("client1"), nil); code != 403 {
+		t.Errorf("metrics are for the bank team: %d", code)
 	}
 }

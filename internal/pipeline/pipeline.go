@@ -167,7 +167,19 @@ func (p *Pipeline) scan(ctx context.Context) {
 	}
 }
 
+// process runs the background stages of one application. With several instances of the API every worker
+// scans the same table; the lock lets one of them take the application, so the bureau and the registry are
+// asked once, not once per instance. The version check in Apply would keep the data right either way.
 func (p *Pipeline) process(ctx context.Context, id string) {
+	release, ok, err := p.s.TryLock(ctx, "pipeline:"+id)
+	if err != nil {
+		slog.Error("pipeline lock failed", "app", id, "err", err)
+		return
+	}
+	if !ok {
+		return // another worker is on it
+	}
+	defer release()
 	if err := p.Process(ctx, id); err != nil {
 		slog.Error("process failed", "app", id, "err", err)
 	}

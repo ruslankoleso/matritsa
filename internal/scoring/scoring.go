@@ -172,11 +172,11 @@ func Score(in Input, cfg Config) Result {
 		grade = GradeD
 	}
 
-	res := Result{Score: score, Grade: grade, Factors: factors, HardStops: hard, LGD: in.LGD, EAD: in.Amount, MissingPoints: missing}
+	res := Result{Score: score, Grade: grade, Factors: factors, HardStops: hard, LGD: in.LGD, EAD: AverageExposure(in.Amount, in.RateBP, in.TermMonths), MissingPoints: missing}
 	res.PD = cfg.PD[grade]
 	res.CumulativePD = cumulativePD(res.PD, in.TermMonths)
 	res.ELRate = res.CumulativePD * in.LGD
-	res.ExpectedLoss = int64(math.Round(float64(in.Amount) * res.ELRate))
+	res.ExpectedLoss = int64(math.Round(float64(res.EAD) * res.ELRate))
 	if bp, ok := Premium(grade, in.LGD, cfg); ok {
 		res.RiskPremiumBP = bp
 	}
@@ -241,25 +241,53 @@ func Premium(g Grade, lgd float64, cfg Config) (int, bool) {
 	return int(math.Round(extra * lgd * 10000)), true
 }
 
+// Texts of the hard stops. They are stored as the reasons of a refusal, and the decision package reads
+// them back to tell the client what to do next.
+const (
+	StopInactive      = "Компания не является действующей по данным реестра (ЕГРЮЛ/ЕГРИП)"
+	StopBankrupt      = "В отношении компании ведётся процедура банкротства"
+	StopDisqualified  = "Руководитель компании дисквалифицирован"
+	StopUnreliable    = "В реестре отмечена недостоверность сведений о компании"
+	StopOverduePrefix = "В кредитной истории есть просрочка более"
+	StopNoRevenue     = "Нет подтверждённой выручки, из которой можно погашать кредит"
+)
+
+// AverageExposure is the exposure at default of an amortising loan: the debt the bank holds on average over
+// the term. A default can come in any month with the same chance, and by then part of the loan is repaid,
+// so the full amount would overstate the loss roughly twice for a year-long annuity.
+func AverageExposure(amount int64, rateBP, months int) int64 {
+	if months <= 1 || amount <= 0 {
+		return amount
+	}
+	pay := MonthlyPayment(amount, rateBP, months)
+	r := float64(rateBP) / 10000 / 12
+	balance, sum := float64(amount), 0.0
+	for m := 0; m < months && balance > 0; m++ {
+		sum += balance // the debt at the start of the month
+		balance -= float64(pay) - balance*r
+	}
+	return int64(math.Round(sum / float64(months)))
+}
+
 func hardStops(in Input, avg int64, cfg Config) []string {
 	var stops []string
 	if in.EGRUL.Status != "" && in.EGRUL.Status != "active" {
-		stops = append(stops, "Компания не является действующей по данным реестра (ЕГРЮЛ/ЕГРИП)")
+		stops = append(stops, StopInactive)
 	}
 	if in.EGRUL.Bankrupt {
-		stops = append(stops, "В отношении компании ведётся процедура банкротства")
+		stops = append(stops, StopBankrupt)
 	}
 	if in.EGRUL.DirectorDisqualified {
-		stops = append(stops, "Руководитель компании дисквалифицирован")
+		stops = append(stops, StopDisqualified)
 	}
 	if in.EGRUL.UnreliableData {
-		stops = append(stops, "В реестре отмечена недостоверность сведений о компании")
+		stops = append(stops, StopUnreliable)
 	}
 	if in.BKI != nil && in.BKI.MaxOverdueDays > cfg.HardStopOverdueDays {
-		stops = append(stops, fmt.Sprintf("В кредитной истории есть просрочка более %d дней", cfg.HardStopOverdueDays))
+		stops = append(stops, fmt.Sprintf("%s %d дней", StopOverduePrefix, cfg.HardStopOverdueDays))
 	}
 	if avg <= 0 {
-		stops = append(stops, "Нет подтверждённой выручки, из которой можно погашать кредит")
+		stops = append(stops, StopNoRevenue)
 	}
 	return stops
 }

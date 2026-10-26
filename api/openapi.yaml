@@ -334,6 +334,22 @@ paths:
         '413': { $ref: '#/components/responses/Error' }
         '415': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /applications/{id}/documents/{documentId}:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+      - { $ref: '#/components/parameters/DocumentId' }
+    get:
+      tags: [client]
+      operationId: downloadDocument
+      summary: Файл документа своей заявки
+      responses:
+        '200':
+          description: Файл в исходном формате
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/Error' }
   /applications/{id}/respond:
     parameters:
       - { $ref: '#/components/parameters/ApplicationId' }
@@ -452,13 +468,33 @@ paths:
       responses:
         '204': { description: Готово }
 
+  /events/ticket:
+    post:
+      tags: [realtime]
+      operationId: issueEventsTicket
+      summary: Билет на открытие потока событий (действует 30 секунд)
+      description: >-
+        EventSource не умеет отправлять заголовки, поэтому учётные данные потока идут в адресе и попадают в журналы прокси.
+        Вместо токена доступа там передаётся билет: он открывает только поток событий и истекает через 30 секунд.
+      responses:
+        '200':
+          description: Билет
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ticket, expiresIn]
+                properties:
+                  ticket: { type: string }
+                  expiresIn: { type: integer, description: Секунд до истечения }
+        '401': { $ref: '#/components/responses/Error' }
   /events:
     get:
       tags: [realtime]
       operationId: streamEvents
-      summary: Поток событий (Server-Sent Events). Токен допускается в ?access_token=
+      summary: Поток событий (Server-Sent Events) по билету из POST /events/ticket
       parameters:
-        - { name: access_token, in: query, required: false, schema: { type: string } }
+        - { name: ticket, in: query, required: false, schema: { type: string }, description: 'Билет из POST /events/ticket; без него 401' }
       responses:
         '200':
           description: text/event-stream; события status, notification, queue
@@ -482,6 +518,34 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Queue' }
         '403': { $ref: '#/components/responses/Error' }
+  /staff/metrics:
+    get:
+      tags: [staff]
+      operationId: getProcessMetrics
+      summary: Показатели кредитного процесса по журналу заявок
+      description: Доля автоматических решений, время до решения по режимам, доля возвратов на уточнение, доля принятых предложений.
+      responses:
+        '200':
+          description: Показатели
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProcessMetrics' }
+  /staff/applications/{id}/documents/{documentId}:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+      - { $ref: '#/components/parameters/DocumentId' }
+    get:
+      tags: [staff]
+      operationId: downloadStaffDocument
+      summary: Файл документа заявки для проверки сотрудником
+      responses:
+        '200':
+          description: Файл в исходном формате
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/Error' }
   /staff/applications/{id}:
     parameters:
       - { $ref: '#/components/parameters/ApplicationId' }
@@ -644,6 +708,11 @@ components:
   parameters:
     ApplicationId:
       name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DocumentId:
+      name: documentId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -904,12 +973,18 @@ components:
           items: { type: string }
     Rejection:
       type: object
-      required: [reasons, by]
+      required: [reasons, by, advice, canReapply]
       properties:
         reasons:
           type: array
           items: { type: string }
         comment: { type: string }
+        advice:
+          type: string
+          description: Что клиент может сделать дальше; зависит от причины отказа
+        canReapply:
+          type: boolean
+          description: "Имеет ли смысл новая заявка сейчас: при жёстком стопе (компания не действует, банкротство) — нет"
         by:
           type: string
           enum: [system, staff]
@@ -1084,6 +1159,24 @@ components:
         bki: { $ref: '#/components/schemas/BKIReport' }
         attempts: { type: integer }
         lastError: { type: string }
+    ProcessMetrics:
+      type: object
+      required: [submitted, decided, decidedAuto, autoShare, medianAutoSeconds, medianAnalystSeconds, askedInfo, infoShare, offered, accepted, declined, expired, acceptanceShare, waitingAnalyst]
+      properties:
+        submitted: { type: integer, description: Отправлено заявок }
+        decided: { type: integer, description: Принято решений (первое решение по заявке) }
+        decidedAuto: { type: integer, description: Из них правилами системы без сотрудника }
+        autoShare: { type: number, format: double, description: "Доля автоматических решений, от 0 до 1" }
+        medianAutoSeconds: { type: number, format: double, description: Медиана времени от отправки до автоматического решения }
+        medianAnalystSeconds: { type: number, format: double, description: Медиана времени от отправки до решения сотрудника }
+        askedInfo: { type: integer, description: "Заявок, возвращённых на уточнение" }
+        infoShare: { type: number, format: double, description: "Доля возвратов на уточнение от отправленных, от 0 до 1" }
+        offered: { type: integer, description: Решений с предложением }
+        accepted: { type: integer }
+        declined: { type: integer }
+        expired: { type: integer }
+        acceptanceShare: { type: number, format: double, description: "Доля принятых среди предложений, по которым клиент уже ответил или срок истёк, от 0 до 1" }
+        waitingAnalyst: { type: integer, description: Сейчас ждут решения сотрудника }
     QueueItem:
       type: object
       required: [id, companyName, inn, productTitle, amount, termMonths, status, updatedAt, waitingMinutes, manualCheck, automatic]

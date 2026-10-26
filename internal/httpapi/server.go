@@ -110,12 +110,12 @@ var publicPaths = map[string]bool{
 }
 
 // bothRoles are reachable by clients and bank staff alike.
-var bothRoles = map[string]bool{"/api/v1/me": true, "/api/v1/events": true}
+var bothRoles = map[string]bool{"/api/v1/me": true, "/api/v1/events/ticket": true}
 
 // guard authenticates and applies role rules by path.
 func (s *Server) guard(next http.Handler) http.Handler {
 	authed := auth.Authenticate(s.Issuer)
-	authedQuery := auth.AuthenticateWithQuery(s.Issuer)
+	ticketed := auth.AuthenticateEventsTicket(s.Issuer)
 	staffOnly := auth.RequireRole("staff")
 	supportOnly := auth.RequireRole("support")
 	clientOnly := auth.RequireRole("client")
@@ -125,7 +125,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		case publicPaths[p]:
 			next.ServeHTTP(w, r)
 		case p == "/api/v1/events":
-			authedQuery(next).ServeHTTP(w, r)
+			ticketed(next).ServeHTTP(w, r)
 		case bothRoles[p]:
 			authed(next).ServeHTTP(w, r)
 		case strings.HasPrefix(p, "/api/v1/staff/"):

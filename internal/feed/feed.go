@@ -26,6 +26,8 @@ type AppSummary struct {
 	Status         string
 	ProductTitle   string
 	OfferExpiresAt time.Time
+	// RejectionAdvice is what the client can do after a refusal (decision.NextSteps); empty means the general advice.
+	RejectionAdvice string
 }
 
 type Profile struct {
@@ -42,7 +44,21 @@ const maxCards = 6
 
 var months = []string{"января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"}
 
-func ruDate(t time.Time) string { return fmt.Sprintf("%d %s", t.Day(), months[t.Month()-1]) }
+// moscow is the clients' time zone. The cabinet shows dates in it, so the feed does too; a fixed
+// offset keeps the minimal image free of tzdata (Moscow has no daylight saving time).
+var moscow = time.FixedZone("MSK", 3*60*60)
+
+func ruDate(t time.Time) string {
+	t = t.In(moscow)
+	return fmt.Sprintf("%d %s", t.Day(), months[t.Month()-1])
+}
+
+func rejectionAdvice(a AppSummary) string {
+	if a.RejectionAdvice != "" {
+		return a.RejectionAdvice
+	}
+	return "Возможное решение: заявка на меньшую сумму или по другому продукту."
+}
 
 func okvedClass(okved string) string {
 	if len(okved) < 2 {
@@ -138,7 +154,7 @@ func appCard(a AppSummary) (*Card, bool) {
 	case "REJECTED":
 		return &Card{ID: "app-" + a.ID + "-rejected", Kind: "tip", Priority: 6, ApplicationID: a.ID,
 			Title:    "Что делать после отказа",
-			Body:     "Посмотрите причины в заявке «" + a.ProductTitle + "». Возможное решение: заявка на меньшую сумму или по другому продукту.",
+			Body:     "Посмотрите причины в заявке «" + a.ProductTitle + "». " + rejectionAdvice(a),
 			CTALabel: "Посмотреть причины", CTAHref: href}, false
 	}
 	return nil, false

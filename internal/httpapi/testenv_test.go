@@ -164,6 +164,21 @@ func (e *testEnv) upload(token, appID, kind, filename string, content []byte) (i
 
 var pdfBytes = append([]byte("%PDF-1.4\n"), bytes.Repeat([]byte("x"), 200)...)
 
+// eventsTicket asks for a ticket to the event stream as the given user.
+func (e *testEnv) eventsTicket(login string) string {
+	e.t.Helper()
+	code, raw := e.do("POST", "/api/v1/events/ticket", e.token(login), nil)
+	var out struct {
+		Ticket    string `json:"ticket"`
+		ExpiresIn int    `json:"expiresIn"`
+	}
+	mustJSON(e.t, raw, &out)
+	if code != 200 || out.Ticket == "" || out.ExpiresIn != 30 {
+		e.t.Fatalf("events ticket: %d %s", code, raw)
+	}
+	return out.Ticket
+}
+
 // draft creates a draft for the logged-in client and uploads all required documents.
 func (e *testEnv) draft(login string, pid products.ID, amount int64, term int, withDocs bool) gen.Application {
 	e.t.Helper()

@@ -193,6 +193,10 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 		})
 	}
 	summary := fmt.Sprintf("Класс риска %s, %d баллов из 100", res.Grade, res.Score)
+	if len(res.HardStops) > 0 {
+		// A hard stop ends the scoring: the points do not matter, and "D with 88 points" would read as a contradiction.
+		summary = "Жёсткий стоп: " + strings.Join(res.HardStops, "; ") + ". Класс D назначен без учёта баллов"
+	}
 
 	switch dec.Outcome {
 	case decision.AutoOffer:

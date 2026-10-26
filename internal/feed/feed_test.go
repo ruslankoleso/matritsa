@@ -138,3 +138,10 @@ func sameTitles(a, b []Card) bool {
 	}
 	return true
 }
+
+func TestRuDateUsesMoscowTime(t *testing.T) {
+	// 22:30 UTC on 1 November is already 2 November in Moscow, as the cabinet shows it.
+	if got := ruDate(time.Date(2026, 11, 1, 22, 30, 0, 0, time.UTC)); got != "2 ноября" {
+		t.Fatalf("ruDate = %q, want %q", got, "2 ноября")
+	}
+}

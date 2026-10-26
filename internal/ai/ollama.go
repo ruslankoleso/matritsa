@@ -53,8 +53,9 @@ func (o *Ollama) chat(ctx context.Context, system, user string, asJSON bool) (st
 		"model":  o.model,
 		"stream": false,
 		// no chain of reasoning: it only lengthens the answer and may leak into the text
-		"think":    false,
-		"options":  map[string]any{"temperature": 0.2},
+		"think": false,
+		// 4096 tokens hold the system prompt, the facts and the answer; the default context of some models is larger and slower.
+		"options":  map[string]any{"temperature": 0.2, "num_ctx": 4096},
 		"messages": []map[string]string{{"role": "system", "content": system}, {"role": "user", "content": user}},
 	}
 	if asJSON {

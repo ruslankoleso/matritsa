@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"unicode/utf8"
 
 	"matritsa/internal/decision"
 	"matritsa/internal/scoring"
@@ -27,11 +28,26 @@ func (e *Explainer) Explain(ctx context.Context, res scoring.Result, d decision.
 			who = "клиента (предпринимателя, без банковской терминологии)"
 		}
 		reply, err := e.llm.Complete(ctx, explainSystem, "Аудитория: "+who+".\nФакты:\n"+facts)
-		if err == nil && strings.TrimSpace(reply) != "" {
+		if err == nil && explanationSound(strings.TrimSpace(reply), facts) {
 			return strings.TrimSpace(reply), "ai"
 		}
 	}
 	return facts, "rules"
+}
+
+// explanationSound checks the model's retelling the way the chat checks its answers: every number comes from
+// the facts, nothing is promised, and it stays a short retelling. A rejected retelling gives way to the facts.
+func explanationSound(reply, facts string) bool {
+	if reply == "" || utf8.RuneCountInString(reply) > 3*utf8.RuneCountInString(facts)+200 {
+		return false
+	}
+	low := strings.ToLower(reply)
+	for _, m := range promiseMarks {
+		if strings.Contains(low, m) {
+			return false
+		}
+	}
+	return figuresKnown(reply, facts)
 }
 
 func rubles(kopecks int64) string {
@@ -166,7 +182,8 @@ func clientText(strong, weak []scoring.Factor, gaps bool, d decision.Decision) s
 			b.WriteString("Условия подтвердит сотрудник банка.")
 		}
 	default:
-		b.WriteString("Банк не может одобрить заявку. " + strings.Join(d.Reasons, ". ") + ". Можно подать заявку на меньшую сумму или выбрать другой продукт.")
+		advice, _ := decision.NextSteps(d.Reasons)
+		b.WriteString("Банк не может одобрить заявку. " + strings.Join(d.Reasons, ". ") + ". " + advice)
 	}
 	return strings.TrimSpace(b.String())
 }

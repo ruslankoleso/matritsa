@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/products"
@@ -130,4 +132,55 @@ func (s *Server) UploadDocument(w http.ResponseWriter, r *http.Request, id gen.A
 		return
 	}
 	writeJSON(w, http.StatusCreated, gen.Document{Id: uid(doc.ID), Kind: doc.Kind, Filename: doc.Filename, Size: doc.Size, UploadedAt: doc.UploadedAt.Time})
+}
+
+// DownloadDocument gives a client a file of their own application.
+func (s *Server) DownloadDocument(w http.ResponseWriter, r *http.Request, id gen.ApplicationId, documentID gen.DocumentId) {
+	app, _, ok := s.own(w, r, id.String())
+	if !ok {
+		return
+	}
+	s.serveDocument(w, r, app.ID, documentID.String())
+}
+
+// DownloadStaffDocument lets the analyst open the documents of the application under review.
+func (s *Server) DownloadStaffDocument(w http.ResponseWriter, r *http.Request, id gen.ApplicationId, documentID gen.DocumentId) {
+	app, ok := s.staffApp(w, r, id.String())
+	if !ok {
+		return
+	}
+	s.serveDocument(w, r, app.ID, documentID.String())
+}
+
+func (s *Server) serveDocument(w http.ResponseWriter, r *http.Request, appID, documentID string) {
+	doc, err := s.Store.GetDocument(r.Context(), db.GetDocumentParams{ID: documentID, ApplicationID: appID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "not_found", "Документ не найден")
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	// The path comes from the database, written by UploadDocument; it must still stay inside the data directory.
+	full := filepath.Join(s.DataDir, doc.Path)
+	if rel, err := filepath.Rel(s.DataDir, full); err != nil || strings.HasPrefix(rel, "..") {
+		writeError(w, http.StatusNotFound, "not_found", "Документ не найден")
+		return
+	}
+	f, err := os.Open(full)
+	if errors.Is(err, os.ErrNotExist) {
+		writeError(w, http.StatusNotFound, "not_found", "Файл документа не найден в хранилище")
+		return
+	}
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", doc.ContentType) // set from the file's content at upload, not from the client's claim
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": doc.Filename}))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-store")
+	http.ServeContent(w, r, "", doc.UploadedAt.Time, f)
 }

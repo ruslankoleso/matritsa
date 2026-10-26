@@ -104,7 +104,7 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 		return gen.StaffApplication{}, err
 	}
 	data := appdata.Parse(a.Data)
-	card := gen.StaffApplication{Application: view, Events: toTimeline(evs), AllowedActions: []gen.StaffApplicationAllowedActions{}, Version: &view.Version}
+	card := gen.StaffApplication{Application: view, Events: toTimeline(evs, false), AllowedActions: []gen.StaffApplicationAllowedActions{}, Version: &view.Version}
 
 	res, err := s.loadScoring(ctx, a.ID)
 	if err != nil {

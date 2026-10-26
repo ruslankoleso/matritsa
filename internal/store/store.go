@@ -67,3 +67,24 @@ func (s *Store) WithTx(ctx context.Context, fn func(q *db.Queries) error) error 
 	}
 	return tx.Commit(ctx)
 }
+
+// TryLock takes a PostgreSQL advisory lock named by key without waiting. ok=false means another
+// connection, possibly another instance of the API, holds it. The lock lives on one pooled connection
+// and goes away with it, so a crashed instance never leaves it behind. release must be called when ok.
+func (s *Store) TryLock(ctx context.Context, key string) (release func(), ok bool, err error) {
+	conn, err := s.Pool.Acquire(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock(hashtextextended($1, 0))`, key).Scan(&ok); err != nil || !ok {
+		conn.Release()
+		return nil, false, err
+	}
+	return func() {
+		// A fresh context: the caller's may be cancelled already, and the lock must still be given back.
+		if _, err := conn.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtextextended($1, 0))`, key); err != nil {
+			conn.Conn().Close(context.Background()) // closing the connection drops the lock too
+		}
+		conn.Release()
+	}, true, nil
+}

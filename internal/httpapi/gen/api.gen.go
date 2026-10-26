@@ -828,6 +828,45 @@ type Offer struct {
 // OfferSource defines model for Offer.Source.
 type OfferSource string
 
+// ProcessMetrics defines model for ProcessMetrics.
+type ProcessMetrics struct {
+	// AcceptanceShare Доля принятых среди предложений, по которым клиент уже ответил или срок истёк, от 0 до 1
+	AcceptanceShare float64 `json:"acceptanceShare"`
+	Accepted        int     `json:"accepted"`
+
+	// AskedInfo Заявок, возвращённых на уточнение
+	AskedInfo int `json:"askedInfo"`
+
+	// AutoShare Доля автоматических решений, от 0 до 1
+	AutoShare float64 `json:"autoShare"`
+
+	// Decided Принято решений (первое решение по заявке)
+	Decided int `json:"decided"`
+
+	// DecidedAuto Из них правилами системы без сотрудника
+	DecidedAuto int `json:"decidedAuto"`
+	Declined    int `json:"declined"`
+	Expired     int `json:"expired"`
+
+	// InfoShare Доля возвратов на уточнение от отправленных, от 0 до 1
+	InfoShare float64 `json:"infoShare"`
+
+	// MedianAnalystSeconds Медиана времени от отправки до решения сотрудника
+	MedianAnalystSeconds float64 `json:"medianAnalystSeconds"`
+
+	// MedianAutoSeconds Медиана времени от отправки до автоматического решения
+	MedianAutoSeconds float64 `json:"medianAutoSeconds"`
+
+	// Offered Решений с предложением
+	Offered int `json:"offered"`
+
+	// Submitted Отправлено заявок
+	Submitted int `json:"submitted"`
+
+	// WaitingAnalyst Сейчас ждут решения сотрудника
+	WaitingAnalyst int `json:"waitingAnalyst"`
+}
+
 // Product defines model for Product.
 type Product struct {
 	AutoApproveLimit int64            `json:"autoApproveLimit"`
@@ -922,10 +961,16 @@ type RegistrationExample struct {
 
 // Rejection defines model for Rejection.
 type Rejection struct {
+	// Advice Что клиент может сделать дальше; зависит от причины отказа
+	Advice string `json:"advice"`
+
 	// By Кто принял решение: правила системы (автоматический отказ) или сотрудник банка
-	By      RejectionBy `json:"by"`
-	Comment *string     `json:"comment,omitempty"`
-	Reasons []string    `json:"reasons"`
+	By RejectionBy `json:"by"`
+
+	// CanReapply Имеет ли смысл новая заявка сейчас: при жёстком стопе (компания не действует, банкротство) — нет
+	CanReapply bool     `json:"canReapply"`
+	Comment    *string  `json:"comment,omitempty"`
+	Reasons    []string `json:"reasons"`
 }
 
 // RejectionBy Кто принял решение: правила системы (автоматический отказ) или сотрудник банка
@@ -1114,6 +1159,9 @@ type TokenPairRole string
 // ApplicationId defines model for ApplicationId.
 type ApplicationId = openapi_types.UUID
 
+// DocumentId defines model for DocumentId.
+type DocumentId = openapi_types.UUID
+
 // UploadDocumentMultipartBody defines parameters for UploadDocument.
 type UploadDocumentMultipartBody struct {
 	File openapi_types.File `json:"file"`
@@ -1139,7 +1187,8 @@ type LookupCompanyParams struct {
 
 // StreamEventsParams defines parameters for StreamEvents.
 type StreamEventsParams struct {
-	AccessToken *string `form:"access_token,omitempty" json:"access_token,omitempty"`
+	// Ticket Билет из POST /events/ticket; без него 401
+	Ticket *string `form:"ticket,omitempty" json:"ticket,omitempty"`
 }
 
 // GetExplanationParams defines parameters for GetExplanation.
@@ -1211,6 +1260,9 @@ type ServerInterface interface {
 	// UploadDocument Загрузить документ (PDF, PNG, JPEG до 5 МБ)
 	// (POST /applications/{id}/documents)
 	UploadDocument(w http.ResponseWriter, r *http.Request, id ApplicationId)
+	// DownloadDocument Файл документа своей заявки
+	// (GET /applications/{id}/documents/{documentId})
+	DownloadDocument(w http.ResponseWriter, r *http.Request, id ApplicationId, documentId DocumentId)
 	// AcceptOffer Принять предложение, подписать (демо) — деньги выдаются условно
 	// (POST /applications/{id}/offer/accept)
 	AcceptOffer(w http.ResponseWriter, r *http.Request, id ApplicationId)
@@ -1259,9 +1311,12 @@ type ServerInterface interface {
 	// LookupCompany Найти компанию по ИНН в (смоделированном) ЕГРЮЛ
 	// (GET /company/lookup)
 	LookupCompany(w http.ResponseWriter, r *http.Request, params LookupCompanyParams)
-	// StreamEvents Поток событий (Server-Sent Events). Токен допускается в ?access_token=
+	// StreamEvents Поток событий (Server-Sent Events) по билету из POST /events/ticket
 	// (GET /events)
 	StreamEvents(w http.ResponseWriter, r *http.Request, params StreamEventsParams)
+	// IssueEventsTicket Билет на открытие потока событий (действует 30 секунд)
+	// (POST /events/ticket)
+	IssueEventsTicket(w http.ResponseWriter, r *http.Request)
 	// GetFeed Персональная лента предложений и подсказок
 	// (GET /feed)
 	GetFeed(w http.ResponseWriter, r *http.Request)
@@ -1286,9 +1341,15 @@ type ServerInterface interface {
 	// MakeDecision Принять решение по заявке
 	// (POST /staff/applications/{id}/decision)
 	MakeDecision(w http.ResponseWriter, r *http.Request, id ApplicationId)
+	// DownloadStaffDocument Файл документа заявки для проверки сотрудником
+	// (GET /staff/applications/{id}/documents/{documentId})
+	DownloadStaffDocument(w http.ResponseWriter, r *http.Request, id ApplicationId, documentId DocumentId)
 	// GetExplanation Пояснение решения простым языком (ИИ либо шаблон)
 	// (GET /staff/applications/{id}/explanation)
 	GetExplanation(w http.ResponseWriter, r *http.Request, id ApplicationId, params GetExplanationParams)
+	// GetProcessMetrics Показатели кредитного процесса по журналу заявок
+	// (GET /staff/metrics)
+	GetProcessMetrics(w http.ResponseWriter, r *http.Request)
 	// GetQueue Очередь заявок (сначала ожидающие решения сотрудника)
 	// (GET /staff/queue)
 	GetQueue(w http.ResponseWriter, r *http.Request, params GetQueueParams)
@@ -1346,6 +1407,12 @@ func (_ Unimplemented) CancelApplication(w http.ResponseWriter, r *http.Request,
 // UploadDocument Загрузить документ (PDF, PNG, JPEG до 5 МБ)
 // (POST /applications/{id}/documents)
 func (_ Unimplemented) UploadDocument(w http.ResponseWriter, r *http.Request, id ApplicationId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DownloadDocument Файл документа своей заявки
+// (GET /applications/{id}/documents/{documentId})
+func (_ Unimplemented) DownloadDocument(w http.ResponseWriter, r *http.Request, id ApplicationId, documentId DocumentId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1445,9 +1512,15 @@ func (_ Unimplemented) LookupCompany(w http.ResponseWriter, r *http.Request, par
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// StreamEvents Поток событий (Server-Sent Events). Токен допускается в ?access_token=
+// StreamEvents Поток событий (Server-Sent Events) по билету из POST /events/ticket
 // (GET /events)
 func (_ Unimplemented) StreamEvents(w http.ResponseWriter, r *http.Request, params StreamEventsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// IssueEventsTicket Билет на открытие потока событий (действует 30 секунд)
+// (POST /events/ticket)
+func (_ Unimplemented) IssueEventsTicket(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1499,9 +1572,21 @@ func (_ Unimplemented) MakeDecision(w http.ResponseWriter, r *http.Request, id A
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// DownloadStaffDocument Файл документа заявки для проверки сотрудником
+// (GET /staff/applications/{id}/documents/{documentId})
+func (_ Unimplemented) DownloadStaffDocument(w http.ResponseWriter, r *http.Request, id ApplicationId, documentId DocumentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetExplanation Пояснение решения простым языком (ИИ либо шаблон)
 // (GET /staff/applications/{id}/explanation)
 func (_ Unimplemented) GetExplanation(w http.ResponseWriter, r *http.Request, id ApplicationId, params GetExplanationParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetProcessMetrics Показатели кредитного процесса по журналу заявок
+// (GET /staff/metrics)
+func (_ Unimplemented) GetProcessMetrics(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1673,6 +1758,41 @@ func (siw *ServerInterfaceWrapper) UploadDocument(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UploadDocument(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadDocument operation middleware
+func (siw *ServerInterfaceWrapper) DownloadDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "documentId" -------------
+	var documentId DocumentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "documentId", chi.URLParam(r, "documentId"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "documentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadDocument(w, r, id, documentId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2041,21 +2161,35 @@ func (siw *ServerInterfaceWrapper) StreamEvents(w http.ResponseWriter, r *http.R
 	// Parameter object where we will unmarshal all parameters from the context
 	var params StreamEventsParams
 
-	// ------------- Optional query parameter "access_token" -------------
+	// ------------- Optional query parameter "ticket" -------------
 
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "access_token", r.URL.Query(), &params.AccessToken, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "ticket", r.URL.Query(), &params.Ticket, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
 	if err != nil {
 		var requiredError *runtime.RequiredParameterError
 		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "access_token"})
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ticket"})
 		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "access_token", Err: err})
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ticket", Err: err})
 		}
 		return
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.StreamEvents(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IssueEventsTicket operation middleware
+func (siw *ServerInterfaceWrapper) IssueEventsTicket(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IssueEventsTicket(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2225,6 +2359,41 @@ func (siw *ServerInterfaceWrapper) MakeDecision(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DownloadStaffDocument operation middleware
+func (siw *ServerInterfaceWrapper) DownloadStaffDocument(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "documentId" -------------
+	var documentId DocumentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "documentId", chi.URLParam(r, "documentId"), &documentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "documentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadStaffDocument(w, r, id, documentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetExplanation operation middleware
 func (siw *ServerInterfaceWrapper) GetExplanation(w http.ResponseWriter, r *http.Request) {
 
@@ -2258,6 +2427,20 @@ func (siw *ServerInterfaceWrapper) GetExplanation(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetExplanation(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProcessMetrics operation middleware
+func (siw *ServerInterfaceWrapper) GetProcessMetrics(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProcessMetrics(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2602,6 +2785,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/applications/{id}/documents", wrapper.UploadDocument)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/applications/{id}/documents/{documentId}", wrapper.DownloadDocument)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/applications/{id}/respond", wrapper.RespondToInfoRequest)
 	})
 	r.Group(func(r chi.Router) {
@@ -2626,10 +2812,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/notifications/{id}/read", wrapper.MarkNotificationRead)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/ticket", wrapper.IssueEventsTicket)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/events", wrapper.StreamEvents)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/staff/queue", wrapper.GetQueue)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/staff/metrics", wrapper.GetProcessMetrics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/staff/applications/{id}/documents/{documentId}", wrapper.DownloadStaffDocument)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/staff/applications/{id}", wrapper.GetStaffApplication)

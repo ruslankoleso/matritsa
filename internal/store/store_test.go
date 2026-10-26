@@ -73,3 +73,26 @@ func TestWithTx_RollsBackOnError(t *testing.T) {
 		t.Fatalf("user must be rolled back, got %d", n)
 	}
 }
+
+func TestTryLock_OneHolderAtATime(t *testing.T) {
+	s := storetest.New(t)
+	ctx := context.Background()
+	release, ok, err := s.TryLock(ctx, "pipeline:a1")
+	if err != nil || !ok {
+		t.Fatalf("first lock: ok=%v err=%v", ok, err)
+	}
+	if _, ok, err := s.TryLock(ctx, "pipeline:a1"); err != nil || ok {
+		t.Fatalf("second holder must be refused while the first holds it: ok=%v err=%v", ok, err)
+	}
+	if r, ok, err := s.TryLock(ctx, "pipeline:a2"); err != nil || !ok {
+		t.Fatalf("another key is independent: ok=%v err=%v", ok, err)
+	} else {
+		r()
+	}
+	release()
+	r, ok, err := s.TryLock(ctx, "pipeline:a1")
+	if err != nil || !ok {
+		t.Fatalf("after release the lock is free: ok=%v err=%v", ok, err)
+	}
+	r()
+}

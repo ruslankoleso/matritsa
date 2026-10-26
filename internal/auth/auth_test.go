@@ -96,14 +96,28 @@ func TestStaffRoute_ClientToken_403(t *testing.T) {
 	}
 }
 
-func TestQueryToken_OnlyWhenAllowed(t *testing.T) {
+func TestEventsTicket(t *testing.T) {
 	iss := NewIssuer("secret-secret-secret-secret-1234")
-	tok, _, _ := iss.Issue("c1", "client")
-	if rec := do(Authenticate(iss)(okHandler()), "", "/events?access_token="+tok); rec.Code != 401 {
-		t.Fatalf("query token must be refused by default, got %d", rec.Code)
+	now := time.Now()
+	iss.Now = func() time.Time { return now }
+	access, _, _ := iss.Issue("c1", "client")
+	ticket, _ := iss.IssueEventsTicket("c1", "client")
+	stream := AuthenticateEventsTicket(iss)(okHandler())
+	if rec := do(stream, "", "/events?ticket="+ticket); rec.Code != 200 {
+		t.Fatalf("ticket must open the stream, got %d", rec.Code)
 	}
-	if rec := do(AuthenticateWithQuery(iss)(okHandler()), "", "/events?access_token="+tok); rec.Code != 200 {
-		t.Fatalf("query token must work for SSE route, got %d", rec.Code)
+	if rec := do(stream, "", "/events?access_token="+access); rec.Code != 401 {
+		t.Fatalf("an access token in the address must be refused, got %d", rec.Code)
+	}
+	if rec := do(stream, "", "/events?ticket="+access); rec.Code != 401 {
+		t.Fatalf("an access token is not a ticket, got %d", rec.Code)
+	}
+	if rec := do(Authenticate(iss)(okHandler()), ticket, "/me"); rec.Code != 401 {
+		t.Fatalf("a ticket must not work as an access token, got %d", rec.Code)
+	}
+	now = now.Add(EventsTTL + time.Second)
+	if rec := do(stream, "", "/events?ticket="+ticket); rec.Code != 401 {
+		t.Fatalf("an expired ticket must be refused, got %d", rec.Code)
 	}
 }
 

@@ -328,18 +328,39 @@ func TestScore_BiggerAndLongerRequest_NeverScoresBetter_AndCanFallToAnotherClass
 func TestExpectedLoss_Formula(t *testing.T) {
 	in := baseInput() // grade A: PD 1% a year, LGD 60%, 1 000 000 RUB for 12 months
 	res := Score(in, DefaultConfig())
-	if res.PD != 0.01 || res.LGD != 0.6 || res.EAD != 1_000_000*rub {
-		t.Fatalf("inputs of the formula wrong: PD=%v LGD=%v EAD=%d", res.PD, res.LGD, res.EAD)
+	if res.PD != 0.01 || res.LGD != 0.6 {
+		t.Fatalf("inputs of the formula wrong: PD=%v LGD=%v", res.PD, res.LGD)
 	}
 	if res.CumulativePD < 0.0099 || res.CumulativePD > 0.0101 {
 		t.Fatalf("cumulative PD over one year must equal the annual PD, got %v", res.CumulativePD)
 	}
-	want := int64(6_000) * rub // 1% x 60% x 1 000 000
+	if res.EAD != AverageExposure(in.Amount, in.RateBP, in.TermMonths) {
+		t.Fatalf("EAD must be the average debt over the term, got %d", res.EAD)
+	}
+	want := int64(math.Round(float64(res.EAD) * 0.01 * 0.6)) // PD x LGD x EAD
 	if res.ExpectedLoss < want-rub || res.ExpectedLoss > want+rub {
 		t.Fatalf("EL = PD x LGD x EAD: want %d, got %d", want, res.ExpectedLoss)
 	}
 	if res.ELRate < 0.0059 || res.ELRate > 0.0061 {
 		t.Fatalf("EL rate = cumulative PD x LGD, got %v", res.ELRate)
+	}
+}
+
+func TestAverageExposure_Amortising(t *testing.T) {
+	// A year-long annuity: about 54 % of the amount on average (a little over half: interest makes the
+	// early payments repay less of the principal).
+	got := AverageExposure(1_000_000*rub, 1650, 12)
+	if got < 530_000*rub || got > 560_000*rub {
+		t.Fatalf("average debt of a 1 000 000 annuity over 12 months: %d", got)
+	}
+	if AverageExposure(1_000_000*rub, 1650, 1) != 1_000_000*rub {
+		t.Error("a one-month loan is exposed in full")
+	}
+	// Over any term the average debt of an annuity is between half the amount and all of it.
+	for _, n := range []int{6, 24, 60} {
+		if got := AverageExposure(1_000_000*rub, 1650, n); got <= 500_000*rub || got >= 1_000_000*rub {
+			t.Errorf("%d months: average debt %d is out of (half, full)", n, got)
+		}
 	}
 }
 

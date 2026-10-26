@@ -166,13 +166,13 @@ func TestOllama_ParsesChatResponse(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&req)
-		if r.URL.Path != "/api/chat" || req["model"] != "qwen2.5:3b" || req["stream"] != false {
+		if r.URL.Path != "/api/chat" || req["model"] != "test-model" || req["stream"] != false {
 			t.Errorf("bad request %s %+v", r.URL.Path, req)
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"message": map[string]string{"role": "assistant", "content": `{"ok":true}`}})
 	}))
 	defer srv.Close()
-	got, err := NewOllama(srv.URL, "qwen2.5:3b").Complete(context.Background(), "sys", "user")
+	got, err := NewOllama(srv.URL, "test-model").Complete(context.Background(), "sys", "user")
 	if err != nil || got != `{"ok":true}` {
 		t.Fatalf("got %q %v", got, err)
 	}
@@ -348,6 +348,23 @@ func TestOllama_StripsLeakedThinkingTags(t *testing.T) {
 		got, err := NewOllama(srv.URL, "m").Complete(context.Background(), "s", "u")
 		if err != nil || got != want {
 			t.Errorf("%q\n got %q\nwant %q (%v)", in, got, want, err)
+		}
+	}
+}
+
+func TestExplain_ModelRetellingIsChecked(t *testing.T) {
+	res, d := sampleResult()
+	ok := "Класс риска C, 59 баллов из 100. Бизнес работает 8 лет, но денежного потока не хватает на платежи."
+	if text, src := NewExplainer(&fakeLLM{reply: ok}).Explain(context.Background(), res, d, "staff"); src != "ai" || text != ok {
+		t.Fatalf("a retelling with the known figures must be used: %s %q", src, text)
+	}
+	for name, reply := range map[string]string{
+		"invented figure": "Класс риска C, 59 баллов. Решение будет через 5 рабочих дней, ставка 12 %.",
+		"promise":         "Класс C, 59 баллов, но кредит одобрят, не волнуйтесь.",
+		"empty":           "   ",
+	} {
+		if _, src := NewExplainer(&fakeLLM{reply: reply}).Explain(context.Background(), res, d, "staff"); src != "rules" {
+			t.Errorf("%s: the facts must replace the model's retelling", name)
 		}
 	}
 }

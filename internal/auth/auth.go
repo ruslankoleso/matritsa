@@ -18,8 +18,12 @@ import (
 const (
 	TypeAccess  = "access"
 	TypeRefresh = "refresh"
+	// TypeEvents is a ticket that only opens the event stream. EventSource cannot send headers, so the
+	// credential travels in the address and lands in proxy logs: it must be useless anywhere else and soon.
+	TypeEvents = "events"
 
 	AccessTTL  = 15 * time.Minute
+	EventsTTL  = 30 * time.Second // only to open the stream; an open stream is not cut when it expires
 	RefreshTTL = 7 * 24 * time.Hour
 )
 
@@ -67,6 +71,11 @@ func (i *Issuer) Issue(userID, role string) (access, refresh string, err error) 
 	return
 }
 
+// IssueEventsTicket returns a short-lived ticket for opening the event stream.
+func (i *Issuer) IssueEventsTicket(userID, role string) (string, error) {
+	return i.sign(userID, role, TypeEvents, EventsTTL)
+}
+
 // Parse validates the signature, expiry and token type.
 func (i *Issuer) Parse(token, wantType string) (Claims, error) {
 	var tc tokenClaims
@@ -98,15 +107,13 @@ func deny(w http.ResponseWriter, code int, msg string) {
 	_, _ = fmt.Fprintf(w, `{"code":%q,"message":%q}`, http.StatusText(code), msg)
 }
 
-func authenticate(iss *Issuer, allowQuery bool) func(http.Handler) http.Handler {
+// Authenticate requires a valid Bearer access token.
+func Authenticate(iss *Issuer) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 			if tok == r.Header.Get("Authorization") {
 				tok = ""
-			}
-			if tok == "" && allowQuery {
-				tok = r.URL.Query().Get("access_token")
 			}
 			if tok == "" {
 				deny(w, http.StatusUnauthorized, "Войдите, чтобы продолжить")
@@ -122,12 +129,24 @@ func authenticate(iss *Issuer, allowQuery bool) func(http.Handler) http.Handler 
 	}
 }
 
-// Authenticate requires a valid Bearer access token.
-func Authenticate(iss *Issuer) func(http.Handler) http.Handler { return authenticate(iss, false) }
-
-// AuthenticateWithQuery additionally accepts ?access_token= (EventSource cannot set headers).
-func AuthenticateWithQuery(iss *Issuer) func(http.Handler) http.Handler {
-	return authenticate(iss, true)
+// AuthenticateEventsTicket accepts only ?ticket= with an events ticket: an access token in the address is refused,
+// so a token copied from a log cannot open the API.
+func AuthenticateEventsTicket(iss *Issuer) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tok := r.URL.Query().Get("ticket")
+			if tok == "" {
+				deny(w, http.StatusUnauthorized, "Нужен билет потока событий: POST /api/v1/events/ticket")
+				return
+			}
+			c, err := iss.Parse(tok, TypeEvents)
+			if err != nil {
+				deny(w, http.StatusUnauthorized, "Билет потока событий недействителен или истёк")
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(NewContext(r.Context(), c)))
+		})
+	}
 }
 
 // RequireRole lets only the listed roles through; Authenticate must run first.

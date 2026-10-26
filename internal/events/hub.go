@@ -15,12 +15,21 @@ type Event struct {
 	At            time.Time `json:"at"`
 }
 
-// Hub is an in-memory pub/sub keyed by user ID (or "staff" for the whole bank team).
+// Hub is a pub/sub keyed by user ID (or "staff" for the whole bank team) for the streams open on this
+// instance. With a sender (see Relay) events go through PostgreSQL and come back to every instance.
 // Delivery is best-effort and never blocks the publisher; the UI refetches on reconnect.
 type Hub struct {
 	mu     sync.Mutex
 	subs   map[string]map[chan Event]struct{}
 	closed bool
+	send   func(key string, e Event) error
+}
+
+// SetSender routes Publish through an external bus; the bus hands events back through Deliver.
+func (h *Hub) SetSender(send func(key string, e Event) error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.send = send
 }
 
 func NewHub() *Hub { return &Hub{subs: map[string]map[chan Event]struct{}{}} }
@@ -70,10 +79,23 @@ func (h *Hub) Close() {
 	}
 }
 
+// Publish sends an event to the streams of key on every instance. If the bus is unavailable, at least
+// the streams on this instance get it.
 func (h *Hub) Publish(key string, e Event) {
 	if e.At.IsZero() {
 		e.At = time.Now()
 	}
+	h.mu.Lock()
+	send := h.send
+	h.mu.Unlock()
+	if send != nil && send(key, e) == nil {
+		return // it comes back through Deliver, here and on the other instances
+	}
+	h.Deliver(key, e)
+}
+
+// Deliver hands an event to the streams of key open on this instance.
+func (h *Hub) Deliver(key string, e Event) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for ch := range h.subs[key] {

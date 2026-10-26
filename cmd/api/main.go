@@ -54,6 +54,8 @@ func run() error {
 	}
 
 	hub := events.NewHub()
+	// Events go through PostgreSQL LISTEN/NOTIFY, so several instances of the API can serve the same users.
+	events.Relay(ctx, st.Pool, hub)
 	client := integrations.NewClient(cfg.BKIURL, cfg.EGRULURL)
 	pipe := pipeline.New(st, client, hub, pipeline.DefaultConfig())
 	pipeDone := make(chan struct{})

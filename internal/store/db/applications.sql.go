@@ -214,6 +214,31 @@ func (q *Queries) GetApplicationForUpdate(ctx context.Context, id string) (Appli
 	return i, err
 }
 
+const getDocument = `-- name: GetDocument :one
+SELECT id, application_id, kind, filename, content_type, size, path, uploaded_at FROM documents WHERE id = $1 AND application_id = $2
+`
+
+type GetDocumentParams struct {
+	ID            string `json:"id"`
+	ApplicationID string `json:"application_id"`
+}
+
+func (q *Queries) GetDocument(ctx context.Context, arg GetDocumentParams) (Document, error) {
+	row := q.db.QueryRow(ctx, getDocument, arg.ID, arg.ApplicationID)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.ApplicationID,
+		&i.Kind,
+		&i.Filename,
+		&i.ContentType,
+		&i.Size,
+		&i.Path,
+		&i.UploadedAt,
+	)
+	return i, err
+}
+
 const getScoringResult = `-- name: GetScoringResult :one
 SELECT application_id, score, grade, factors, hard_stops, max_affordable, debt_load, enrichment, created_at, metrics FROM scoring_results WHERE application_id = $1
 `

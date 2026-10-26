@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"matritsa/internal/appdata"
 	"matritsa/internal/auth"
+	"matritsa/internal/decision"
 	"matritsa/internal/feed"
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/workflow"
@@ -62,6 +64,11 @@ func (s *Server) GetFeed(w http.ResponseWriter, r *http.Request) {
 				sum.OfferExpiresAt = o.ExpiresAt.Time
 			}
 		}
+		if workflow.Status(a.Status) == workflow.Rejected {
+			if rej := appdata.Parse(a.Data).Rejection; rej != nil {
+				sum.RejectionAdvice, _ = decision.NextSteps(rej.Reasons)
+			}
+		}
 		p.Applications = append(p.Applications, sum)
 	}
 	cards := feed.Build(p)
@@ -113,6 +120,20 @@ func (s *Server) MarkNotificationRead(w http.ResponseWriter, r *http.Request, id
 }
 
 // StreamEvents is a Server-Sent Events stream of status changes and notifications.
+// IssueEventsTicket gives the signed-in person a ticket to open the event stream with.
+func (s *Server) IssueEventsTicket(w http.ResponseWriter, r *http.Request) {
+	claims, _ := auth.FromContext(r.Context())
+	ticket, err := s.Issuer.IssueEventsTicket(claims.UserID, claims.Role)
+	if err != nil {
+		internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Ticket    string `json:"ticket"`
+		ExpiresIn int    `json:"expiresIn"`
+	}{ticket, int(auth.EventsTTL / time.Second)})
+}
+
 func (s *Server) StreamEvents(w http.ResponseWriter, r *http.Request, _ gen.StreamEventsParams) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {

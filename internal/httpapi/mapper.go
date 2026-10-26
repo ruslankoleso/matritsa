@@ -167,6 +167,7 @@ func (s *Server) loadApplication(ctx context.Context, a db.Application) (gen.App
 		if c := s.lastStaffComment(ctx, a.ID, "AnalystReject"); c != "" {
 			rej.Comment = &c
 		}
+		rej.Advice, rej.CanReapply = decision.NextSteps(rej.Reasons)
 		out.Rejection = &rej
 	}
 	return out, nil
@@ -195,14 +196,27 @@ func actorKind(actor string) string {
 	return "system"
 }
 
-func toTimeline(evs []db.ApplicationEvent) []gen.TimelineEntry {
+// clientComments are the events whose comment is written for the client: what the intake check
+// found missing and the client's own answers. Comments of staff are addressed to the client too.
+// Other comments are the system's working notes ("Класс риска D, 88 баллов из 100") and stay with the bank.
+var clientComments = map[workflow.Event]bool{
+	workflow.IntakeNeedsInfo: true, workflow.ClientProvidedInfo: true, workflow.ClientAnswered: true,
+}
+
+// toTimeline maps the audit trail; forClient hides the bank's working notes.
+func toTimeline(evs []db.ApplicationEvent, forClient bool) []gen.TimelineEntry {
 	out := make([]gen.TimelineEntry, 0, len(evs))
 	for _, e := range evs {
 		msg := workflow.ClientMessage(workflow.Status(e.ToStatus))
 		if e.FromStatus == e.ToStatus {
 			msg = e.Comment
 		}
-		entry := gen.TimelineEntry{At: e.At.Time, Actor: actorKind(e.Actor), Event: e.Event, FromStatus: e.FromStatus, ToStatus: e.ToStatus, Message: msg}
+		actor := actorKind(e.Actor)
+		entry := gen.TimelineEntry{At: e.At.Time, Actor: actor, Event: e.Event, FromStatus: e.FromStatus, ToStatus: e.ToStatus, Message: msg}
+		if forClient && actor != "staff" && !clientComments[workflow.Event(e.Event)] {
+			out = append(out, entry)
+			continue
+		}
 		if e.Comment != "" {
 			c := e.Comment
 			entry.Comment = &c

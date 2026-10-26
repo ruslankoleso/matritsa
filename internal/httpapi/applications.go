@@ -357,5 +357,5 @@ func (s *Server) GetTimeline(w http.ResponseWriter, r *http.Request, id gen.Appl
 		internalError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toTimeline(evs))
+	writeJSON(w, http.StatusOK, toTimeline(evs, true))
 }
