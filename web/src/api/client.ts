@@ -209,6 +209,7 @@ export const api = {
   queue: (status?: string, search?: string) => request<Queue>('GET', `/staff/queue${q({ status, q: search })}`),
   staffApplication: (id: string) => request<StaffApplication>('GET', `/staff/applications/${id}`),
   claim: (id: string) => request<StaffApplication>('POST', `/staff/applications/${id}/claim`),
+  checkPurpose: (id: string, verdict: 'confirmed' | 'clarify' | 'not_confirmed', comment?: string) => request<StaffApplication>('POST', `/staff/applications/${id}/purpose-check`, { verdict, comment }),
   decide: (id: string, body: DecisionRequest) => request<StaffApplication>('POST', `/staff/applications/${id}/decision`, body),
   explanation: (id: string, audience: 'staff' | 'client') => request<Explanation>('GET', `/staff/applications/${id}/explanation${q({ audience })}`),
 }

@@ -69,7 +69,7 @@ func TestDemoCompanies_ProduceIntendedOutcomes(t *testing.T) {
 // Every demo company with the grade and the points the scorecard gives it: the stories must read right.
 func TestDemoCompanies_GradesMatchTheirStories(t *testing.T) {
 	want := map[string]scoring.Grade{
-		"client1": "A", "client2": "B", "client3": "C", "client4": "D", "client5": "B", "client6": "D",
+		"client1": "A", "client2": "C", "client3": "C", "client4": "D", "client5": "B", "client6": "D",
 		"client7": "A", "client8": "A", "client9": "C", "client10": "D", "client11": "A",
 	}
 	for _, c := range seed.Companies() {

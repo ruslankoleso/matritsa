@@ -18,12 +18,16 @@ export async function newPage(context: BrowserContext, who: RegExp) {
 }
 
 /** Walks the client wizard and submits. Returns the application id. */
-export async function fillAndSubmit(page: Page, opts: { product: RegExp; amount: string; term?: string; purpose?: string; fileName?: string }) {
+export async function fillAndSubmit(page: Page, opts: { product: RegExp; amount: string; term?: string; purpose?: string; fileName?: string; collateral?: { kind: RegExp; value?: string } }) {
   await page.goto('/cabinet/new')
   await page.locator('.choice', { hasText: opts.product }).click()
   await page.locator('#amount').fill(opts.amount)
   if (opts.term) await page.locator('#term').fill(opts.term)
   await page.locator('#purpose').fill(opts.purpose ?? 'Закупка сырья перед сезоном')
+  if (opts.collateral) {
+    await page.locator('.collateral-opts label', { hasText: opts.collateral.kind }).click()
+    if (opts.collateral.value) await page.locator('#collateralValue').fill(opts.collateral.value)
+  }
   await page.getByRole('button', { name: 'Далее' }).click()
   await page.waitForURL(/\/cabinet\/applications\/[0-9a-f-]{36}\?step=2/)
   const id = page.url().match(/applications\/([0-9a-f-]{36})/)![1]

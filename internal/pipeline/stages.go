@@ -2,9 +2,9 @@ package pipeline
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -147,58 +147,14 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 				d.Review = &appdata.Review{ManualCheck: true, Reasons: []string{"Не удалось получить данные для автоматической оценки — проверьте компанию вручную"}}
 			}))
 	}
-	co, err := p.s.GetCompany(ctx, app.CompanyID)
+	in, err := p.scoreInput(ctx, app, data, prod)
 	if err != nil {
 		return err
 	}
-	fin, err := p.s.ListFinancials(ctx, app.CompanyID)
-	if err != nil {
-		return err
-	}
-	revenue := make([]int64, len(fin))
-	for i, f := range fin {
-		revenue[i] = f.Revenue
-	}
-	docs, err := p.s.ListDocuments(ctx, app.ID)
-	if err != nil {
-		return err
-	}
-	// Which documents confirm the purpose depends on the product (the catalog says it).
-	confirming := map[string]bool{}
-	for _, d := range prod.Documents {
-		if d.ConfirmsPurpose {
-			confirming[d.Kind] = true
-		}
-	}
-	purposeDocs := false
-	for _, d := range docs {
-		purposeDocs = purposeDocs || confirming[d.Kind]
-	}
-	age := int(p.now().Sub(co.RegisteredAt.Time).Hours() / 24 / 30)
-	in := scoring.Input{
-		CompanyAgeMonths: age, MonthlyRevenue: revenue, MonthlyObligations: co.MonthlyObligations,
-		BKI: data.Enrichment.BKI, EGRUL: *data.Enrichment.EGRUL,
-		Collateral: data.Fields["collateral"], PurposeText: app.Purpose, PurposeDocs: purposeDocs, PurposeFromForm: prod.PurposeFromForm,
-		Amount: app.Amount, TermMonths: int(app.TermMonths), RateBP: prod.BaseRateBP, OKVEDGroup: int(co.OkvedGroup), LGD: prod.LGD,
-	}
-	res := scoring.Score(in, p.cfg.Scoring)
-	// A counter-offer for a smaller amount is a loan of its own: DSCR counts its payment, so it is scored again.
-	rescore := func(amount int64) scoring.Result {
-		other := in
-		other.Amount = amount
-		return scoring.Score(other, p.cfg.Scoring)
-	}
-	dec := decision.DecideRescoring(res, prod, app.Amount, int(app.TermMonths), rescore)
+	res, dec := p.evaluate(in, prod, app)
 
 	save := func(ctx context.Context, q *db.Queries, a db.Application) error {
-		factors, _ := json.Marshal(res.Factors)
-		stops, _ := json.Marshal(append([]string{}, res.HardStops...))
-		en, _ := json.Marshal(data.Enrichment)
-		metrics, _ := json.Marshal(res.Metrics())
-		return q.UpsertScoringResult(ctx, db.UpsertScoringResultParams{
-			ApplicationID: a.ID, Score: int32(res.Score), Grade: string(res.Grade), Factors: factors, HardStops: stops,
-			MaxAffordable: res.MaxAffordableAmount, DebtLoad: res.DebtLoad, Enrichment: en, Metrics: metrics,
-		})
+		return saveScoring(ctx, q, a.ID, res, data)
 	}
 	summary := fmt.Sprintf("Класс риска %s, %d баллов из 100", res.Grade, res.Score)
 	if len(res.HardStops) > 0 {
@@ -217,6 +173,74 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 		return p.Apply(ctx, app.ID, workflow.AutoReject, "system", summary+"; отказ", app.Version, save,
 			mutateData(func(d *appdata.Data) { d.Rejection = &appdata.Rejection{By: "system", Reasons: dec.Reasons} }))
 	}
+}
+
+// scoreInput gathers what the model needs for an application: the company, its revenue, the answers of the form,
+// the documents that are attached and the verdict of the analyst on the purpose, if there is one.
+func (p *Pipeline) scoreInput(ctx context.Context, app db.Application, data appdata.Data, prod products.Product) (scoring.Input, error) {
+	co, err := p.s.GetCompany(ctx, app.CompanyID)
+	if err != nil {
+		return scoring.Input{}, err
+	}
+	fin, err := p.s.ListFinancials(ctx, app.CompanyID)
+	if err != nil {
+		return scoring.Input{}, err
+	}
+	revenue := make([]int64, len(fin))
+	for i, f := range fin {
+		revenue[i] = f.Revenue
+	}
+	docs, err := p.s.ListDocuments(ctx, app.ID)
+	if err != nil {
+		return scoring.Input{}, err
+	}
+	// Which documents confirm the purpose depends on the product (the catalog says it).
+	confirming := map[string]bool{}
+	for _, d := range prod.Documents {
+		if d.ConfirmsPurpose {
+			confirming[d.Kind] = true
+		}
+	}
+	purposeDocs, collateralDoc := false, false
+	for _, d := range docs {
+		purposeDocs = purposeDocs || confirming[d.Kind]
+		collateralDoc = collateralDoc || d.Kind == products.KindCollateralDoc
+	}
+	age := int(p.now().Sub(co.RegisteredAt.Time).Hours() / 24 / 30)
+	return scoring.Input{
+		CompanyAgeMonths: age, MonthlyRevenue: revenue, MonthlyObligations: co.MonthlyObligations,
+		BKI: data.Enrichment.BKI, EGRUL: *data.Enrichment.EGRUL, OKVED: co.Okved,
+		CollateralKind: data.Fields["collateralKind"], CollateralValue: rublesToKopecks(data.Fields["collateralValue"]), CollateralDoc: collateralDoc,
+		PurposeText: app.Purpose, PurposeDocs: purposeDocs, PurposeFromForm: prod.PurposeFromForm,
+		PurposeDocAmount: rublesToKopecks(data.Fields["purposeDocAmount"]), PurposeVerdict: data.PurposeVerdict,
+		Amount: app.Amount, TermMonths: int(app.TermMonths), RateBP: prod.BaseRateBP, OKVEDGroup: int(co.OkvedGroup), LGD: prod.LGD,
+	}, nil
+}
+
+// rublesToKopecks reads a sum of rubles typed by the client ("1 500 000"); anything unreadable is 0 (not given).
+func rublesToKopecks(s string) int64 {
+	n, err := strconv.ParseInt(strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, s), 10, 64)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n * 100
+}
+
+// evaluate scores the request and decides. A counter-offer for a smaller amount is a loan of its own: DSCR and the
+// debt count its payment, so it is scored again.
+func (p *Pipeline) evaluate(in scoring.Input, prod products.Product, app db.Application) (scoring.Result, decision.Decision) {
+	res := scoring.Score(in, p.cfg.Scoring)
+	rescore := func(amount int64) scoring.Result {
+		other := in
+		other.Amount = amount
+		return scoring.Score(other, p.cfg.Scoring)
+	}
+	return res, decision.DecideRescoring(res, prod, app.Amount, int(app.TermMonths), rescore)
 }
 
 // StoreOffer returns a mutation that makes offer the only active offer of the application.

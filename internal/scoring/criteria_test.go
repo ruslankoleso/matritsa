@@ -38,10 +38,11 @@ func TestCriteria_Tiers(t *testing.T) {
 		{"dscr below 1", "dscr", obl(700), 0},
 		{"dscr without payments", "dscr", obl(0), 15},
 		// 2. debt / EBITDA 10 / 5 / 0 (EBITDA a year = 7 200 000)
-		{"debt below 1.5", "debt_ebitda", debt(10_000), 10},
+		// the debt counts the requested million too (baseInput asks for 1 000 000)
+		{"debt below 1.5", "debt_ebitda", debt(9_000), 10},
 		{"debt 1.5 to 3", "debt_ebitda", debt(20_000), 5},
-		{"debt above 3", "debt_ebitda", debt(23_000), 0},
-		{"no debt", "debt_ebitda", debt(0), 10},
+		{"debt above 3", "debt_ebitda", debt(22_000), 0},
+		{"no debt but the requested amount", "debt_ebitda", debt(0), 10},
 		// 3. profitability and stability 10 / 5 / 0
 		{"stable and profitable", "profitability", fin(integrations.Finance{GrossMargin: 0.35, CurrentRatio: 1.5}), 10},
 		{"stable, margin below the industry", "profitability", fin(integrations.Finance{GrossMargin: 0.10, CurrentRatio: 1.5}), 5},
@@ -58,7 +59,7 @@ func TestCriteria_Tiers(t *testing.T) {
 		{"liquidity low", "liquidity", fin(integrations.Finance{CurrentRatio: 0.9}), 0},
 		// 5. overdue in 36 months 15 / 10 / 5 / 0
 		{"no overdue", "overdue", withBKI(integrations.BKIReport{Score: 700}), 15},
-		{"technical overdue", "overdue", withBKI(integrations.BKIReport{Score: 700, MaxOverdueDays: 5}), 10},
+		{"technical overdue", "overdue", withBKI(integrations.BKIReport{Score: 700, MaxOverdueDays: 3}), 10},
 		{"overdue up to 30 days", "overdue", withBKI(integrations.BKIReport{Score: 700, MaxOverdueDays: 30}), 5},
 		{"overdue above 30 days", "overdue", withBKI(integrations.BKIReport{Score: 700, MaxOverdueDays: 31}), 0},
 		// 6. current obligations 10 / 5 / 0
@@ -83,14 +84,18 @@ func TestCriteria_Tiers(t *testing.T) {
 		{"minor anomalies", "statement", stm(*integrations.StatementOfLevel(0.3, 1)), 2},
 		{"major anomalies", "statement", stm(*integrations.StatementOfLevel(0.3, 2)), 0},
 		// 10. reputation and court cases 5 / 2 / 0
-		{"clean reputation", "reputation", func(in *Input) { in.EGRUL.Litigation = 0 }, 5},
-		{"minor disputes", "reputation", func(in *Input) { in.EGRUL.Litigation = 1 }, 2},
-		{"major suits", "reputation", func(in *Input) { in.EGRUL.Litigation = 2 }, 0},
+		{"clean reputation", "reputation", func(in *Input) { in.EGRUL.Cases = nil }, 5},
+		{"minor disputes", "reputation", func(in *Input) { in.EGRUL.Cases = integrations.CasesOfLevel(1, 24_000_000*rub) }, 2},
+		{"major suits", "reputation", func(in *Input) { in.EGRUL.Cases = integrations.CasesOfLevel(2, 24_000_000*rub) }, 0},
 		// 11. collateral 5 / 2 / 0
-		{"full collateral", "collateral", func(in *Input) { in.Collateral = CollateralFull }, 5},
-		{"partial collateral", "collateral", func(in *Input) { in.Collateral = CollateralPartial }, 2},
-		{"no collateral", "collateral", func(in *Input) { in.Collateral = CollateralNone }, 0},
-		{"collateral not stated", "collateral", func(in *Input) { in.Collateral = "" }, 0},
+		{"full collateral", "collateral", func(in *Input) {
+			in.CollateralKind, in.CollateralValue, in.CollateralDoc = CollateralRealEstate, 5_000_000*rub, true
+		}, 5},
+		{"partial collateral", "collateral", func(in *Input) {
+			in.CollateralKind, in.CollateralValue, in.CollateralDoc = CollateralRealEstate, 1_000_000*rub, true
+		}, 2},
+		{"no collateral", "collateral", func(in *Input) { in.CollateralKind = CollateralNone }, 0},
+		{"collateral not stated", "collateral", func(in *Input) { in.CollateralKind = "" }, 0},
 		// 12. purpose and amount 5 / 2 / 0
 		{"purpose backed by a document", "purpose", func(in *Input) { in.PurposeDocs = true }, 5},
 		{"purpose only stated", "purpose", func(in *Input) {
@@ -172,7 +177,7 @@ func TestMissingPoints_CountWhatCouldNotBeJudged(t *testing.T) {
 
 func TestMissingPoints_CollateralNoneIsAFactNotAGap(t *testing.T) {
 	in := baseInput()
-	in.Collateral = CollateralNone
+	in.CollateralKind = CollateralNone
 	for _, f := range Score(in, DefaultConfig()).Factors {
 		if f.Key == "collateral" && f.NoData {
 			t.Fatal("a stated absence of collateral is a fact, not missing data")

@@ -616,6 +616,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/staff/applications/{id}/purpose-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Оценка сотрудника по цели и сумме: подтверждена, требует уточнения или не подтверждена
+         * @description Только заявка в статусе ANALYST_REVIEW. Вердикт заменяет автоматическую оценку критерия, баллы, класс и рекомендация пересчитываются, версия заявки растёт. Заявку, взятую в работу другим сотрудником, оценить нельзя (409).
+         */
+        post: operations["checkPurpose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/staff/applications/{id}/explanation": {
         parameters: {
             query?: never;
@@ -935,7 +957,7 @@ export interface components {
             amount?: number;
             termMonths?: number;
             purpose?: string;
-            /** @description Ответы мастера заявки. Ключ collateral: none, partial или full (обеспечение) */
+            /** @description Ответы мастера заявки. Обеспечение: collateralKind (none, real_estate, equipment, transport, goods, guarantee) и collateralValue (стоимость залога в рублях). Сумма в подтверждающем документе: purposeDocAmount (рублей) */
             fields?: {
                 [key: string]: string;
             };
@@ -1076,6 +1098,14 @@ export interface components {
             reserveRange?: string;
             /** @description Уровень риска словами: низкий, умеренный, высокий, критический */
             riskLabel?: string;
+            /** @description Безрисковая ставка в ставке по заявке, базисные пункты (ставка = безрисковая + PD x LGD + операционные расходы) */
+            rateRiskFreeBp?: number;
+            /** @description Премия за риск PD x LGD, базисные пункты */
+            rateRiskBp?: number;
+            /** @description Операционные расходы по продукту, базисные пункты */
+            rateOperatingBp?: number;
+            /** @description Долг / EBITDA с учётом лизинга и запрошенной суммы */
+            debtEbitda?: number;
             factors: components["schemas"]["Factor"][];
             hardStops: string[];
             /** Format: int64 */
@@ -1168,6 +1198,13 @@ export interface components {
             totalRepaid?: number;
             /** @description Действующий кредит был реструктурирован */
             restructured?: boolean;
+            /**
+             * Format: int64
+             * @description Остаток по договорам лизинга в копейках
+             */
+            leasingDebt?: number;
+            /** @description Просрочки за 36 месяцев */
+            overdues?: components["schemas"]["Overdue"][];
         };
         EGRULRecord: {
             inn: string;
@@ -1183,10 +1220,30 @@ export interface components {
             directorDisqualified?: boolean;
             /** @description В реестре отмечена недостоверность сведений о компании (смоделировано) */
             unreliableData?: boolean;
-            /** @description Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано) */
-            litigation?: number;
+            /** @description Судебные дела компании и руководителя (смоделированы) */
+            cases?: components["schemas"]["CourtCase"][];
             finance?: components["schemas"]["FinanceData"];
             statement?: components["schemas"]["StatementData"];
+        };
+        CourtCase: {
+            /** @description Компания или руководитель ответчик */
+            defendant: boolean;
+            /**
+             * Format: int64
+             * @description Сумма иска в копейках
+             */
+            amount: number;
+            /** @description Сколько лет назад */
+            yearsAgo: number;
+        };
+        Overdue: {
+            days: number;
+            monthsAgo: number;
+        };
+        PurposeCheckRequest: {
+            /** @enum {string} */
+            verdict: "confirmed" | "clarify" | "not_confirmed";
+            comment?: string;
         };
         /** @description Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет */
         FinanceData: {
@@ -1211,6 +1268,8 @@ export interface components {
             dubiousPayments: number;
             /** @description Их доля в обороте */
             dubiousShare: number;
+            /** @description Средний остаток на счёте в месяцах среднемесячных расходов */
+            balanceCover: number;
         };
         Enrichment: {
             egrul?: components["schemas"]["EGRULRecord"];
@@ -1291,6 +1350,11 @@ export interface components {
             scoring?: components["schemas"]["ScoringResult"];
             enrichment?: components["schemas"]["Enrichment"];
             recommended?: components["schemas"]["Offer"];
+            /**
+             * @description Вердикт сотрудника по цели и сумме, если он есть
+             * @enum {string}
+             */
+            purposeVerdict?: "confirmed" | "clarify" | "not_confirmed";
             reasons?: string[];
             manualCheck?: boolean;
             assignedTo?: string;
@@ -2194,6 +2258,36 @@ export interface operations {
         };
         responses: {
             /** @description Карточка */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffApplication"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    checkPurpose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurposeCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Карточка после пересчёта */
             200: {
                 headers: {
                     [name: string]: unknown;

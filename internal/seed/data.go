@@ -30,7 +30,7 @@ type Company struct {
 	Status             string  // EGRUL status
 	Bankrupt           bool
 	BKI                *integrations.BKIReport // nil: company unknown to the bureau
-	Litigation         int                     // court cases: 0 none, 1 minor, 2 major
+	LitigationLevel    int                     // the court cases of the company: 0 none, 1 a small suit, 2 a large one
 	// Registry marks that stop the scoring.
 	DirectorDisqualified bool
 	UnreliableData       bool
@@ -75,7 +75,7 @@ func Companies() []Company {
 			MonthlyObligations: 120_000 * rub,
 			Revenue:            series(700_000*rub, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 3, TotalDebt: 3_400_000 * rub, MaxOverdueDays: 25, Score: 610, ClosedLoans: 2, TotalRepaid: 1_500_000 * rub},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 3, TotalDebt: 3_400_000 * rub, MaxOverdueDays: 25, Overdues: integrations.OverdueHistory(25, 1), Score: 610, ClosedLoans: 2, TotalRepaid: 1_500_000 * rub},
 			Finance:            &integrations.Finance{GrossMargin: 0.22, CurrentRatio: 1.1},
 			Statement:          integrations.StatementOfLevel(0.30, 1),
 			Story:              "Закредитованный ИП: сотрудник предлагает меньшую сумму (встречное предложение)",
@@ -111,10 +111,10 @@ func Companies() []Company {
 			MonthlyObligations: 60_000 * rub,
 			Revenue:            series(600_000*rub, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 20, Score: 620, ClosedLoans: 1, TotalRepaid: 800_000 * rub},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 500_000 * rub, MaxOverdueDays: 20, Overdues: integrations.OverdueHistory(20, 1), Score: 620, ClosedLoans: 1, TotalRepaid: 800_000 * rub},
 			Finance:            &integrations.Finance{GrossMargin: 0.30, CurrentRatio: 1.3},
 			Statement:          integrations.StatementOfLevel(0.28, 0),
-			Litigation:         1,
+			LitigationLevel:    1,
 			Story:              "Пограничный случай: решение принимает сотрудник",
 		},
 		{
@@ -124,10 +124,10 @@ func Companies() []Company {
 			MonthlyObligations: 200_000 * rub,
 			Revenue:            series(1_500_000*rub, []float64{1.0, 0.7, 1.3, 0.9}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 9_000_000 * rub, MaxOverdueDays: 120, Score: 480, ClosedLoans: 1, TotalRepaid: 2_000_000 * rub},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 9_000_000 * rub, LeasingDebt: 2_000_000 * rub, MaxOverdueDays: 120, Overdues: integrations.OverdueHistory(120, 1), Score: 480, ClosedLoans: 1, TotalRepaid: 2_000_000 * rub},
 			Finance:            &integrations.Finance{GrossMargin: 0.15, CurrentRatio: 0.9},
 			Statement:          integrations.StatementOfLevel(0.10, 1),
-			Litigation:         1,
+			LitigationLevel:    1,
 			Story:              "Просрочка более 90 дней: отказ по жёсткому правилу",
 		},
 		{
@@ -137,7 +137,7 @@ func Companies() []Company {
 			MonthlyObligations: 150_000 * rub,
 			Revenue:            series(4_000_000*rub, []float64{1.0, 0.97, 1.03, 1.02, 0.98, 1.05}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 2_000_000 * rub, MaxOverdueDays: 0, Score: 800, ClosedLoans: 5, TotalRepaid: 12_000_000 * rub},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 1, TotalDebt: 2_000_000 * rub, LeasingDebt: 1_500_000 * rub, MaxOverdueDays: 0, Score: 800, ClosedLoans: 5, TotalRepaid: 12_000_000 * rub},
 			Finance:            &integrations.Finance{GrossMargin: 0.35, CurrentRatio: 2.1},
 			Statement:          integrations.StatementOfLevel(0.30, 0),
 			Story:              "Надёжная компания, но сумма выше лимита автоматического решения: рассматривает сотрудник",
@@ -161,10 +161,10 @@ func Companies() []Company {
 			MonthlyObligations: 140_000 * rub,
 			Revenue:            series(500_000*rub, []float64{1.0, 0.9, 1.1, 0.95, 1.05}, 12),
 			Status:             "active",
-			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 6_000_000 * rub, MaxOverdueDays: 15, Score: 600, ClosedLoans: 1, TotalRepaid: 1_000_000 * rub},
+			BKI:                &integrations.BKIReport{HasHistory: true, ActiveLoans: 4, TotalDebt: 3_000_000 * rub, MaxOverdueDays: 15, Overdues: integrations.OverdueHistory(15, 1), Score: 600, ClosedLoans: 1, TotalRepaid: 1_000_000 * rub},
 			Finance:            &integrations.Finance{GrossMargin: 0.18, CurrentRatio: 1.0},
 			Statement:          integrations.StatementOfLevel(0.20, 1),
-			Litigation:         1,
+			LitigationLevel:    1,
 			Story:              "Платежи по действующим кредитам съедают выручку: автоматический отказ по платёжеспособности",
 		},
 		{
@@ -172,13 +172,13 @@ func Companies() []Company {
 			RegisteredAt: monthsAgo(84), OKVED: "41.20", OKVEDTitle: "Строительство жилых и нежилых зданий", OKVEDGroup: 3,
 			Director: "Мартынов Сергей Олегович", Address: "г. Краснодар, ул. Красная, 120",
 			MonthlyObligations: 100_000 * rub, Bankrupt: true,
-			Revenue:    series(2_000_000*rub, []float64{1.0, 0.8, 1.2, 0.9}, 12),
-			Status:     "active",
-			BKI:        &integrations.BKIReport{HasHistory: true, ActiveLoans: 2, TotalDebt: 4_000_000 * rub, MaxOverdueDays: 40, Score: 560, ClosedLoans: 2, TotalRepaid: 3_000_000 * rub},
-			Finance:    &integrations.Finance{GrossMargin: 0.12, CurrentRatio: 0.7},
-			Statement:  integrations.StatementOfLevel(0.08, 2),
-			Litigation: 2,
-			Story:      "Процедура банкротства: автоматический отказ по жёсткому правилу",
+			Revenue:         series(2_000_000*rub, []float64{1.0, 0.8, 1.2, 0.9}, 12),
+			Status:          "active",
+			BKI:             &integrations.BKIReport{HasHistory: true, ActiveLoans: 2, TotalDebt: 4_000_000 * rub, MaxOverdueDays: 40, Overdues: integrations.OverdueHistory(40, 1), Score: 560, ClosedLoans: 2, TotalRepaid: 3_000_000 * rub},
+			Finance:         &integrations.Finance{GrossMargin: 0.12, CurrentRatio: 0.7},
+			Statement:       integrations.StatementOfLevel(0.08, 2),
+			LitigationLevel: 2,
+			Story:           "Процедура банкротства: автоматический отказ по жёсткому правилу",
 		},
 		{
 			Login: "client11", OwnerName: "Марина Васильева", INN: "771234500011", Name: "ИП Васильева М. Н. (студия «Лад»)", Kind: "ip",
@@ -210,7 +210,7 @@ func (c Company) EGRUL() integrations.EGRULRecord {
 	return integrations.EGRULRecord{
 		INN: c.INN, Name: c.Name, Status: c.Status, RegisteredAt: c.RegisteredAt,
 		OKVED: c.OKVED, Director: c.Director, Address: c.Address, Bankrupt: c.Bankrupt,
-		Litigation: c.Litigation, Finance: c.Finance, Statement: c.Statement,
+		Cases: integrations.CasesOfLevel(c.LitigationLevel, annualRevenue(c.Revenue)), Finance: c.Finance, Statement: c.Statement,
 		DirectorDisqualified: c.DirectorDisqualified, UnreliableData: c.UnreliableData,
 	}
 }
@@ -223,4 +223,16 @@ func StaffAccounts() []Staff {
 		{Login: "staff1", FullName: "Анна Сергеевна Белова, кредитный аналитик", Role: "staff"},
 		{Login: "support1", FullName: "Мария Игоревна Громова, специалист поддержки", Role: "support"},
 	}
+}
+
+// annualRevenue is the revenue of the last twelve months.
+func annualRevenue(rev []int64) int64 {
+	var sum int64
+	for i := max(0, len(rev)-12); i < len(rev); i++ {
+		sum += rev[i]
+	}
+	if len(rev) < 12 && len(rev) > 0 {
+		sum = sum / int64(len(rev)) * 12
+	}
+	return sum
 }

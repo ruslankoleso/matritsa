@@ -25,6 +25,21 @@ func (q *Queries) AssignApplication(ctx context.Context, arg AssignApplicationPa
 	return err
 }
 
+const bumpApplicationData = `-- name: BumpApplicationData :exec
+UPDATE applications SET data = $2, version = version + 1, updated_at = now() WHERE id = $1
+`
+
+type BumpApplicationDataParams struct {
+	ID   string `json:"id"`
+	Data []byte `json:"data"`
+}
+
+// Data changed by a person while the application waits: the version moves, so that an open card is not decided on stale figures.
+func (q *Queries) BumpApplicationData(ctx context.Context, arg BumpApplicationDataParams) error {
+	_, err := q.db.Exec(ctx, bumpApplicationData, arg.ID, arg.Data)
+	return err
+}
+
 const countApplicationsByStatus = `-- name: CountApplicationsByStatus :many
 SELECT status, count(*)::int AS n FROM applications WHERE status <> 'DRAFT' GROUP BY status
 `

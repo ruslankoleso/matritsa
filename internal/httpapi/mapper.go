@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"matritsa/internal/pipeline"
 	"strings"
 	"time"
 
@@ -215,6 +216,9 @@ func toTimeline(evs []db.ApplicationEvent, forClient bool) []gen.TimelineEntry {
 		msg := workflow.ClientMessage(workflow.Status(e.ToStatus))
 		if e.FromStatus == e.ToStatus {
 			msg = e.Comment
+		}
+		if forClient && e.Event == pipeline.EventPurposeChecked {
+			continue // the working verdict of the analyst stays with the bank
 		}
 		actor := actorKind(e.Actor)
 		entry := gen.TimelineEntry{At: e.At.Time, Actor: actor, Event: e.Event, FromStatus: e.FromStatus, ToStatus: e.ToStatus, Message: msg}

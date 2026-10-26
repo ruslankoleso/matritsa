@@ -15,6 +15,7 @@ func TestNextSteps(t *testing.T) {
 		want    string
 	}{
 		{"liquidated company", []string{scoring.StopInactive}, false, "прекратила деятельность"},
+		{"class C without collateral", []string{ReasonNeedsCollateral}, true, "Добавьте обеспечение"},
 		{"company unknown to the registry", []string{scoring.StopNotFound}, true, "ИНН"},
 		{"bankruptcy", []string{scoring.StopBankrupt}, false, "банкротства"},
 		{"disqualified director", []string{scoring.StopDisqualified}, false, "смены руководителя"},

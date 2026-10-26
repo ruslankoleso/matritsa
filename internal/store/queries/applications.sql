@@ -21,6 +21,10 @@ RETURNING *;
 -- name: SetApplicationData :exec
 UPDATE applications SET data = $2, updated_at = now() WHERE id = $1;
 
+-- name: BumpApplicationData :exec
+-- Data changed by a person while the application waits: the version moves, so that an open card is not decided on stale figures.
+UPDATE applications SET data = $2, version = version + 1, updated_at = now() WHERE id = $1;
+
 -- name: TransitionApplication :one
 UPDATE applications
 SET status = $3, version = version + 1, updated_at = now()

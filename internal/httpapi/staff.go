@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -90,6 +91,7 @@ func (s *Server) loadScoring(ctx context.Context, appID string) (*scoring.Result
 		res.PD, res.CumulativePD, res.LGD, res.EAD, res.ExpectedLoss, res.ELRate, res.RiskPremiumBP, res.Payment = m.PD, m.CumulativePD, m.LGD, m.EAD, m.ExpectedLoss, m.ELRate, m.RiskPremiumBP, m.Payment
 		res.RepaidTotal, res.RepaidCoverage = m.RepaidTotal, m.RepaidCoverage
 		res.DSCR, res.MonthlyCashFlow, res.MaxAmountByLoad, res.MaxAmountByDSCR = m.DSCR, m.MonthlyCashFlow, m.MaxAmountByLoad, m.MaxAmountByDSCR
+		res.DebtEBITDA = m.DebtEBITDA
 		res.HasCoverFigures = m.V >= 2
 	}
 	return &res, nil
@@ -128,6 +130,16 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			Score: res.Score, Grade: gen.ScoringResultGrade(res.Grade), Factors: factors, HardStops: stops,
 			MaxAffordableAmount: res.MaxAffordableAmount, DebtLoad: float32(res.DebtLoad),
 		}
+		if prod, ok := products.Get(products.ID(a.ProductID)); ok && res.Grade != scoring.GradeD {
+			// rate = risk-free + PD x LGD + operating costs of the product (the formula of the analyst)
+			cfg := scoring.DefaultConfig()
+			free, risk, opex := cfg.RiskFreeBP, int(math.Round(cfg.PD[res.Grade]*prod.LGD*10000)), prod.OperatingCostBP
+			card.Scoring.RateRiskFreeBp, card.Scoring.RateRiskBp, card.Scoring.RateOperatingBp = &free, &risk, &opex
+		}
+		if res.DebtEBITDA > 0 {
+			de := float32(res.DebtEBITDA)
+			card.Scoring.DebtEbitda = &de
+		}
 		q := scoring.QualityForStops(res.Grade, res.HardStops)
 		card.Scoring.QualityCategory, card.Scoring.ReserveRange, card.Scoring.RiskLabel = &q.Category, &q.Reserve, &q.Risk
 		maxLoad := float32(scoring.DefaultConfig().MaxLoad)
@@ -155,7 +167,16 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 		if en.BKI != nil {
 			closed, repaid := en.BKI.ClosedLoans, en.BKI.TotalRepaid
 			restructured := en.BKI.Restructured
-			e.Bki = &gen.BKIReport{HasHistory: en.BKI.HasHistory, ActiveLoans: en.BKI.ActiveLoans, TotalDebt: en.BKI.TotalDebt, MaxOverdueDays: en.BKI.MaxOverdueDays, Score: en.BKI.Score, ClosedLoans: &closed, TotalRepaid: &repaid, Restructured: &restructured}
+			leasing := en.BKI.LeasingDebt
+			var overdues *[]gen.Overdue
+			if len(en.BKI.Overdues) > 0 {
+				list := make([]gen.Overdue, len(en.BKI.Overdues))
+				for i, o := range en.BKI.Overdues {
+					list[i] = gen.Overdue{Days: o.Days, MonthsAgo: o.MonthsAgo}
+				}
+				overdues = &list
+			}
+			e.Bki = &gen.BKIReport{Overdues: overdues, LeasingDebt: &leasing, HasHistory: en.BKI.HasHistory, ActiveLoans: en.BKI.ActiveLoans, TotalDebt: en.BKI.TotalDebt, MaxOverdueDays: en.BKI.MaxOverdueDays, Score: en.BKI.Score, ClosedLoans: &closed, TotalRepaid: &repaid, Restructured: &restructured}
 		}
 		if en.EGRUL != nil {
 			g := en.EGRUL
@@ -164,17 +185,28 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 				rec.RegisteredAt = &g.RegisteredAt
 			}
 			rec.Okved, rec.Director, rec.Address = &g.OKVED, &g.Director, &g.Address
-			lit, dq, ur := g.Litigation, g.DirectorDisqualified, g.UnreliableData
-			rec.Litigation, rec.DirectorDisqualified, rec.UnreliableData = &lit, &dq, &ur
+			dq, ur := g.DirectorDisqualified, g.UnreliableData
+			rec.DirectorDisqualified, rec.UnreliableData = &dq, &ur
+			if len(g.Cases) > 0 {
+				cases := make([]gen.CourtCase, len(g.Cases))
+				for i, c := range g.Cases {
+					cases[i] = gen.CourtCase{Defendant: c.Defendant, Amount: c.Amount, YearsAgo: float32(c.YearsAgo)}
+				}
+				rec.Cases = &cases
+			}
 			if f := g.Finance; f != nil {
 				rec.Finance = &gen.FinanceData{GrossMargin: float32(f.GrossMargin), CurrentRatio: float32(f.CurrentRatio)}
 			}
 			if st := g.Statement; st != nil {
-				rec.Statement = &gen.StatementData{NoiMargin: float32(st.NOIMargin), CircularShare: float32(st.CircularShare), CircularMonths: st.CircularMonths, CashShare: float32(st.CashShare), TaxBurden: float32(st.TaxBurden), DubiousPayments: st.DubiousPayments, DubiousShare: float32(st.DubiousShare)}
+				rec.Statement = &gen.StatementData{NoiMargin: float32(st.NOIMargin), CircularShare: float32(st.CircularShare), CircularMonths: st.CircularMonths, CashShare: float32(st.CashShare), TaxBurden: float32(st.TaxBurden), DubiousPayments: st.DubiousPayments, DubiousShare: float32(st.DubiousShare), BalanceCover: float32(st.BalanceCover)}
 			}
 			e.Egrul = &rec
 		}
 		card.Enrichment = &e
+	}
+	if v := data.PurposeVerdict; v != "" {
+		verdict := gen.StaffApplicationPurposeVerdict(v)
+		card.PurposeVerdict = &verdict
 	}
 	if rv := data.Review; rv != nil {
 		if rv.Recommended != nil {
@@ -428,4 +460,44 @@ func (s *Server) GetExplanation(w http.ResponseWriter, r *http.Request, id gen.A
 	}
 	text, source := s.Explainer.Explain(r.Context(), *res, d, audience)
 	writeJSON(w, http.StatusOK, gen.Explanation{Text: text, Source: gen.ExplanationSource(source)})
+}
+
+// CheckPurpose takes the verdict of the analyst on the purpose and the amount and scores the application again.
+func (s *Server) CheckPurpose(w http.ResponseWriter, r *http.Request, id gen.ApplicationId) {
+	claims, _ := auth.FromContext(r.Context())
+	var req gen.PurposeCheckRequest
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	switch string(req.Verdict) {
+	case scoring.PurposeConfirmed, scoring.PurposeClarify, scoring.PurposeRejected:
+	default:
+		writeFieldErrors(w, http.StatusUnprocessableEntity, "Выберите оценку", []fieldErr{{"verdict", "Выберите: подтверждена, требует уточнения или не подтверждена"}})
+		return
+	}
+	a, ok := s.staffApp(w, r, id.String())
+	if !ok {
+		return
+	}
+	if workflow.Status(a.Status) != workflow.AnalystReview {
+		writeError(w, http.StatusConflict, "invalid_state", "По этой заявке решение сейчас не требуется")
+		return
+	}
+	if a.AssignedTo != nil && *a.AssignedTo != claims.UserID {
+		writeError(w, http.StatusConflict, "assigned_to_other", "Заявку рассматривает другой сотрудник. Чтобы оценить её самому, возьмите её в работу.")
+		return
+	}
+	comment := ""
+	if req.Comment != nil {
+		comment = strings.TrimSpace(*req.Comment)
+	}
+	if err := s.Pipeline.CheckPurpose(r.Context(), a.ID, claims.UserID, string(req.Verdict), comment); err != nil {
+		if isConflict(err) {
+			writeError(w, http.StatusConflict, "conflict", "Заявка изменилась. Обновите карточку и повторите.")
+			return
+		}
+		internalError(w, r, err)
+		return
+	}
+	s.respondCard(w, r, a.ID)
 }

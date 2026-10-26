@@ -660,3 +660,9 @@
 .metric p { margin: 8px 0 0; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 13.5px; line-height: 1.45; color: var(--ink-faint); }
 @media (max-width: 980px) { .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .metrics-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* the analyst's verdict on the purpose, the rate by parts */
+.purpose-check { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--white); }
+.purpose-check h3 { margin: 0 0 4px; font-size: 15px; }
+.pc-verdicts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.el-rate { margin: 12px 0 0; font-size: 14px; line-height: 1.5; }

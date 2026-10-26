@@ -5,6 +5,7 @@ package scoring
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -71,11 +72,21 @@ func QualityForStops(g Grade, stops []string) Quality {
 	return Quality{"не выше III категории (нет информации о заёмщике: ссуды III–V категорий)", "21–100 %", "критический риск"}
 }
 
-// Collateral levels of the request.
+// Kinds of collateral the client can name (the analyst's discounts apply to the pledges).
 const (
-	CollateralNone    = "none"
-	CollateralPartial = "partial"
-	CollateralFull    = "full"
+	CollateralNone       = "none"
+	CollateralRealEstate = "real_estate"
+	CollateralEquipment  = "equipment"
+	CollateralTransport  = "transport"
+	CollateralGoods      = "goods"
+	CollateralGuarantee  = "guarantee" // the owner's guarantee: counts as partial collateral at most
+)
+
+// Verdicts of the analyst on the purpose and the amount of the request.
+const (
+	PurposeConfirmed = "confirmed"
+	PurposeClarify   = "clarify"
+	PurposeRejected  = "not_confirmed"
 )
 
 // Input is everything the model needs; amounts are in kopecks.
@@ -91,12 +102,21 @@ type Input struct {
 	EGRUL              integrations.EGRULRecord
 	OKVEDGroup         int // 1 low risk .. 3 high risk
 	// Request, apart from its size.
-	Collateral  string // none | partial | full ("" counts as none)
-	PurposeText string
-	PurposeDocs bool // a document that backs the purpose is attached (invoice, contract, estimate), see products
+	OKVED string // the code of the main activity; trade has more room in the current ratio
+	// Collateral: what the client names, its market value (kopecks, pledges only) and whether the document that
+	// proves it is attached; without the document nothing counts.
+	CollateralKind  string
+	CollateralValue int64
+	CollateralDoc   bool
+	PurposeText     string
+	PurposeDocs     bool // a document that backs the purpose is attached (invoice, contract, estimate), see products
 	// PurposeFromForm: the product asks for no confirming documents, so the purpose described in the application
 	// form is what confirms it.
 	PurposeFromForm bool
+	// PurposeDocAmount is the amount named in the confirming document (kopecks, 0 not given); PurposeVerdict the
+	// verdict of the analyst, which decides over the automatic reading.
+	PurposeDocAmount int64
+	PurposeVerdict   string
 	// Request size.
 	Amount     int64
 	TermMonths int
@@ -133,6 +153,11 @@ type Result struct {
 	// RepaidTotal is the sum of loans the borrower has already repaid in full, RepaidCoverage its share of the requested amount.
 	RepaidTotal    int64   `json:"repaidTotal"`
 	RepaidCoverage float64 `json:"repaidCoverage"`
+	// HighLeverage: Debt/EBITDA with the new loan is above the stop (the machine does not refuse such a request).
+	HighLeverage bool    `json:"-"`
+	DebtEBITDA   float64 `json:"-"`
+	// CollateralCounted: the collateral was accepted (a pledge with a document that covers a part at least).
+	CollateralCounted bool `json:"-"`
 	// MissingPoints is what the criteria without data could have given at most.
 	MissingPoints int `json:"-"`
 	// BKIScore is the bureau score (0 without a history); it is a condition of the automatic decision.
@@ -163,18 +188,20 @@ func Score(in Input, cfg Config) Result {
 	// a young company or one without accounts cannot buy points with what is unknown about it.
 	known := in.EGRUL.Statement != nil && avg > 0                  // the cash flow comes from the bank statement
 	payment := MonthlyPayment(in.Amount, in.RateBP, in.TermMonths) // at the base rate of the product: the premium depends on the class
+	debtF, leverage := debtEBITDAFactor(in, cash, known, cfg)
+	collF := collateralFactor(in, cfg)
 	factors := []Factor{
 		dscrFactor(cash, in.MonthlyObligations+payment, known, cfg),
-		debtEBITDAFactor(in.BKI, cash, known, cfg),
+		debtF,
 		profitabilityFactor(in, avg, cfg),
-		liquidityFactor(in.EGRUL.Finance, cfg),
+		liquidityFactor(in, cfg),
 		overdueFactor(in.BKI, cfg),
 		obligationsFactor(in, cfg),
 		ageFactor(in.CompanyAgeMonths, cfg),
 		okvedFactor(in.OKVEDGroup, cfg),
 		statementFactor(in.EGRUL.Statement, in.MonthlyRevenue, cfg),
-		reputationFactor(in.EGRUL, cfg),
-		collateralFactor(in.Collateral, cfg),
+		reputationFactor(in, cfg),
+		collF,
 		purposeFactor(in, cfg),
 	}
 	score, missing := 0, 0
@@ -192,6 +219,8 @@ func Score(in Input, cfg Config) Result {
 	}
 
 	res := Result{Score: score, Grade: grade, Factors: factors, HardStops: hard, LGD: in.LGD, EAD: AverageExposure(in.Amount, in.RateBP, in.TermMonths), MissingPoints: missing}
+	res.DebtEBITDA, res.HighLeverage = leverage, leverage > cfg.LeverageStop
+	res.CollateralCounted = collF.Points > 0
 	res.PD = cfg.PD[grade]
 	res.CumulativePD = cumulativePD(res.PD, in.TermMonths)
 	res.ELRate = res.CumulativePD * in.LGD
@@ -358,34 +387,40 @@ func dscrFactor(cash, payments int64, known bool, cfg Config) Factor {
 	return f
 }
 
-// 2. Debt to EBITDA: how many years of operating result the existing debt takes.
-func debtEBITDAFactor(b *integrations.BKIReport, cash int64, known bool, cfg Config) Factor {
+// 2. Debt to EBITDA: how many years of operating result the debt of the borrower takes after the new loan. The
+// debt is what the bureau shows, the leasing and the requested amount (decision of the analyst); it returns the
+// ratio too, so that a request above the stop is not refused by the machine.
+func debtEBITDAFactor(in Input, cash int64, known bool, cfg Config) (Factor, float64) {
 	f := Factor{Key: "debt_ebitda", Title: "Долговая нагрузка (Долг / EBITDA)", Max: cfg.MaxDebtEBITDA}
+	b := in.BKI
 	switch {
 	case b == nil || !b.HasHistory:
 		f.NoData, f.Note = true, "Нет данных: кредитной истории в бюро нет, долг не подтверждён"
-		return f
+		return f, 0
 	case !known:
 		f.NoData, f.Note = true, "Нет данных: без анализа выписки EBITDA не определить"
-		return f
-	case b.TotalDebt <= 0:
-		f.Points, f.Note = cfg.MaxDebtEBITDA, "Ссудной задолженности нет"
-		return f
-	}
-	if cash <= 0 {
+		return f, 0
+	case cash <= 0:
 		f.Note = "Операционного результата нет: долг нечем обслуживать"
-		return f
+		return f, 0
 	}
-	d := float64(b.TotalDebt) / (float64(cash) * 12)
+	debt := b.TotalDebt + b.LeasingDebt + in.Amount
+	d := float64(debt) / (float64(cash) * 12)
+	parts := "кредиты и запрошенная сумма"
+	if b.LeasingDebt > 0 {
+		parts = "кредиты, лизинг и запрошенная сумма"
+	}
 	switch {
 	case d < 1.5:
-		f.Points, f.Note = cfg.MaxDebtEBITDA, fmt.Sprintf("Долг / EBITDA %s: низкая нагрузка", ratio(d))
+		f.Points, f.Note = cfg.MaxDebtEBITDA, fmt.Sprintf("Долг / EBITDA %s (%s): низкая нагрузка", ratio(d), parts)
 	case d <= 3.0:
-		f.Points, f.Note = cfg.MaxDebtEBITDA/2, fmt.Sprintf("Долг / EBITDA %s: приемлемая нагрузка", ratio(d))
+		f.Points, f.Note = cfg.MaxDebtEBITDA/2, fmt.Sprintf("Долг / EBITDA %s (%s): приемлемая нагрузка", ratio(d), parts)
+	case d <= cfg.LeverageStop:
+		f.Note = fmt.Sprintf("Долг / EBITDA %s (%s): высокая нагрузка (выше 3)", ratio(d), parts)
 	default:
-		f.Note = fmt.Sprintf("Долг / EBITDA %s: высокая нагрузка (выше 3)", ratio(d))
+		f.Note = fmt.Sprintf("Долг / EBITDA %s (%s): выше %s, баллов нет; автоматический отказ не выдаётся, заявку смотрит сотрудник", ratio(d), parts, ratio(cfg.LeverageStop))
 	}
-	return f
+	return f, d
 }
 
 // 3. Profitability and stability of revenue. Stability is the spread of monthly revenue, the trend is the
@@ -420,10 +455,10 @@ func profitabilityFactor(in Input, avg int64, cfg Config) Factor {
 		f.Note = "Бизнес убыточен: валовая прибыль не положительна"
 	case trend <= -0.10:
 		f.Note = fmt.Sprintf("Выручка падает: %d%% к началу периода", pct(trend))
-	case cv < 0.15 && gm.GrossMargin >= level:
+	case cv < cfg.StableCV && gm.GrossMargin >= level:
 		f.Points = cfg.MaxProfitability
 		f.Note = fmt.Sprintf("Выручка стабильна (колебания %d%%), рентабельность продаж %d%% выше отраслевого уровня %d%%", pct(cv), pct(gm.GrossMargin), pct(level))
-	case cv < 0.30:
+	case cv < cfg.ModerateCV:
 		f.Points = cfg.MaxProfitability / 2
 		f.Note = fmt.Sprintf("Умеренные колебания выручки: коэффициент вариации %d%%", pct(cv))
 		if gm.GrossMargin < level {
@@ -435,37 +470,86 @@ func profitabilityFactor(in Input, avg int64, cfg Config) Factor {
 	return f
 }
 
-// 4. Current ratio: current assets over short-term liabilities.
-func liquidityFactor(fin *integrations.Finance, cfg Config) Factor {
-	f := Factor{Key: "liquidity", Title: "Ликвидность (текущая)", Max: cfg.MaxLiquidity}
+// 4. Liquidity. The current ratio from the balance sheet; trade, where goods turn over fast, is comfortable from a
+// lower ratio. A company that publishes no balance sheet is judged by the balance of its account against the monthly
+// expenses (decision of the analyst).
+func liquidityFactor(in Input, cfg Config) Factor {
+	f := Factor{Key: "liquidity", Title: "Ликвидность", Max: cfg.MaxLiquidity}
+	fin, st := in.EGRUL.Finance, in.EGRUL.Statement
 	switch {
-	case fin == nil:
-		f.NoData, f.Note = true, "Нет данных: бухгалтерская отчётность не получена"
-	case fin.CurrentRatio >= 1.5:
-		f.Points, f.Note = cfg.MaxLiquidity, fmt.Sprintf("Коэффициент текущей ликвидности %s: комфортный", ratio(fin.CurrentRatio))
-	case fin.CurrentRatio >= 1.0:
-		f.Points, f.Note = cfg.MaxLiquidity*3/5, fmt.Sprintf("Коэффициент текущей ликвидности %s: пограничный", ratio(fin.CurrentRatio))
+	case fin != nil:
+		good, rule := 1.5, ""
+		if isTrade(in.OKVED) {
+			good, rule = cfg.RetailCurrentRatio, " (для торговли комфортно от "+ratio(cfg.RetailCurrentRatio)+")"
+		}
+		switch {
+		case fin.CurrentRatio >= good:
+			f.Points, f.Note = cfg.MaxLiquidity, fmt.Sprintf("Коэффициент текущей ликвидности %s: комфортный%s", ratio(fin.CurrentRatio), rule)
+		case fin.CurrentRatio >= 1.0:
+			f.Points, f.Note = cfg.MaxLiquidity*3/5, fmt.Sprintf("Коэффициент текущей ликвидности %s: пограничный%s", ratio(fin.CurrentRatio), rule)
+		default:
+			f.Note = fmt.Sprintf("Коэффициент текущей ликвидности %s: ниже 1, риск кассового разрыва", ratio(fin.CurrentRatio))
+		}
+	case st != nil:
+		switch {
+		case st.BalanceCover >= cfg.BalanceCoverGood:
+			f.Points, f.Note = cfg.MaxLiquidity, fmt.Sprintf("Баланса нет; по выписке остаток на счёте покрывает %s мес. расходов: комфортно", ratio(st.BalanceCover))
+		case st.BalanceCover >= cfg.BalanceCoverOK:
+			f.Points, f.Note = cfg.MaxLiquidity*3/5, fmt.Sprintf("Баланса нет; по выписке остаток на счёте покрывает %s мес. расходов: пограничный уровень", ratio(st.BalanceCover))
+		default:
+			f.Note = fmt.Sprintf("Баланса нет; по выписке остаток на счёте покрывает %s мес. расходов: меньше месяца", ratio(st.BalanceCover))
+		}
 	default:
-		f.Note = fmt.Sprintf("Коэффициент текущей ликвидности %s: ниже 1, риск кассового разрыва", ratio(fin.CurrentRatio))
+		f.NoData, f.Note = true, "Нет данных: ни бухгалтерского баланса, ни выписки"
 	}
 	return f
 }
 
-// 5. Overdue payments in the bureau history over 36 months.
+// isTrade: the main activity is wholesale or retail trade (OKVED divisions 45, 46 and 47).
+func isTrade(okved string) bool {
+	return strings.HasPrefix(okved, "45") || strings.HasPrefix(okved, "46") || strings.HasPrefix(okved, "47")
+}
+
+// 5. Overdue payments in the bureau history over 36 months. The longest overdue sets the tier; two or more late
+// payments in the last 12 months lower it by one step; those older than 36 months are not counted at all.
 func overdueFactor(b *integrations.BKIReport, cfg Config) Factor {
 	f := Factor{Key: "overdue", Title: "Просрочки за 36 месяцев", Max: cfg.MaxOverdue}
-	switch {
-	case b == nil || !b.HasHistory:
+	if b == nil || !b.HasHistory {
 		f.NoData, f.Note = true, "Нет данных: кредитной истории в бюро нет, просрочки оценить нельзя"
-	case b.MaxOverdueDays == 0:
-		f.Points, f.Note = cfg.MaxOverdue, "Просрочек по платежам не было"
-	case b.MaxOverdueDays <= cfg.TechnicalOverdueDays:
-		f.Points, f.Note = cfg.MaxOverdue*10/15, fmt.Sprintf("Только техническая просрочка: до %d дн.", b.MaxOverdueDays)
-	case b.MaxOverdueDays <= 30:
-		f.Points, f.Note = cfg.MaxOverdue*5/15, fmt.Sprintf("Просрочка до %d дн.", b.MaxOverdueDays)
-	default:
-		f.Note = fmt.Sprintf("Просрочка более 30 дней (до %d дн.)", b.MaxOverdueDays)
+		return f
 	}
+	longest, recent := b.MaxOverdueDays, 0
+	if len(b.Overdues) > 0 {
+		longest = 0
+		for _, o := range b.Overdues {
+			if o.MonthsAgo >= 36 {
+				continue
+			}
+			longest = max(longest, o.Days)
+			if o.MonthsAgo < 12 {
+				recent++
+			}
+		}
+	}
+	if longest == 0 {
+		f.Points, f.Note = cfg.MaxOverdue, "Просрочек по платежам не было"
+		return f
+	}
+	tiers := []int{cfg.MaxOverdue * 10 / 15, cfg.MaxOverdue * 5 / 15, 0} // technical, up to 30 days, longer
+	tier := 2
+	switch {
+	case longest <= cfg.TechnicalOverdueDays:
+		tier, f.Note = 0, fmt.Sprintf("Только техническая просрочка: до %d дн.", longest)
+	case longest <= 30:
+		tier, f.Note = 1, fmt.Sprintf("Просрочка до %d дн.", longest)
+	default:
+		f.Note = fmt.Sprintf("Просрочка более 30 дней (до %d дн.)", longest)
+	}
+	if recent >= cfg.RecurringOverdues && tier < 2 {
+		tier++
+		f.Note += fmt.Sprintf("; за последние 12 месяцев их %d: ступень ниже", recent)
+	}
+	f.Points = tiers[tier]
 	return f
 }
 
@@ -605,44 +689,120 @@ func StatementFindings(st *integrations.Statement, revenue []int64) (level int, 
 	return level, notes
 }
 
-// 10. Reputation and court cases.
-func reputationFactor(e integrations.EGRULRecord, cfg Config) Factor {
+// annualRevenue is the revenue of the last twelve months (or the average month times twelve for a younger company).
+func annualRevenue(rev []int64) int64 {
+	if len(rev) >= 12 {
+		var sum int64
+		for _, v := range rev[len(rev)-12:] {
+			sum += v
+		}
+		return sum
+	}
+	return averageRevenue(rev) * 12
+}
+
+// 10. Reputation and court cases. Only cases in which the company or its head is the defendant count, of the last
+// years; a suit above a share of the annual revenue is large (decision of the analyst).
+func reputationFactor(in Input, cfg Config) Factor {
+	e := in.EGRUL
 	f := Factor{Key: "reputation", Title: "Репутация и судебные споры", Max: cfg.MaxReputation}
 	switch {
 	case e.Bankrupt:
 		f.Note = "Идёт процедура банкротства"
+		return f
 	case e.DirectorDisqualified:
 		f.Note = "Руководитель дисквалифицирован"
+		return f
 	case e.UnreliableData:
 		f.Note = "В реестре отмечена недостоверность сведений"
-	case e.Litigation == 0:
-		f.Points, f.Note = cfg.MaxReputation, "Репутация чистая: крупных споров нет"
-	case e.Litigation == 1:
-		f.Points, f.Note = cfg.MaxReputation*2/5, "Есть незначительные судебные споры"
+		return f
+	}
+	limit := float64(annualRevenue(in.MonthlyRevenue)) * cfg.LargeSuitShare
+	count, large := 0, false
+	for _, c := range e.Cases {
+		if !c.Defendant || c.YearsAgo > cfg.CourtYears {
+			continue
+		}
+		count++
+		large = large || float64(c.Amount) > limit
+	}
+	switch {
+	case count == 0:
+		f.Points, f.Note = cfg.MaxReputation, "Репутация чистая: исков к компании и её руководителю за последние годы нет"
+	case !large:
+		f.Points, f.Note = cfg.MaxReputation*2/5, fmt.Sprintf("Есть иски к компании: %d, каждый не больше %d%% годовой выручки", count, pct(cfg.LargeSuitShare))
 	default:
-		f.Note = "Есть крупные иски к компании или её руководителю"
+		f.Note = fmt.Sprintf("Есть крупный иск к компании: больше %d%% годовой выручки", pct(cfg.LargeSuitShare))
 	}
 	return f
 }
 
-// 11. Collateral or a guarantee.
-func collateralFactor(level string, cfg Config) Factor {
+var collateralNames = map[string]string{
+	CollateralRealEstate: "недвижимость", CollateralEquipment: "оборудование", CollateralTransport: "транспорт", CollateralGoods: "товары в обороте",
+}
+
+// money writes kopecks as "4 200 000 ₽".
+func money(kopecks int64) string {
+	s := strconv.FormatInt(kopecks/100, 10)
+	var out []byte
+	for i, c := range []byte(s) {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			out = append(out, ' ')
+		}
+		out = append(out, c)
+	}
+	return string(out) + " ₽"
+}
+
+// 11. Collateral. A pledge covers the loan fully when its value after the discount reaches the amount, otherwise
+// in part; the owner's guarantee counts as partial collateral at most; without the document nothing counts.
+func collateralFactor(in Input, cfg Config) Factor {
 	f := Factor{Key: "collateral", Title: "Обеспечение", Max: cfg.MaxCollateral}
-	switch level {
-	case CollateralFull:
-		f.Points, f.Note = cfg.MaxCollateral, "Есть залог или поручительство, покрывающие кредит"
-	case CollateralPartial:
-		f.Points, f.Note = cfg.MaxCollateral*2/5, "Обеспечение покрывает кредит частично"
-	default:
+	kind := in.CollateralKind
+	switch {
+	case kind == "" || kind == CollateralNone:
 		f.Note = "Обеспечения нет"
+	case !in.CollateralDoc:
+		f.Note = "Обеспечение названо, но документа на него нет: не засчитывается"
+	case kind == CollateralGuarantee:
+		f.Points, f.Note = cfg.MaxCollateral*2/5, "Поручительство собственника: засчитывается как частичное обеспечение"
+	case in.CollateralValue <= 0:
+		f.Note = "Стоимость залога не указана: не засчитывается"
+	default:
+		disc := cfg.CollateralDiscount[kind]
+		value := int64(float64(in.CollateralValue) * (1 - disc))
+		name := collateralNames[kind]
+		if value >= in.Amount {
+			f.Points, f.Note = cfg.MaxCollateral, fmt.Sprintf("Залог (%s) с дисконтом %d%% стоит %s: покрывает кредит", name, pct(disc), money(value))
+		} else {
+			f.Points, f.Note = cfg.MaxCollateral*2/5, fmt.Sprintf("Залог (%s) с дисконтом %d%% стоит %s: покрывает кредит частично", name, pct(disc), money(value))
+		}
 	}
 	return f
 }
 
-// 12. Does the purpose and the amount have a backing: a document, or at least a stated purpose.
+var verdictNotes = map[string]string{
+	PurposeConfirmed: "цель и сумма подтверждены", PurposeClarify: "цель и сумма требуют уточнения", PurposeRejected: "цель и сумма не подтверждены",
+}
+
+// 12. Does the purpose and the amount have a backing: the verdict of the analyst if there is one, otherwise a
+// document of the product (its amount within the tolerance of the request), or at least a stated purpose.
 func purposeFactor(in Input, cfg Config) Factor {
 	f := Factor{Key: "purpose", Title: "Соответствие цели и суммы", Max: cfg.MaxPurpose}
+	switch in.PurposeVerdict {
+	case PurposeConfirmed:
+		f.Points = cfg.MaxPurpose
+	case PurposeClarify:
+		f.Points = cfg.MaxPurpose * 2 / 5
+	}
+	if note, ok := verdictNotes[in.PurposeVerdict]; ok {
+		f.Note = "Оценка сотрудника: " + note
+		return f
+	}
 	switch {
+	case in.PurposeDocs && in.PurposeDocAmount > 0 && in.Amount > 0 && math.Abs(float64(in.PurposeDocAmount-in.Amount))/float64(in.Amount) > cfg.PurposeAmountTolerance:
+		f.Points = cfg.MaxPurpose * 2 / 5
+		f.Note = fmt.Sprintf("Сумма в документе %s отличается от запрошенной больше, чем на %d%%: нужно уточнение", money(in.PurposeDocAmount), pct(cfg.PurposeAmountTolerance))
 	case in.PurposeDocs:
 		f.Points, f.Note = cfg.MaxPurpose, "Цель и сумма подтверждены документом (договор, счёт или смета)"
 	case in.PurposeFromForm && utf8.RuneCountInString(strings.TrimSpace(in.PurposeText)) >= 20:
@@ -700,11 +860,13 @@ type Metrics struct {
 	MaxAmountByLoad int64   `json:"maxAmountByLoad"`
 	MaxAmountByDSCR int64   `json:"maxAmountByDscr"`
 
+	DebtEBITDA float64 `json:"debtEbitda,omitempty"`
+
 	// V is the version of the figures: 2 added the cover and repayment measures.
 	V int `json:"v"`
 }
 
 func (r Result) Metrics() Metrics {
 	return Metrics{PD: r.PD, CumulativePD: r.CumulativePD, LGD: r.LGD, EAD: r.EAD, ExpectedLoss: r.ExpectedLoss, ELRate: r.ELRate, RiskPremiumBP: r.RiskPremiumBP, Payment: r.Payment, RepaidTotal: r.RepaidTotal, RepaidCoverage: r.RepaidCoverage,
-		DSCR: r.DSCR, MonthlyCashFlow: r.MonthlyCashFlow, MaxAmountByLoad: r.MaxAmountByLoad, MaxAmountByDSCR: r.MaxAmountByDSCR, V: 2}
+		DSCR: r.DSCR, MonthlyCashFlow: r.MonthlyCashFlow, MaxAmountByLoad: r.MaxAmountByLoad, MaxAmountByDSCR: r.MaxAmountByDSCR, DebtEBITDA: r.DebtEBITDA, V: 2}
 }

@@ -88,25 +88,40 @@ func rejectD(res scoring.Result) Decision {
 	return Decision{Outcome: Reject, Reasons: []string{reason}}
 }
 
-// DecideRescoring decides on the scored request. A gap in the data (a criterion without data) is never a reason
-// for the machine to decide: neither an automatic offer nor an automatic refusal is given, the application goes to
-// an analyst with the list of gaps and with what the system would have done (decisions 7.1 and 7.2 of the analyst).
-// A stop factor is a condition of admission, not a gap, and still refuses at once.
+// ReasonNeedsCollateral is the refusal of a class C loan that comes with no accepted collateral (decision 6.1).
+const ReasonNeedsCollateral = "Класс C (высокий риск): заявка рассматривается только при обеспечении — залоге или поручительстве с подтверждающим документом"
+
+// DecideRescoring decides on the scored request. Two things are never left to the machine (decisions 3.1, 7.1 and
+// 7.2 of the analyst): a gap in the data (a criterion without data) blocks both an automatic offer and an automatic
+// refusal, and Debt/EBITDA above the stop blocks an automatic refusal. Such an application goes to an analyst with
+// the reasons and with what the system would have done. A stop factor is a condition of admission and still refuses at once.
 func DecideRescoring(res scoring.Result, p products.Product, amount int64, term int, rescore Rescorer) Decision {
 	d := decideKnown(res, p, amount, term, rescore)
-	if res.MissingPoints == 0 || len(res.HardStops) > 0 {
+	if len(res.HardStops) > 0 {
 		return d
 	}
-	gap := fmt.Sprintf("По критериям без данных (%s) баллы не начислены: автоматическое решение не принимается, заявку рассматривает сотрудник", noDataCriteria(res))
+	gaps := res.MissingPoints > 0
+	leverage := res.HighLeverage && d.Outcome == Reject
+	if !gaps && !leverage {
+		return d
+	}
+	var holds []string
+	if gaps {
+		holds = append(holds, fmt.Sprintf("По критериям без данных (%s) баллы не начислены: автоматическое решение не принимается, заявку рассматривает сотрудник", noDataCriteria(res)))
+	}
+	if leverage {
+		holds = append(holds, fmt.Sprintf("Долг / EBITDA %s выше %s: автоматический отказ не выдаётся, заявку рассматривает сотрудник",
+			strings.Replace(fmt.Sprintf("%.1f", res.DebtEBITDA), ".", ",", 1), strings.Replace(fmt.Sprintf("%.0f", scoring.DefaultConfig().LeverageStop), ".", ",", 1)))
+	}
 	switch d.Outcome {
 	case AutoOffer:
 		rec := *d.Offer
 		rec.Source = "recommended"
-		return Decision{Outcome: Review, Recommended: &rec, Reasons: []string{gap, "Без пробелов в данных система одобрила бы автоматически на запрошенных условиях"}}
+		return Decision{Outcome: Review, Recommended: &rec, Reasons: append(holds, "Без пробелов в данных система одобрила бы автоматически на запрошенных условиях")}
 	case Reject:
-		return Decision{Outcome: Review, Reasons: append([]string{gap, "Без пробелов в данных система автоматически отказала бы:"}, d.Reasons...)}
+		return Decision{Outcome: Review, Reasons: append(append(holds, "Иначе система автоматически отказала бы:"), d.Reasons...)}
 	}
-	d.Reasons = append([]string{gap}, d.Reasons...)
+	d.Reasons = append(holds, d.Reasons...)
 	return d
 }
 
@@ -126,7 +141,7 @@ func decideKnown(res scoring.Result, p products.Product, amount int64, term int,
 
 	// The class of the requested amount; a smaller amount offered instead may deserve another one.
 	rec, reasons := counterAmount(res, p, amount)
-	grade := res.Grade
+	grade, counted := res.Grade, res.CollateralCounted
 	if rec < amount && rescore != nil {
 		r2 := rescore(rec)
 		if len(r2.HardStops) > 0 || r2.Grade == scoring.GradeD {
@@ -136,8 +151,12 @@ func decideKnown(res scoring.Result, p products.Product, amount int64, term int,
 			reasons = append(reasons, fmt.Sprintf("Рекомендованная сумма оценена отдельно: класс %s, %d баллов из 100 (на запрошенной сумме класс %s, %d баллов)", r2.Grade, r2.Score, res.Grade, res.Score))
 		}
 		grade = r2.Grade
+		counted = r2.CollateralCounted
 	} else if res.Grade == scoring.GradeD {
 		return rejectD(res)
+	}
+	if grade == scoring.GradeC && !counted {
+		return Decision{Outcome: Reject, Reasons: []string{ReasonNeedsCollateral}}
 	}
 
 	experienced := res.RepaidCoverage >= cfg.MinRepaidCoverage

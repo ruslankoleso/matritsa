@@ -43,6 +43,28 @@ test.describe('credit pipeline, end to end', () => {
     await staffCtx.close()
   })
 
+  test('a pledge with its document earns the collateral points, and the analyst rules on the purpose', async ({ browser }) => {
+    const clientCtx = await browser.newContext()
+    const staffCtx = await browser.newContext()
+    const client = await newPage(clientCtx, /Смирнов/)
+    const id = await fillAndSubmit(client, { product: /оборотные средства/, amount: '3000000', term: '24', collateral: { kind: /Недвижимость/, value: '10000000' } })
+    await expect(client.getByText('У сотрудника банка').first()).toBeVisible()
+
+    const staff = await newPage(staffCtx, /Анна Белова/)
+    await staff.goto(`/staff/applications/${id}`)
+    await staff.getByRole('tab', { name: 'Все критерии' }).click()
+    const factor = (title: string) => staff.locator('.factor', { hasText: title })
+    // 10 million of real estate after the discount covers the 3 million loan, and the document is attached.
+    await expect(factor('Обеспечение')).toContainText('5 из 5')
+
+    await staff.getByRole('button', { name: 'Не подтверждена' }).click()
+    await expect(factor('Соответствие цели и суммы')).toContainText('0 из 5')
+    await staff.getByRole('button', { name: 'Подтверждена', exact: true }).click()
+    await expect(factor('Соответствие цели и суммы')).toContainText('5 из 5')
+    await clientCtx.close()
+    await staffCtx.close()
+  })
+
   test('a liquidated company is declined automatically with plain reasons', async ({ page }) => {
     await loginAs(page, /Старый порт/)
     await fillAndSubmit(page, { product: /оборотные средства/, amount: '500000', term: '12' })

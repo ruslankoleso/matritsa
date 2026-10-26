@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"matritsa/internal/scoring"
 	"net/http"
 	"strings"
 	"time"
@@ -121,6 +122,10 @@ func (s *Server) CreateApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	data := appdata.Data{}
 	if in.Fields != nil {
+		if fes := fieldProblems(*in.Fields); len(fes) > 0 {
+			writeFieldErrors(w, http.StatusUnprocessableEntity, "Проверьте ответы в заявке", fes)
+			return
+		}
 		data.Fields = *in.Fields
 	}
 	purpose := ""
@@ -187,6 +192,10 @@ func (s *Server) UpdateApplication(w http.ResponseWriter, r *http.Request, id ge
 	}
 	data := appdata.Parse(app.Data)
 	if in.Fields != nil {
+		if fes := fieldProblems(*in.Fields); len(fes) > 0 {
+			writeFieldErrors(w, http.StatusUnprocessableEntity, "Проверьте ответы в заявке", fes)
+			return
+		}
 		if data.Fields == nil {
 			data.Fields = map[string]string{}
 		}
@@ -404,4 +413,27 @@ func (s *Server) GetTimeline(w http.ResponseWriter, r *http.Request, id gen.Appl
 		return
 	}
 	writeJSON(w, http.StatusOK, toTimeline(evs, true))
+}
+
+var collateralKinds = map[string]bool{
+	"": true, scoring.CollateralNone: true, scoring.CollateralRealEstate: true, scoring.CollateralEquipment: true,
+	scoring.CollateralTransport: true, scoring.CollateralGoods: true, scoring.CollateralGuarantee: true,
+}
+
+// fieldProblems checks the answers of the form that the model reads: the kind of collateral and the two sums.
+func fieldProblems(f map[string]string) []fieldErr {
+	var fes []fieldErr
+	if k := f["collateralKind"]; !collateralKinds[k] {
+		fes = append(fes, fieldErr{"collateralKind", "Выберите вид обеспечения из списка"})
+	}
+	for _, key := range []string{"collateralValue", "purposeDocAmount"} {
+		v := strings.NewReplacer(" ", "", "\u00a0", "").Replace(f[key])
+		if v == "" {
+			continue
+		}
+		if len(v) > 12 || strings.Trim(v, "0123456789") != "" {
+			fes = append(fes, fieldErr{key, "Укажите сумму в рублях цифрами"})
+		}
+	}
+	return fes
 }

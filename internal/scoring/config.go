@@ -32,6 +32,29 @@ type Config struct {
 	OperatingMargin map[int]float64
 	// GrossMarginLevel is the gross margin of a healthy company of the industry group.
 	GrossMarginLevel map[int]float64
+	// StableCV and ModerateCV are the limits of the spread of monthly revenue (coefficient of variation): up to
+	// StableCV stable, up to ModerateCV moderate, above strong fluctuations.
+	StableCV, ModerateCV float64
+	// LeverageStop is the Debt/EBITDA above which the machine does not refuse: a person looks at the application.
+	LeverageStop float64
+	// RecurringOverdues is how many late payments in the last 12 months lower the tier of the criterion by one.
+	RecurringOverdues int
+	// CourtYears is how far back court cases count; LargeSuitShare the share of the annual revenue above which
+	// a suit against the company is large.
+	CourtYears     float64
+	LargeSuitShare float64
+	// BalanceCover* are the tiers of the liquidity taken from the statement, months of expenses on the account.
+	BalanceCoverGood, BalanceCoverOK float64
+	// RetailCurrentRatio is the comfortable current ratio of trade, where goods turn over fast.
+	RetailCurrentRatio float64
+	// CollateralDiscount is the share of the market value of a pledge that the bank deducts (the middle of the
+	// ranges of the analyst: real estate 20-40%, equipment 20-50%, vehicles 30-70%, goods in turnover 40-60%).
+	CollateralDiscount map[string]float64
+	// PurposeAmountTolerance is the allowed difference between the amount in the confirming document and the request.
+	PurposeAmountTolerance float64
+	// RiskFreeBP is the risk-free rate in the pricing: rate = risk-free + PD x LGD + operating costs of the product.
+	// Illustrative; with the operating costs it makes the base rate of a product (products.OperatingCostBP).
+	RiskFreeBP int
 }
 
 func DefaultConfig() Config {
@@ -39,15 +62,27 @@ func DefaultConfig() Config {
 		MaxDSCR: 15, MaxDebtEBITDA: 10, MaxProfitability: 10, MaxLiquidity: 5, MaxOverdue: 15, MaxObligations: 10,
 		MaxAge: 10, MaxOKVED: 5, MaxStatement: 5, MaxReputation: 5, MaxCollateral: 5, MaxPurpose: 5,
 		GradeAFrom: 80, GradeBFrom: 50, GradeCFrom: 30,
-		PD:                   map[Grade]float64{GradeA: 0.01, GradeB: 0.04, GradeC: 0.10, GradeD: 0.25},
-		MaxLoad:              0.30,
-		HardStopOverdueDays:  90,
-		TechnicalOverdueDays: 5,
-		MinRepaidCoverage:    0.5,
-		MinAutoBKIScore:      650,
-		MinDSCR:              1.25,
-		OperatingMargin:      map[int]float64{1: 0.35, 2: 0.30, 3: 0.25},
-		GrossMarginLevel:     map[int]float64{1: 0.30, 2: 0.25, 3: 0.20},
+		PD:                     map[Grade]float64{GradeA: 0.01, GradeB: 0.04, GradeC: 0.10, GradeD: 0.25},
+		MaxLoad:                0.30,
+		HardStopOverdueDays:    90,
+		TechnicalOverdueDays:   3,
+		MinRepaidCoverage:      0.5,
+		MinAutoBKIScore:        650,
+		MinDSCR:                1.25,
+		OperatingMargin:        map[int]float64{1: 0.35, 2: 0.30, 3: 0.25},
+		GrossMarginLevel:       map[int]float64{1: 0.30, 2: 0.25, 3: 0.20},
+		StableCV:               0.10,
+		ModerateCV:             0.25,
+		LeverageStop:           4.0,
+		RecurringOverdues:      2,
+		CourtYears:             3,
+		LargeSuitShare:         0.05,
+		BalanceCoverGood:       1.5,
+		BalanceCoverOK:         1.0,
+		RetailCurrentRatio:     1.2,
+		CollateralDiscount:     map[string]float64{CollateralRealEstate: 0.30, CollateralEquipment: 0.35, CollateralTransport: 0.50, CollateralGoods: 0.50},
+		PurposeAmountTolerance: 0.10,
+		RiskFreeBP:             1400,
 	}
 }
 

@@ -24,7 +24,7 @@ func goodFinance() *integrations.Finance {
 
 // goodStatement is the bank statement: the net flow (receipts minus operating write-offs) is 30% of revenue.
 func goodStatement() *integrations.Statement {
-	return &integrations.Statement{NOIMargin: 0.30}
+	return integrations.NormalStatement(0.30)
 }
 
 func activeCompany() integrations.EGRULRecord {
@@ -80,10 +80,11 @@ func TestScore_NoData_MeansNoPoints_WithANoteSayingSo(t *testing.T) {
 	noAccounts := baseInput()
 	noAccounts.EGRUL.Finance = nil
 	res = Score(noAccounts, cfg)
-	for _, key := range []string{"profitability", "liquidity"} {
-		if f := factor(t, res, key); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
-			t.Errorf("%s without the accounts: want 0 points and a note, got %d %q", key, f.Points, f.Note)
-		}
+	if f := factor(t, res, "profitability"); f.Points != 0 || !strings.HasPrefix(f.Note, "Нет данных") {
+		t.Errorf("profitability without the accounts: want 0 points and a note, got %d %q", f.Points, f.Note)
+	}
+	if f := factor(t, res, "liquidity"); f.NoData || f.Points == 0 || !strings.Contains(f.Note, "выпис") {
+		t.Errorf("without a balance sheet the liquidity comes from the statement: %+v", f)
 	}
 	for _, key := range []string{"dscr", "debt_ebitda", "statement"} {
 		if f := factor(t, res, key); f.NoData {
@@ -317,10 +318,14 @@ func TestScore_BiggerAndLongerRequest_NeverScoresBetter_AndCanFallToAnotherClass
 	if !(b.Score < a.Score) || a.Grade == b.Grade {
 		t.Fatalf("20 million must lose the DSCR points and the class (A for 2 million): %s/%d vs %s/%d", a.Grade, a.Score, b.Grade, b.Score)
 	}
-	// only DSCR moves: nothing else in the score depends on the size
+	// the size of the request moves only the criteria that look at the loan itself, and only downwards
+	sizeDependent := map[string]bool{"dscr": true, "debt_ebitda": true, "collateral": true, "purpose": true}
 	for i, f := range a.Factors {
-		if f.Key != "dscr" && f.Points != b.Factors[i].Points {
+		switch {
+		case !sizeDependent[f.Key] && f.Points != b.Factors[i].Points:
 			t.Errorf("%s changed with the size of the request: %d vs %d", f.Key, f.Points, b.Factors[i].Points)
+		case b.Factors[i].Points > f.Points:
+			t.Errorf("%s rose with a bigger request: %d vs %d", f.Key, f.Points, b.Factors[i].Points)
 		}
 	}
 }

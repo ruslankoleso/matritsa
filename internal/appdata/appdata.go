@@ -47,6 +47,9 @@ type Data struct {
 	Enrichment  *Enrichment       `json:"enrichment,omitempty"`
 	Review      *Review           `json:"review,omitempty"`
 	Rejection   *Rejection        `json:"rejection,omitempty"`
+	// PurposeVerdict is the verdict of the analyst on the purpose and the amount (confirmed, clarify, not_confirmed);
+	// it decides the criterion over the automatic reading.
+	PurposeVerdict string `json:"purposeVerdict,omitempty"`
 }
 
 // Parse decodes jsonb; malformed or empty input yields an empty Data.

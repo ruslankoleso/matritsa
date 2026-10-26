@@ -1,6 +1,7 @@
 package decision
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ func prod(t *testing.T, id products.ID) products.Product {
 }
 
 func result(g scoring.Grade, affordable int64, stops ...string) scoring.Result {
-	return scoring.Result{Grade: g, MaxAffordableAmount: affordable, HardStops: stops, RepaidCoverage: 2, BKIScore: 780}
+	return scoring.Result{Grade: g, MaxAffordableAmount: affordable, HardStops: stops, RepaidCoverage: 2, BKIScore: 780, CollateralCounted: true}
 }
 
 func TestDecide_GradeA_Small_AutoOffer(t *testing.T) {
@@ -246,5 +247,79 @@ func TestDecide_NoGap_NothingChanges(t *testing.T) {
 	d := Decide(result(scoring.GradeA, 5_000_000*rub), prod(t, products.WorkingCapital), 1_000_000*rub, 12)
 	if d.Outcome != AutoOffer {
 		t.Fatalf("%+v", d)
+	}
+}
+
+// Decision 6.1 of the analyst: a class C loan, the high risk, is considered only with collateral.
+func TestDecide_ClassC_WithoutCollateral_IsRefused_WithItIsReviewed(t *testing.T) {
+	r := result(scoring.GradeC, 5_000_000*rub)
+	r.CollateralCounted = false
+	d := Decide(r, prod(t, products.WorkingCapital), 1_000_000*rub, 12)
+	if d.Outcome != Reject || !strings.Contains(strings.Join(d.Reasons, " "), "обеспечени") {
+		t.Fatalf("class C without collateral: %+v", d)
+	}
+	r.CollateralCounted = true
+	if d := Decide(r, prod(t, products.WorkingCapital), 1_000_000*rub, 12); d.Outcome != Review {
+		t.Fatalf("class C with collateral goes to the analyst: %+v", d)
+	}
+	b := result(scoring.GradeB, 5_000_000*rub)
+	b.CollateralCounted = false
+	if d := Decide(b, prod(t, products.WorkingCapital), 1_000_000*rub, 12); d.Outcome != Review {
+		t.Fatalf("class B needs no collateral: %+v", d)
+	}
+}
+
+func TestDecide_ClassC_TheRecommendedAmountScoredAsC_NeedsCollateralToo(t *testing.T) {
+	requested := result(scoring.GradeB, 800_000*rub)
+	requested.MaxAmountByLoad, requested.MaxAmountByDSCR = 2_000_000*rub, 800_000*rub
+	rescore := func(int64) scoring.Result {
+		r := result(scoring.GradeC, 800_000*rub)
+		r.CollateralCounted = false
+		return r
+	}
+	if d := DecideRescoring(requested, prod(t, products.WorkingCapital), 4_000_000*rub, 12, rescore); d.Outcome != Reject {
+		t.Fatalf("the smaller loan is class C and has no collateral: %+v", d)
+	}
+}
+
+// Decision 3.1 of the analyst: Debt/EBITDA above the stop earns nothing and the machine does not refuse.
+func TestDecide_HighLeverage_StopsAnAutomaticRefusal_ButNotAnAutomaticOffer(t *testing.T) {
+	r := result(scoring.GradeD, 100_000*rub)
+	r.Score, r.HighLeverage, r.DebtEBITDA = 20, true, 4.6
+	d := Decide(r, prod(t, products.Express), 100_000*rub, 6)
+	if d.Outcome != Review || d.Offer != nil {
+		t.Fatalf("a refusal on top of a leverage above 4 goes to a person: %+v", d)
+	}
+	joined := strings.Join(d.Reasons, " ")
+	if !strings.Contains(joined, "Долг / EBITDA 4,6") || !strings.Contains(joined, "отказала бы") {
+		t.Fatalf("the reasons name the leverage and the refusal the system would have given: %v", d.Reasons)
+	}
+	a := result(scoring.GradeA, 5_000_000*rub)
+	a.HighLeverage, a.DebtEBITDA = true, 4.2
+	if d := Decide(a, prod(t, products.WorkingCapital), 1_000_000*rub, 12); d.Outcome != AutoOffer {
+		t.Fatalf("the leverage alone does not take an automatic offer away: %+v", d)
+	}
+	stop := result(scoring.GradeD, 0, "Компания ликвидирована")
+	stop.HighLeverage = true
+	if d := Decide(stop, prod(t, products.Express), 100_000*rub, 6); d.Outcome != Reject {
+		t.Fatalf("a stop factor still refuses: %+v", d)
+	}
+}
+
+// Decision 6.4 of the analyst: rate = risk-free rate + risk premium (PD x LGD) + operating costs. The base rate of
+// each product is made of the three for class A, and every other class pays its own PD x LGD.
+func TestPricing_RateIsRiskFreePlusPDxLGDPlusOperatingCost(t *testing.T) {
+	cfg := scoring.DefaultConfig()
+	for _, p := range products.Catalog() {
+		for _, g := range []scoring.Grade{scoring.GradeA, scoring.GradeB, scoring.GradeC} {
+			offer, ok := MakeOffer(p, g, 1_000_000*rub, 12, "auto")
+			if !ok {
+				t.Fatalf("%s %s: no offer", p.ID, g)
+			}
+			want := cfg.RiskFreeBP + int(math.Round(cfg.PD[g]*p.LGD*10000)) + p.OperatingCostBP
+			if offer.RateBP != want {
+				t.Errorf("%s class %s: rate %d, risk-free %d + PD x LGD + operating cost %d = %d", p.ID, g, offer.RateBP, cfg.RiskFreeBP, p.OperatingCostBP, want)
+			}
+		}
 	}
 }

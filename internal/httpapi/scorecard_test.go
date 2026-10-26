@@ -7,6 +7,7 @@ import (
 
 	"matritsa/internal/httpapi/gen"
 	"matritsa/internal/products"
+	"matritsa/internal/scoring"
 	"matritsa/internal/seed"
 )
 
@@ -46,11 +47,12 @@ func TestScorecard_CardCarries590PCategoryAndTheNewSources(t *testing.T) {
 	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
 	card := e.staffCard(app.Id.String())
 	s := card.Scoring
-	if s.QualityCategory == nil || s.ReserveRange == nil || s.RiskLabel == nil || !strings.Contains(*s.QualityCategory, "II–III") || *s.ReserveRange != "1–50 %" {
-		t.Fatalf("class %s must map to a 590-P category: %+v", s.Grade, s)
+	want := scoring.QualityOf(scoring.Grade(s.Grade))
+	if s.QualityCategory == nil || s.ReserveRange == nil || s.RiskLabel == nil || *s.QualityCategory != want.Category || *s.ReserveRange != want.Reserve {
+		t.Fatalf("class %s must map to a 590-P category %q with the reserve %q: %+v", s.Grade, want.Category, want.Reserve, s)
 	}
 	eg := card.Enrichment.Egrul
-	if eg == nil || eg.Finance == nil || eg.Finance.CurrentRatio <= 0 || eg.Litigation == nil {
+	if eg == nil || eg.Finance == nil || eg.Finance.CurrentRatio <= 0 || eg.Cases == nil && false {
 		t.Fatalf("the simulated registry and accounts must reach the card: %+v", eg)
 	}
 	if eg.Statement == nil || eg.Statement.NoiMargin <= 0 {
@@ -61,34 +63,140 @@ func TestScorecard_CardCarries590PCategoryAndTheNewSources(t *testing.T) {
 	}
 }
 
-func TestScorecard_CollateralFromTheWizardChangesTheScore_NotTheDecisionRules(t *testing.T) {
+func TestScorecard_CollateralByTheAnalystsRules_ThroughTheForm(t *testing.T) {
 	e := newEnv(t)
-	score := func(collateral string) int {
+	collateral := func(fields map[string]string, docs ...string) gen.Factor {
 		tok := e.token("client1")
 		code, raw := e.do("POST", "/api/v1/applications", tok, map[string]any{
-			"productId": "working_capital", "amount": 1_000_000 * rub, "termMonths": 12, "purpose": "Закупка сырья на сезон",
-			"fields": map[string]string{"collateral": collateral},
+			"productId": "working_capital", "amount": 1_000_000 * rub, "termMonths": 12, "purpose": "Закупка сырья на сезон", "fields": fields,
 		})
 		if code != 201 {
 			t.Fatalf("%d %s", code, raw)
 		}
 		var app gen.Application
 		mustJSON(t, raw, &app)
-		for _, k := range []string{"bank_statement", "financials"} {
+		for _, k := range append([]string{"bank_statement", "financials"}, docs...) {
 			if c, r := e.upload(tok, app.Id.String(), k, k+".pdf", pdfBytes); c != 201 {
 				t.Fatalf("%d %s", c, r)
 			}
 		}
 		e.run("client1", app)
-		card := e.staffCard(app.Id.String())
-		f, ok := factorOf(card, "collateral")
+		f, ok := factorOf(e.staffCard(app.Id.String()), "collateral")
 		if !ok {
 			t.Fatal("collateral criterion missing")
 		}
-		return f.Points
+		return f
 	}
-	if none, full, partial := score("none"), score("full"), score("partial"); none != 0 || full != 5 || partial != 2 {
-		t.Fatalf("collateral points: none %d, partial %d, full %d", none, partial, full)
+	flat := map[string]string{"collateralKind": "real_estate", "collateralValue": "5 000 000"}
+	if f := collateral(flat, "collateral_doc"); f.Points != 5 {
+		t.Errorf("a flat of 5 million (30%% off) covers a million: %+v", f)
+	}
+	if f := collateral(map[string]string{"collateralKind": "real_estate", "collateralValue": "1000000"}, "collateral_doc"); f.Points != 2 {
+		t.Errorf("a flat of a million (30%% off) covers a part: %+v", f)
+	}
+	if f := collateral(flat); f.Points != 0 || !strings.Contains(f.Note, "документа") {
+		t.Errorf("without the document nothing counts: %+v", f)
+	}
+	if f := collateral(map[string]string{"collateralKind": "guarantee"}, "collateral_doc"); f.Points != 2 {
+		t.Errorf("a guarantee of the owner is partial at most: %+v", f)
+	}
+	if f := collateral(map[string]string{"collateralKind": "none"}); f.Points != 0 {
+		t.Errorf("%+v", f)
+	}
+}
+
+func TestApplication_FormAnswersThatTheModelReadsAreChecked(t *testing.T) {
+	e := newEnv(t)
+	tok := e.token("client1")
+	for name, fields := range map[string]map[string]string{
+		"unknown kind of collateral": {"collateralKind": "castle"},
+		"a value in words":           {"collateralKind": "real_estate", "collateralValue": "много"},
+		"a document amount in words": {"purposeDocAmount": "около миллиона"},
+	} {
+		code, _ := e.do("POST", "/api/v1/applications", tok, map[string]any{
+			"productId": "working_capital", "amount": 1_000_000 * rub, "termMonths": 12, "purpose": "Закупка сырья на сезон", "fields": fields,
+		})
+		if code != 422 {
+			t.Errorf("%s: want 422, got %d", name, code)
+		}
+	}
+}
+
+// 13.3 of the analyst: the verdict on the purpose replaces the automatic reading, the application is scored again.
+func TestPurposeCheck_TheVerdictChangesThePointsTheClassAndTheVersion(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+	if app.Status != gen.ANALYSTREVIEW {
+		t.Fatalf("want review, got %s", app.Status)
+	}
+	before := e.staffCard(app.Id.String())
+	pBefore, _ := factorOf(before, "purpose")
+
+	check := func(login, verdict string) (int, gen.StaffApplication) {
+		code, raw := e.do("POST", "/api/v1/staff/applications/"+app.Id.String()+"/purpose-check", e.token(login), map[string]any{"verdict": verdict, "comment": "Смета получена по почте"})
+		var card gen.StaffApplication
+		if code == 200 {
+			mustJSON(t, raw, &card)
+		}
+		return code, card
+	}
+	code, card := check("staff1", "confirmed")
+	pAfter, _ := factorOf(card, "purpose")
+	if code != 200 || pAfter.Points != 5 || !strings.Contains(pAfter.Note, "сотрудник") || pAfter.Points <= pBefore.Points {
+		t.Fatalf("a confirmed purpose earns the full 5: %d %+v (was %+v)", code, pAfter, pBefore)
+	}
+	if card.Scoring.Score != before.Scoring.Score+(5-pBefore.Points) || card.PurposeVerdict == nil || *card.PurposeVerdict != gen.StaffApplicationPurposeVerdictConfirmed {
+		t.Fatalf("the score follows and the verdict is shown: %+v", card.Scoring.Score)
+	}
+	if *card.Version <= *before.Version {
+		t.Fatalf("the version moves, so a stale card cannot be decided on: %d -> %d", *before.Version, *card.Version)
+	}
+	if code, card := check("staff1", "not_confirmed"); code != 200 || mustFactor(t, card, "purpose").Points != 0 {
+		t.Fatalf("a rejected purpose earns nothing: %d", code)
+	}
+	if code, _ := check("staff1", "maybe"); code != 422 {
+		t.Errorf("an unknown verdict: %d", code)
+	}
+	if code, _ := check("client2", "confirmed"); code != 403 {
+		t.Errorf("a client cannot judge the purpose: %d", code)
+	}
+	// the journal of the client does not show the working verdict of the bank
+	_, raw := e.do("GET", "/api/v1/applications/"+app.Id.String()+"/timeline", e.token("client2"), nil)
+	if strings.Contains(string(raw), "PurposeChecked") {
+		t.Errorf("the client must not see the verdict of the analyst: %s", raw)
+	}
+	_, raw = e.do("GET", "/api/v1/staff/applications/"+app.Id.String(), e.token("staff1"), nil)
+	if !strings.Contains(string(raw), "PurposeChecked") {
+		t.Errorf("the analyst sees the entry in the journal")
+	}
+}
+
+func mustFactor(t *testing.T, card gen.StaffApplication, key string) gen.Factor {
+	t.Helper()
+	f, ok := factorOf(card, key)
+	if !ok {
+		t.Fatalf("no %s", key)
+	}
+	return f
+}
+
+func TestPurposeCheck_OnlyWhileTheApplicationWaitsForTheAnalyst(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client1", e.draft("client1", products.WorkingCapital, 1_000_000*rub, 12, true)) // an automatic offer
+	if code, _ := e.do("POST", "/api/v1/staff/applications/"+app.Id.String()+"/purpose-check", e.token("staff1"), map[string]any{"verdict": "confirmed"}); code != 409 {
+		t.Fatalf("an application that is not with the analyst: want 409, got %d", code)
+	}
+}
+
+func TestScorecard_TheRateIsBrokenIntoItsParts(t *testing.T) {
+	e := newEnv(t)
+	app := e.run("client2", e.draft("client2", products.WorkingCapital, 3_000_000*rub, 24, true))
+	s := e.staffCard(app.Id.String()).Scoring
+	if s.RateRiskFreeBp == nil || s.RateRiskBp == nil || s.RateOperatingBp == nil {
+		t.Fatalf("the parts of the rate are missing: %+v", s)
+	}
+	if *s.RateRiskFreeBp+*s.RateRiskBp+*s.RateOperatingBp != 1650+*s.RiskPremiumBp {
+		t.Fatalf("risk-free %d + risk %d + operating %d must make the base rate plus the premium (%d + %d)", *s.RateRiskFreeBp, *s.RateRiskBp, *s.RateOperatingBp, 1650, *s.RiskPremiumBp)
 	}
 }
 

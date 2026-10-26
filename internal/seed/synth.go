@@ -142,12 +142,12 @@ func Synthesize(inn string) (Company, bool) {
 	}
 	base := int64(between(400, 900)) * 1000 * rub
 	pattern := []float64{1.0, 0.96, 1.04, 1.02, 0.97, 1.05}
-	history := func(score, loans, overdue int, debtShare, repaidShare float64) *integrations.BKIReport {
+	history := func(score, loans, overdue, recent int, debtShare, repaidShare float64) *integrations.BKIReport {
 		closed := 0
 		if repaidShare > 0 {
 			closed = 1 + int(repaidShare)
 		}
-		return &integrations.BKIReport{HasHistory: true, ActiveLoans: loans, TotalDebt: int64(float64(base) * debtShare), MaxOverdueDays: overdue, Score: score, ClosedLoans: closed, TotalRepaid: int64(float64(base) * repaidShare)}
+		return &integrations.BKIReport{HasHistory: true, ActiveLoans: loans, TotalDebt: int64(float64(base) * debtShare), MaxOverdueDays: overdue, Overdues: integrations.OverdueHistory(overdue, recent), Score: score, ClosedLoans: closed, TotalRepaid: int64(float64(base) * repaidShare)}
 	}
 
 	// The accounts and the statement of a synthetic company: the operating margin follows the industry as the old estimate did,
@@ -165,14 +165,14 @@ func Synthesize(inn string) (Company, bool) {
 		base = int64(between(1500, 3500)) * 1000 * rub
 		c.MonthlyObligations = base * int64(between(3, 5)) / 100
 		c.Revenue = series(base, pattern, 12)
-		c.BKI = history(between(750, 820), 1, 0, 0.5, float64(between(3, 6)))
+		c.BKI = history(between(750, 820), 1, 0, 0, 0.5, float64(between(3, 6)))
 	case Borderline:
 		c.RegisteredAt = monthsAgo(between(24, 60))
 		fin(0.24, 1.0+float64(between(0, 3))/10, between(0, 1))
-		c.Litigation = between(0, 1)
+		c.LitigationLevel = between(0, 1)
 		c.MonthlyObligations = base * int64(between(5, 8)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.92, 1.08, 1.04, 0.95}, 12)
-		c.BKI = history(between(590, 640), 1, between(18, 30), 0.8, float64(between(1, 2)))
+		c.BKI = history(between(590, 640), 1, between(18, 30), 1, 0.8, float64(between(1, 2)))
 	case Young:
 		c.RegisteredAt = monthsAgo(between(3, 8))
 		fin(0.40, 1.1+float64(between(0, 3))/10, 0)
@@ -181,22 +181,22 @@ func Synthesize(inn string) (Company, bool) {
 		c.BKI = &integrations.BKIReport{HasHistory: false}
 	case Indebted:
 		c.RegisteredAt = monthsAgo(between(36, 96))
-		fin(0.22, 1.0+float64(between(0, 2))/10, 1)
-		c.Litigation = between(0, 1)
+		fin(0.22, 1.0+float64(between(0, 2))/10, 0)
+		c.LitigationLevel = between(0, 1)
 		c.MonthlyObligations = base * int64(between(9, 12)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.8, 1.15, 0.9, 1.2, 0.85}, 12)
-		c.BKI = history(between(580, 625), 3, between(20, 40), 4.5, 1)
+		c.BKI = history(between(580, 625), 3, between(2, 3), 1, 4.5, 1)
 	case Liquidated:
 		c.RegisteredAt = monthsAgo(between(60, 120))
 		fin(0.25, 1.2, 0)
 		c.Status = "liquidated"
 		c.Revenue = series(base, []float64{1.0, 0.9, 1.1}, 12)
-		c.BKI = history(700, 0, 0, 0, 1)
+		c.BKI = history(700, 0, 0, 0, 0, 1)
 	case Flagged:
 		c.RegisteredAt = monthsAgo(between(36, 96))
 		c.MonthlyObligations = base * int64(between(3, 5)) / 100
 		c.Revenue = series(base, pattern, 12)
-		c.BKI = history(between(700, 780), 1, 0, 0.5, float64(between(2, 4)))
+		c.BKI = history(between(700, 780), 1, 0, 0, 0.5, float64(between(2, 4)))
 		fin(0.30, 1.4, 0)
 		// the two marks are told apart by the INN, so that both kinds appear
 		if seedOf(inn)/30%2 == 0 {
@@ -207,10 +207,10 @@ func Synthesize(inn string) (Company, bool) {
 	case Overdue:
 		c.RegisteredAt = monthsAgo(between(36, 96))
 		fin(0.15, 0.9, 1)
-		c.Litigation = 1
+		c.LitigationLevel = 1
 		c.MonthlyObligations = base * int64(between(12, 16)) / 100
 		c.Revenue = series(base, []float64{1.0, 0.7, 1.3, 0.9}, 12)
-		c.BKI = history(between(470, 520), 4, between(95, 150), 5, 1)
+		c.BKI = history(between(470, 520), 4, between(95, 150), 1, 5, 1)
 	}
 	return c, true
 }

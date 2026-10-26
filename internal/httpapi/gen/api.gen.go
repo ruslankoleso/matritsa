@@ -299,6 +299,27 @@ func (e ProductId) Valid() bool {
 	}
 }
 
+// Defines values for PurposeCheckRequestVerdict.
+const (
+	PurposeCheckRequestVerdictClarify      PurposeCheckRequestVerdict = "clarify"
+	PurposeCheckRequestVerdictConfirmed    PurposeCheckRequestVerdict = "confirmed"
+	PurposeCheckRequestVerdictNotConfirmed PurposeCheckRequestVerdict = "not_confirmed"
+)
+
+// Valid indicates whether the value is a known member of the PurposeCheckRequestVerdict enum.
+func (e PurposeCheckRequestVerdict) Valid() bool {
+	switch e {
+	case PurposeCheckRequestVerdictClarify:
+		return true
+	case PurposeCheckRequestVerdictConfirmed:
+		return true
+	case PurposeCheckRequestVerdictNotConfirmed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RecommendationSource.
 const (
 	RecommendationSourceAi    RecommendationSource = "ai"
@@ -377,6 +398,27 @@ func (e StaffApplicationAllowedActions) Valid() bool {
 	case StaffApplicationAllowedActionsReject:
 		return true
 	case StaffApplicationAllowedActionsRequestInfo:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StaffApplicationPurposeVerdict.
+const (
+	StaffApplicationPurposeVerdictClarify      StaffApplicationPurposeVerdict = "clarify"
+	StaffApplicationPurposeVerdictConfirmed    StaffApplicationPurposeVerdict = "confirmed"
+	StaffApplicationPurposeVerdictNotConfirmed StaffApplicationPurposeVerdict = "not_confirmed"
+)
+
+// Valid indicates whether the value is a known member of the StaffApplicationPurposeVerdict enum.
+func (e StaffApplicationPurposeVerdict) Valid() bool {
+	switch e {
+	case StaffApplicationPurposeVerdictClarify:
+		return true
+	case StaffApplicationPurposeVerdictConfirmed:
+		return true
+	case StaffApplicationPurposeVerdictNotConfirmed:
 		return true
 	default:
 		return false
@@ -525,7 +567,7 @@ type ApplicationAllowedActions string
 type ApplicationInput struct {
 	Amount *int64 `json:"amount,omitempty"`
 
-	// Fields Ответы мастера заявки. Ключ collateral: none, partial или full (обеспечение)
+	// Fields Ответы мастера заявки. Обеспечение: collateralKind (none, real_estate, equipment, transport, goods, guarantee) и collateralValue (стоимость залога в рублях). Сумма в подтверждающем документе: purposeDocAmount (рублей)
 	Fields     *map[string]string `json:"fields,omitempty"`
 	ProductId  *string            `json:"productId,omitempty"`
 	Purpose    *string            `json:"purpose,omitempty"`
@@ -550,9 +592,15 @@ type BKIReport struct {
 	ActiveLoans int `json:"activeLoans"`
 
 	// ClosedLoans Число кредитов, погашенных полностью
-	ClosedLoans    *int `json:"closedLoans,omitempty"`
-	HasHistory     bool `json:"hasHistory"`
-	MaxOverdueDays int  `json:"maxOverdueDays"`
+	ClosedLoans *int `json:"closedLoans,omitempty"`
+	HasHistory  bool `json:"hasHistory"`
+
+	// LeasingDebt Остаток по договорам лизинга в копейках
+	LeasingDebt    *int64 `json:"leasingDebt,omitempty"`
+	MaxOverdueDays int    `json:"maxOverdueDays"`
+
+	// Overdues Просрочки за 36 месяцев
+	Overdues *[]Overdue `json:"overdues,omitempty"`
 
 	// Restructured Действующий кредит был реструктурирован
 	Restructured *bool `json:"restructured,omitempty"`
@@ -636,6 +684,18 @@ type CompanyLookup struct {
 // CompanyLookupKind defines model for CompanyLookup.Kind.
 type CompanyLookupKind string
 
+// CourtCase defines model for CourtCase.
+type CourtCase struct {
+	// Amount Сумма иска в копейках
+	Amount int64 `json:"amount"`
+
+	// Defendant Компания или руководитель ответчик
+	Defendant bool `json:"defendant"`
+
+	// YearsAgo Сколько лет назад
+	YearsAgo float32 `json:"yearsAgo"`
+}
+
 // DecisionRequest defines model for DecisionRequest.
 type DecisionRequest struct {
 	Action  DecisionRequestAction `json:"action"`
@@ -672,20 +732,20 @@ type Document struct {
 type EGRULRecord struct {
 	Address  *string `json:"address,omitempty"`
 	Bankrupt *bool   `json:"bankrupt,omitempty"`
-	Director *string `json:"director,omitempty"`
+
+	// Cases Судебные дела компании и руководителя (смоделированы)
+	Cases    *[]CourtCase `json:"cases,omitempty"`
+	Director *string      `json:"director,omitempty"`
 
 	// DirectorDisqualified Руководитель в реестре дисквалифицированных лиц (смоделировано)
 	DirectorDisqualified *bool `json:"directorDisqualified,omitempty"`
 
 	// Finance Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет
-	Finance *FinanceData `json:"finance,omitempty"`
-	Inn     string       `json:"inn"`
-
-	// Litigation Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано)
-	Litigation   *int       `json:"litigation,omitempty"`
-	Name         string     `json:"name"`
-	Okved        *string    `json:"okved,omitempty"`
-	RegisteredAt *time.Time `json:"registeredAt,omitempty"`
+	Finance      *FinanceData `json:"finance,omitempty"`
+	Inn          string       `json:"inn"`
+	Name         string       `json:"name"`
+	Okved        *string      `json:"okved,omitempty"`
+	RegisteredAt *time.Time   `json:"registeredAt,omitempty"`
 
 	// Statement Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика
 	Statement *StatementData `json:"statement,omitempty"`
@@ -828,6 +888,12 @@ type Offer struct {
 // OfferSource defines model for Offer.Source.
 type OfferSource string
 
+// Overdue defines model for Overdue.
+type Overdue struct {
+	Days      int `json:"days"`
+	MonthsAgo int `json:"monthsAgo"`
+}
+
 // ProcessMetrics defines model for ProcessMetrics.
 type ProcessMetrics struct {
 	// AcceptanceShare Доля принятых среди предложений, по которым клиент уже ответил или срок истёк, от 0 до 1
@@ -884,6 +950,15 @@ type Product struct {
 
 // ProductId defines model for Product.Id.
 type ProductId string
+
+// PurposeCheckRequest defines model for PurposeCheckRequest.
+type PurposeCheckRequest struct {
+	Comment *string                    `json:"comment,omitempty"`
+	Verdict PurposeCheckRequestVerdict `json:"verdict"`
+}
+
+// PurposeCheckRequestVerdict defines model for PurposeCheckRequest.Verdict.
+type PurposeCheckRequestVerdict string
 
 // Queue defines model for Queue.
 type Queue struct {
@@ -980,7 +1055,10 @@ type RejectionBy string
 type ScoringResult struct {
 	// CumulativePd Вероятность дефолта за срок кредита
 	CumulativePd *float32 `json:"cumulativePd,omitempty"`
-	DebtLoad     float32  `json:"debtLoad"`
+
+	// DebtEbitda Долг / EBITDA с учётом лизинга и запрошенной суммы
+	DebtEbitda *float32 `json:"debtEbitda,omitempty"`
+	DebtLoad   float32  `json:"debtLoad"`
 
 	// Dscr Покрытие всех платежей (действующих и по заявке) денежным потоком
 	Dscr *float32 `json:"dscr,omitempty"`
@@ -1030,6 +1108,15 @@ type ScoringResult struct {
 	// QualityCategory Категория качества ссуды по Положению 590-П, соответствующая классу
 	QualityCategory *string `json:"qualityCategory,omitempty"`
 
+	// RateOperatingBp Операционные расходы по продукту, базисные пункты
+	RateOperatingBp *int `json:"rateOperatingBp,omitempty"`
+
+	// RateRiskBp Премия за риск PD x LGD, базисные пункты
+	RateRiskBp *int `json:"rateRiskBp,omitempty"`
+
+	// RateRiskFreeBp Безрисковая ставка в ставке по заявке, базисные пункты (ставка = безрисковая + PD x LGD + операционные расходы)
+	RateRiskFreeBp *int `json:"rateRiskFreeBp,omitempty"`
+
 	// RepaidCoverage Какую долю запрошенной суммы покрывает погашенное: погашено / запрошено
 	RepaidCoverage *float32 `json:"repaidCoverage,omitempty"`
 
@@ -1058,17 +1145,26 @@ type StaffApplication struct {
 	Enrichment     *Enrichment                      `json:"enrichment,omitempty"`
 	Events         []TimelineEntry                  `json:"events"`
 	ManualCheck    *bool                            `json:"manualCheck,omitempty"`
-	Reasons        *[]string                        `json:"reasons,omitempty"`
-	Recommended    *Offer                           `json:"recommended,omitempty"`
-	Scoring        *ScoringResult                   `json:"scoring,omitempty"`
-	Version        *int                             `json:"version,omitempty"`
+
+	// PurposeVerdict Вердикт сотрудника по цели и сумме, если он есть
+	PurposeVerdict *StaffApplicationPurposeVerdict `json:"purposeVerdict,omitempty"`
+	Reasons        *[]string                       `json:"reasons,omitempty"`
+	Recommended    *Offer                          `json:"recommended,omitempty"`
+	Scoring        *ScoringResult                  `json:"scoring,omitempty"`
+	Version        *int                            `json:"version,omitempty"`
 }
 
 // StaffApplicationAllowedActions defines model for StaffApplication.AllowedActions.
 type StaffApplicationAllowedActions string
 
+// StaffApplicationPurposeVerdict Вердикт сотрудника по цели и сумме, если он есть
+type StaffApplicationPurposeVerdict string
+
 // StatementData Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика
 type StatementData struct {
+	// BalanceCover Средний остаток на счёте в месяцах среднемесячных расходов
+	BalanceCover float32 `json:"balanceCover"`
+
 	// CashShare Доля снятия наличных в обороте
 	CashShare float32 `json:"cashShare"`
 
@@ -1252,6 +1348,9 @@ type RegisterJSONRequestBody = RegisterRequest
 // MakeDecisionJSONRequestBody defines body for MakeDecision for application/json ContentType.
 type MakeDecisionJSONRequestBody = DecisionRequest
 
+// CheckPurposeJSONRequestBody defines body for CheckPurpose for application/json ContentType.
+type CheckPurposeJSONRequestBody = PurposeCheckRequest
+
 // SendSupportMessageJSONRequestBody defines body for SendSupportMessage for application/json ContentType.
 type SendSupportMessageJSONRequestBody = SupportMessageRequest
 
@@ -1362,6 +1461,9 @@ type ServerInterface interface {
 	// GetExplanation Пояснение решения простым языком (ИИ либо шаблон)
 	// (GET /staff/applications/{id}/explanation)
 	GetExplanation(w http.ResponseWriter, r *http.Request, id ApplicationId, params GetExplanationParams)
+	// CheckPurpose Оценка сотрудника по цели и сумме: подтверждена, требует уточнения или не подтверждена
+	// (POST /staff/applications/{id}/purpose-check)
+	CheckPurpose(w http.ResponseWriter, r *http.Request, id ApplicationId)
 	// GetProcessMetrics Показатели кредитного процесса по журналу заявок
 	// (GET /staff/metrics)
 	GetProcessMetrics(w http.ResponseWriter, r *http.Request)
@@ -1596,6 +1698,12 @@ func (_ Unimplemented) DownloadStaffDocument(w http.ResponseWriter, r *http.Requ
 // GetExplanation Пояснение решения простым языком (ИИ либо шаблон)
 // (GET /staff/applications/{id}/explanation)
 func (_ Unimplemented) GetExplanation(w http.ResponseWriter, r *http.Request, id ApplicationId, params GetExplanationParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CheckPurpose Оценка сотрудника по цели и сумме: подтверждена, требует уточнения или не подтверждена
+// (POST /staff/applications/{id}/purpose-check)
+func (_ Unimplemented) CheckPurpose(w http.ResponseWriter, r *http.Request, id ApplicationId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -2451,6 +2559,32 @@ func (siw *ServerInterfaceWrapper) GetExplanation(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// CheckPurpose operation middleware
+func (siw *ServerInterfaceWrapper) CheckPurpose(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ApplicationId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CheckPurpose(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProcessMetrics operation middleware
 func (siw *ServerInterfaceWrapper) GetProcessMetrics(w http.ResponseWriter, r *http.Request) {
 
@@ -2849,6 +2983,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/staff/applications/{id}/decision", wrapper.MakeDecision)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/staff/applications/{id}/purpose-check", wrapper.CheckPurpose)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/staff/applications/{id}/explanation", wrapper.GetExplanation)

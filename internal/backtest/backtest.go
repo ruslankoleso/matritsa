@@ -27,6 +27,9 @@ type Borrower struct {
 	Defaulted bool
 }
 
+// collateralKinds is what the synthetic clients name: mostly nothing.
+var collateralKinds = []string{scoring.CollateralNone, scoring.CollateralNone, scoring.CollateralGuarantee, scoring.CollateralRealEstate}
+
 // TrueLogit is the assumed world: the log-odds of default over the term grow with a thin coverage of
 // payments, past overdue, a young business, unstable revenue, anomalies in the statement, lawsuits,
 // a weak liquidity and a long term; a part of the risk is hidden from any scorecard.
@@ -103,9 +106,9 @@ func Generate(n int, seed uint64) []Borrower {
 		}
 		in := scoring.Input{
 			CompanyAgeMonths: age, MonthlyRevenue: months, MonthlyObligations: obligations, BKI: bki,
-			EGRUL: integrations.EGRULRecord{Status: "active", RegisteredAt: time.Now().AddDate(0, -age, 0), Litigation: litigation,
+			EGRUL: integrations.EGRULRecord{Status: "active", RegisteredAt: time.Now().AddDate(0, -age, 0), Cases: integrations.CasesOfLevel(litigation, revenue*12),
 				Finance: fin, Statement: integrations.StatementOfLevel(margin, anomaly)},
-			OKVEDGroup: 1 + r.IntN(3), Collateral: []string{"none", "none", "partial", "full"}[r.IntN(4)],
+			OKVEDGroup: 1 + r.IntN(3), CollateralKind: collateralKinds[r.IntN(len(collateralKinds))], CollateralValue: amount * 3 / 2, CollateralDoc: true,
 			PurposeText: "Пополнение оборотных средств", PurposeDocs: r.Float64() < 0.4,
 			Amount: amount, TermMonths: term, RateBP: 1650, LGD: 0.6,
 		}

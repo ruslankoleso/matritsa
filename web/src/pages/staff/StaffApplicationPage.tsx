@@ -15,6 +15,7 @@ import { useCountUp } from '../../lib/useCountUp'
 import Affordability from './Affordability'
 import Conclusion from './Conclusion'
 import DecisionBanner from './DecisionBanner'
+import PurposeCheck from './PurposeCheck'
 import { decisionErrorText } from './decisionError'
 
 /** True one frame after mount, so CSS transitions can run from the initial state. */
@@ -103,6 +104,7 @@ function Criteria({ card }: { card: StaffApplication }) {
       <div className="kv" style={{ marginTop: 12 }}>
         <div className="kv-row"><span>Сумма баллов</span><b>{sum}</b></div>
       </div>
+      <PurposeCheck card={card} />
     </>
   )
 }
@@ -126,6 +128,11 @@ function ExpectedLoss({ s }: { s: NonNullable<StaffApplication['scoring']> }) {
           {s.riskPremiumBp ? ` Надбавка к ставке за риск: +${(s.riskPremiumBp / 100).toLocaleString('ru-RU')} п.п. к базовой ставке продукта.` : ' Класс A: надбавки к базовой ставке нет.'}
         </p>
       </div>
+      {s.rateRiskFreeBp != null && s.rateRiskBp != null && s.rateOperatingBp != null && (
+        <p className="el-rate">
+          <b>Из чего ставка:</b> безрисковая {formatRate(s.rateRiskFreeBp)} + премия за риск (PD × LGD) {formatRate(s.rateRiskBp)} + операционные расходы {formatRate(s.rateOperatingBp)} = {formatRate(s.rateRiskFreeBp + s.rateRiskBp + s.rateOperatingBp)} годовых.
+        </p>
+      )}
       <p className="field-hint">Параметры расчёта (вероятность дефолта и доля потерь) заданы в конфигурации и подлежат калибровке на данных банка.</p>
     </section>
   )
@@ -140,7 +147,16 @@ function Enrichment({ card }: { card: StaffApplication }) {
       {e.egrul?.bankrupt && <div className="kv-row"><span>Банкротство</span><b>Да</b></div>}
       {e.egrul?.directorDisqualified && <div className="kv-row"><span>Руководитель</span><b>Дисквалифицирован</b></div>}
       {e.egrul?.unreliableData && <div className="kv-row"><span>Сведения в реестре</span><b>Отмечены как недостоверные</b></div>}
-      {e.egrul && <div className="kv-row"><span>Судебные дела</span><b>{['нет', 'незначительные', 'крупные'][e.egrul.litigation ?? 0]}</b></div>}
+      {e.egrul && (
+        <div className="kv-row">
+          <span>Судебные дела</span>
+          <b>
+            {(e.egrul.cases ?? []).length === 0 ? 'нет' : (e.egrul.cases ?? []).map((c, i) => (
+              <span key={i} style={{ display: 'block', fontWeight: 500 }}>{c.defendant ? 'ответчик' : 'истец'}, {formatMoney(c.amount)}, {c.yearsAgo.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} г. назад</span>
+            ))}
+          </b>
+        </div>
+      )}
       {e.egrul?.finance ? (
         <>
           <div className="kv-row"><span>Отчётность: рентабельность продаж</span><b>{formatPercent(e.egrul.finance.grossMargin)}</b></div>
@@ -151,6 +167,7 @@ function Enrichment({ card }: { card: StaffApplication }) {
       )}
       {e.egrul?.statement ? (
         <>
+          <div className="kv-row"><span>Выписка: остаток на счёте</span><b>{e.egrul.statement.balanceCover.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} мес. расходов</b></div>
           <div className="kv-row"><span>Выписка: денежный поток к поступлениям</span><b>{formatPercent(e.egrul.statement.noiMargin)}</b></div>
           <div className="kv-row"><span>Выписка: снятие наличных</span><b>{formatPercent(e.egrul.statement.cashShare)}</b></div>
           <div className="kv-row"><span>Выписка: налоги к обороту</span><b>{formatPercent(e.egrul.statement.taxBurden)}</b></div>
@@ -167,6 +184,13 @@ function Enrichment({ card }: { card: StaffApplication }) {
       <div className="kv-row"><span>Бюро: долг</span><b>{e.bki?.hasHistory ? formatMoney(e.bki.totalDebt) : <span className="dash">—</span>}</b></div>
       <div className="kv-row"><span>Бюро: макс. просрочка</span><b>{e.bki?.hasHistory ? `${e.bki.maxOverdueDays} дн.` : <span className="dash">—</span>}</b></div>
       {e.bki?.restructured && <div className="kv-row"><span>Бюро: реструктуризация</span><b>Да</b></div>}
+      {e.bki?.hasHistory && !!e.bki.leasingDebt && <div className="kv-row"><span>Бюро: лизинг (остаток)</span><b>{formatMoney(e.bki.leasingDebt)}</b></div>}
+      {e.bki?.hasHistory && (e.bki.overdues ?? []).length > 0 && (
+        <div className="kv-row">
+          <span>Бюро: просрочки</span>
+          <b>{(e.bki.overdues ?? []).map((o, i) => <span key={i} style={{ display: 'block', fontWeight: 500 }}>{o.days} дн., {o.monthsAgo} мес. назад</span>)}</b>
+        </div>
+      )}
       {e.lastError && <div className="kv-row"><span>Последняя ошибка источника</span><b style={{ fontSize: 13 }}>{e.lastError}</b></div>}
     </div>
   )

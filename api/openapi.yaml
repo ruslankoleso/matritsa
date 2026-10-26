@@ -606,6 +606,29 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
+  /staff/applications/{id}/purpose-check:
+    parameters:
+      - { $ref: '#/components/parameters/ApplicationId' }
+    post:
+      tags: [staff]
+      operationId: checkPurpose
+      summary: "Оценка сотрудника по цели и сумме: подтверждена, требует уточнения или не подтверждена"
+      description: "Только заявка в статусе ANALYST_REVIEW. Вердикт заменяет автоматическую оценку критерия, баллы, класс и рекомендация пересчитываются, версия заявки растёт. Заявку, взятую в работу другим сотрудником, оценить нельзя (409)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PurposeCheckRequest' }
+      responses:
+        '200':
+          description: Карточка после пересчёта
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StaffApplication' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
   /staff/applications/{id}/explanation:
     parameters:
       - { $ref: '#/components/parameters/ApplicationId' }
@@ -938,7 +961,7 @@ components:
         purpose: { type: string, maxLength: 500 }
         fields:
           type: object
-          description: "Ответы мастера заявки. Ключ collateral: none, partial или full (обеспечение)"
+          description: "Ответы мастера заявки. Обеспечение: collateralKind (none, real_estate, equipment, transport, goods, guarantee) и collateralValue (стоимость залога в рублях). Сумма в подтверждающем документе: purposeDocAmount (рублей)"
           additionalProperties: { type: string }
     InfoResponse:
       type: object
@@ -1091,6 +1114,10 @@ components:
         qualityCategory: { type: string, description: "Категория качества ссуды по Положению 590-П, соответствующая классу" }
         reserveRange: { type: string, description: "Диапазон резерва на возможные потери по этой категории" }
         riskLabel: { type: string, description: "Уровень риска словами: низкий, умеренный, высокий, критический" }
+        rateRiskFreeBp: { type: integer, description: "Безрисковая ставка в ставке по заявке, базисные пункты (ставка = безрисковая + PD x LGD + операционные расходы)" }
+        rateRiskBp: { type: integer, description: "Премия за риск PD x LGD, базисные пункты" }
+        rateOperatingBp: { type: integer, description: "Операционные расходы по продукту, базисные пункты" }
+        debtEbitda: { type: number, description: "Долг / EBITDA с учётом лизинга и запрошенной суммы" }
         factors:
           type: array
           items: { $ref: '#/components/schemas/Factor' }
@@ -1128,6 +1155,11 @@ components:
         closedLoans: { type: integer, description: "Число кредитов, погашенных полностью" }
         totalRepaid: { type: integer, format: int64, description: "Сумма погашенных кредитов в копейках" }
         restructured: { type: boolean, description: "Действующий кредит был реструктурирован" }
+        leasingDebt: { type: integer, format: int64, description: "Остаток по договорам лизинга в копейках" }
+        overdues:
+          type: array
+          description: "Просрочки за 36 месяцев"
+          items: { $ref: '#/components/schemas/Overdue' }
     EGRULRecord:
       type: object
       required: [inn, name, status]
@@ -1142,9 +1174,31 @@ components:
         bankrupt: { type: boolean }
         directorDisqualified: { type: boolean, description: "Руководитель в реестре дисквалифицированных лиц (смоделировано)" }
         unreliableData: { type: boolean, description: "В реестре отмечена недостоверность сведений о компании (смоделировано)" }
-        litigation: { type: integer, description: "Судебные дела: 0 нет, 1 незначительные, 2 крупные (смоделировано)" }
+        cases:
+          type: array
+          description: "Судебные дела компании и руководителя (смоделированы)"
+          items: { $ref: '#/components/schemas/CourtCase' }
         finance: { $ref: '#/components/schemas/FinanceData' }
         statement: { $ref: '#/components/schemas/StatementData' }
+    CourtCase:
+      type: object
+      required: [defendant, amount, yearsAgo]
+      properties:
+        defendant: { type: boolean, description: "Компания или руководитель ответчик" }
+        amount: { type: integer, format: int64, description: "Сумма иска в копейках" }
+        yearsAgo: { type: number, description: "Сколько лет назад" }
+    Overdue:
+      type: object
+      required: [days, monthsAgo]
+      properties:
+        days: { type: integer }
+        monthsAgo: { type: integer }
+    PurposeCheckRequest:
+      type: object
+      required: [verdict]
+      properties:
+        verdict: { type: string, enum: [confirmed, clarify, not_confirmed] }
+        comment: { type: string, maxLength: 500 }
     FinanceData:
       type: object
       description: "Данные бухгалтерской отчётности (смоделированы). У ИП отчётности часто нет"
@@ -1155,7 +1209,7 @@ components:
     StatementData:
       type: object
       description: "Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика"
-      required: [noiMargin, circularShare, circularMonths, cashShare, taxBurden, dubiousPayments, dubiousShare]
+      required: [noiMargin, circularShare, circularMonths, cashShare, taxBurden, dubiousPayments, dubiousShare, balanceCover]
       properties:
         noiMargin: { type: number, description: "(Поступления минус операционные списания) / поступления; долговые платежи не вычитаются" }
         circularShare: { type: number, description: "Доля оборота: круговые переводы и транзит" }
@@ -1164,6 +1218,7 @@ components:
         taxBurden: { type: number, description: "Налоги к обороту" }
         dubiousPayments: { type: integer, description: "Платежи сомнительным контрагентам за 12 месяцев" }
         dubiousShare: { type: number, description: "Их доля в обороте" }
+        balanceCover: { type: number, description: "Средний остаток на счёте в месяцах среднемесячных расходов" }
     Enrichment:
       type: object
       required: [attempts]
@@ -1226,6 +1281,7 @@ components:
         scoring: { $ref: '#/components/schemas/ScoringResult' }
         enrichment: { $ref: '#/components/schemas/Enrichment' }
         recommended: { $ref: '#/components/schemas/Offer' }
+        purposeVerdict: { type: string, enum: [confirmed, clarify, not_confirmed], description: "Вердикт сотрудника по цели и сумме, если он есть" }
         reasons:
           type: array
           items: { type: string }

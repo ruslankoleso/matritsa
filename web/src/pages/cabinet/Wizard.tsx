@@ -25,16 +25,24 @@ export interface Form {
   purpose: string
   contactName: string
   position: string
-  collateral: Collateral
+  collateralKind: CollateralKind
+  collateralValue: string // rubles, digits only
+  purposeDocAmount: string // rubles, digits only
 }
 
-export type Collateral = 'none' | 'partial' | 'full'
+export type CollateralKind = 'none' | 'real_estate' | 'equipment' | 'transport' | 'goods' | 'guarantee'
 
-export const COLLATERAL: { id: Collateral; label: string; hint: string }[] = [
+export const COLLATERAL: { id: CollateralKind; label: string; hint: string }[] = [
   { id: 'none', label: 'Без обеспечения', hint: 'Решение по доходам и истории' },
-  { id: 'partial', label: 'Частичное', hint: 'Залог или поручительство покрывают часть суммы' },
-  { id: 'full', label: 'Полное', hint: 'Залог или поручительство покрывают всю сумму' },
+  { id: 'real_estate', label: 'Недвижимость', hint: 'Залог, дисконт к стоимости 20–40 %' },
+  { id: 'equipment', label: 'Оборудование', hint: 'Залог, дисконт 20–50 %' },
+  { id: 'transport', label: 'Транспорт', hint: 'Залог, дисконт 30–70 %' },
+  { id: 'goods', label: 'Товары в обороте', hint: 'Залог, дисконт 40–60 %' },
+  { id: 'guarantee', label: 'Поручительство собственника', hint: 'Засчитывается как частичное обеспечение' },
 ]
+
+const isPledge = (k: CollateralKind) => k !== 'none' && k !== 'guarantee'
+const digits = (v: string) => v.replace(/\D/g, '')
 
 export function validateStep1(f: Form, products: Product[]): Record<string, string> {
   const errs: Record<string, string> = {}
@@ -94,7 +102,9 @@ export default function Wizard({ app }: { app?: Application }) {
     purpose: app?.purpose ?? '',
     contactName: app?.fields?.contactName ?? me.data?.fullName?.split(',')[0] ?? '',
     position: app?.fields?.position ?? '',
-    collateral: (['none', 'partial', 'full'].includes(app?.fields?.collateral ?? '') ? app?.fields?.collateral : 'none') as Collateral,
+    collateralKind: (COLLATERAL.some((c) => c.id === app?.fields?.collateralKind) ? app?.fields?.collateralKind : 'none') as CollateralKind,
+    collateralValue: app?.fields?.collateralValue ?? '',
+    purposeDocAmount: app?.fields?.purposeDocAmount ?? '',
   })
   const [touched, setTouched] = useState(false)
   const [lookup, setLookup] = useState<{ ok: boolean; text: string } | null>(null)
@@ -139,7 +149,7 @@ export default function Wizard({ app }: { app?: Application }) {
   const step1Next = async () => {
     setTouched(true)
     if (Object.keys(errs).length) return
-    const input = { productId: form.productId, amount: Number(form.amount.replace(/\s/g, '')) * 100, termMonths: Number(form.term), purpose: form.purpose.trim(), fields: { collateral: form.collateral } }
+    const input = { productId: form.productId, amount: Number(form.amount.replace(/\s/g, '')) * 100, termMonths: Number(form.term), purpose: form.purpose.trim(), fields: { collateralKind: form.collateralKind, collateralValue: digits(form.collateralValue), purposeDocAmount: digits(form.purposeDocAmount) } }
     const a = await save(() => (app ? api.updateApplication(app.id, input) : api.createApplication(input)))
     if (!a) return
     if (!app) nav(`/cabinet/applications/${a.id}?step=2`, { replace: true })
@@ -277,17 +287,28 @@ export default function Wizard({ app }: { app?: Application }) {
                     <FloatField id="purpose" label="На что пойдут деньги" multiline value={form.purpose} onChange={(v) => set({ purpose: v })}
                       error={touched ? errs.purpose : undefined} hint="Достаточно краткого описания: оно ускоряет рассмотрение заявки." />
                   </div>
+                  <div>
+                    <FloatField id="purposeDocAmount" label="Сумма в подтверждающем документе, ₽" inputMode="numeric" value={groupDigits(form.purposeDocAmount)} onChange={(v) => set({ purposeDocAmount: digits(v) })}
+                      hint="Если приложите договор, счёт или смету: сумма в нём может отличаться от заявки не больше чем на 10 %." />
+                  </div>
                   <fieldset className="wide collateral">
                     <legend>Обеспечение</legend>
                     <div className="collateral-opts">
                       {COLLATERAL.map((c) => (
-                        <label key={c.id} data-checked={form.collateral === c.id}>
-                          <input type="radio" name="collateral" value={c.id} checked={form.collateral === c.id} onChange={() => set({ collateral: c.id })} />
+                        <label key={c.id} data-checked={form.collateralKind === c.id}>
+                          <input type="radio" name="collateral" value={c.id} checked={form.collateralKind === c.id} onChange={() => set({ collateralKind: c.id })} />
                           <span><b>{c.label}</b><small>{c.hint}</small></span>
                         </label>
                       ))}
                     </div>
-                    <p className="field-hint">Залог или поручительство снижают риск банка и учитываются в оценке.</p>
+                    {isPledge(form.collateralKind) && (
+                      <div style={{ marginTop: 12, maxWidth: 360 }}>
+                        <FloatField id="collateralValue" label="Рыночная стоимость залога, ₽" inputMode="numeric" value={groupDigits(form.collateralValue)} onChange={(v) => set({ collateralValue: digits(v) })}
+                          hint="Банк вычтет дисконт: чем выше стоимость, тем полнее залог покрывает кредит." />
+                      </div>
+                    )}
+                    {form.collateralKind !== 'none' && <p className="field-hint">Приложите документ на обеспечение (выписка из ЕГРН, ПТС, договор залога или поручительства) на шаге «Документы»: без него обеспечение не засчитывается.</p>}
+                    {form.collateralKind === 'none' && <p className="field-hint">Залог или поручительство снижают риск банка и учитываются в оценке.</p>}
                   </fieldset>
                 </div>
               </section>
@@ -365,7 +386,7 @@ export default function Wizard({ app }: { app?: Application }) {
                 <div className="kv-row"><span>Сумма</span><b>{formatMoney(app.amount)}</b></div>
                 <div className="kv-row"><span>Срок</span><b>{formatTerm(app.termMonths)}</b></div>
                 <div className="kv-row"><span>Цель</span><b style={{ maxWidth: '34ch' }}>{app.purpose}</b></div>
-                <div className="kv-row"><span>Обеспечение</span><b>{COLLATERAL.find((c) => c.id === form.collateral)?.label}</b></div>
+                <div className="kv-row"><span>Обеспечение</span><b>{COLLATERAL.find((c) => c.id === form.collateralKind)?.label}</b></div>
                 <div className="kv-row"><span>Документы</span><b>{app.documents.length ? `${app.documents.length} загружено` : '—'}</b></div>
               </div>
               {app.missingItems.length > 0 ? (
