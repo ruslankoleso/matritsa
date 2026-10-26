@@ -59,6 +59,9 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-hf.co/t-tech/T-lite-it-2.1-GGUF:Q4_K_M}
       AI_ENABLED: ${AI_ENABLED:-false}
       SEED_ON_START: "true"
+    # The optional model may run on the host (Ollama outside Docker): the name works on Linux too, not only in Docker Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - uploads:/data
     ports:
