@@ -1,10 +1,13 @@
 package config
 
-import "testing"
+import (
+	"net/netip"
+	"testing"
+)
 
 func clearEnv(t *testing.T) {
 	t.Helper()
-	for _, k := range []string{"HTTP_ADDR", "DATABASE_URL", "JWT_SECRET", "PRODUCT_NAME", "BKI_URL", "EGRUL_URL", "OLLAMA_URL", "OLLAMA_MODEL", "AI_ENABLED", "APP_ENV", "DATA_DIR"} {
+	for _, k := range []string{"HTTP_ADDR", "DATABASE_URL", "JWT_SECRET", "PRODUCT_NAME", "BKI_URL", "EGRUL_URL", "OLLAMA_URL", "OLLAMA_MODEL", "AI_ENABLED", "APP_ENV", "DATA_DIR", "TRUSTED_PROXIES"} {
 		t.Setenv(k, "")
 	}
 }
@@ -65,5 +68,37 @@ func TestLoad_DemoDataIsOffInProdUnlessAsked(t *testing.T) {
 	t.Setenv("SEED_ON_START", "true")
 	if c, err = Load(); err != nil || !c.SeedOnStart {
 		t.Fatalf("explicit request must be honoured: %+v %v", c, err)
+	}
+}
+
+func TestLoad_TrustedProxies(t *testing.T) {
+	clearEnv(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	trusts := func(c Config, ip string) bool {
+		for _, p := range c.TrustedProxies {
+			if p.Contains(netip.MustParseAddr(ip)) {
+				return true
+			}
+		}
+		return false
+	}
+	// By default the proxy is somewhere in a private network (nginx in Docker Compose), never on the internet.
+	if !trusts(c, "172.18.0.5") || !trusts(c, "127.0.0.1") || trusts(c, "203.0.113.7") {
+		t.Fatalf("default trusted proxies: %v", c.TrustedProxies)
+	}
+	t.Setenv("TRUSTED_PROXIES", "10.1.2.3/32, 192.168.7.0/24")
+	if c, err = Load(); err != nil || !trusts(c, "10.1.2.3") || trusts(c, "10.1.2.4") || !trusts(c, "192.168.7.9") {
+		t.Fatalf("explicit list: %v %v", c.TrustedProxies, err)
+	}
+	t.Setenv("TRUSTED_PROXIES", "none")
+	if c, err = Load(); err != nil || len(c.TrustedProxies) != 0 {
+		t.Fatalf("none must trust nobody: %v %v", c.TrustedProxies, err)
+	}
+	t.Setenv("TRUSTED_PROXIES", "not-a-network")
+	if _, err = Load(); err == nil {
+		t.Fatal("a bad list must stop the start")
 	}
 }

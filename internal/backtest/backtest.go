@@ -104,7 +104,7 @@ func Generate(n int, seed uint64) []Borrower {
 		in := scoring.Input{
 			CompanyAgeMonths: age, MonthlyRevenue: months, MonthlyObligations: obligations, BKI: bki,
 			EGRUL: integrations.EGRULRecord{Status: "active", RegisteredAt: time.Now().AddDate(0, -age, 0), Litigation: litigation,
-				Finance: fin, Statement: &integrations.Statement{NOIMargin: margin, Anomaly: anomaly}},
+				Finance: fin, Statement: integrations.StatementOfLevel(margin, anomaly)},
 			OKVEDGroup: 1 + r.IntN(3), Collateral: []string{"none", "none", "partial", "full"}[r.IntN(4)],
 			PurposeText: "Пополнение оборотных средств", PurposeDocs: r.Float64() < 0.4,
 			Amount: amount, TermMonths: term, RateBP: 1650, LGD: 0.6,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -127,7 +128,7 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 			Score: res.Score, Grade: gen.ScoringResultGrade(res.Grade), Factors: factors, HardStops: stops,
 			MaxAffordableAmount: res.MaxAffordableAmount, DebtLoad: float32(res.DebtLoad),
 		}
-		q := scoring.QualityOf(res.Grade)
+		q := scoring.QualityForStops(res.Grade, res.HardStops)
 		card.Scoring.QualityCategory, card.Scoring.ReserveRange, card.Scoring.RiskLabel = &q.Category, &q.Reserve, &q.Risk
 		maxLoad := float32(scoring.DefaultConfig().MaxLoad)
 		card.Scoring.MaxLoad = &maxLoad
@@ -169,7 +170,7 @@ func (s *Server) staffCard(ctx context.Context, a db.Application) (gen.StaffAppl
 				rec.Finance = &gen.FinanceData{GrossMargin: float32(f.GrossMargin), CurrentRatio: float32(f.CurrentRatio)}
 			}
 			if st := g.Statement; st != nil {
-				rec.Statement = &gen.StatementData{NoiMargin: float32(st.NOIMargin), Anomaly: st.Anomaly}
+				rec.Statement = &gen.StatementData{NoiMargin: float32(st.NOIMargin), CircularShare: float32(st.CircularShare), CircularMonths: st.CircularMonths, CashShare: float32(st.CashShare), TaxBurden: float32(st.TaxBurden), DubiousPayments: st.DubiousPayments, DubiousShare: float32(st.DubiousShare)}
 			}
 			e.Egrul = &rec
 		}
@@ -239,6 +240,10 @@ func (s *Server) ClaimApplication(w http.ResponseWriter, r *http.Request, id gen
 	if !ok {
 		return
 	}
+	if workflow.Status(a.Status) != workflow.AnalystReview {
+		writeError(w, http.StatusConflict, "invalid_state", "Заявка не ждёт решения сотрудника: брать в работу нечего")
+		return
+	}
 	if err := s.Store.AssignApplication(r.Context(), db.AssignApplicationParams{ID: a.ID, AssignedTo: &claims.UserID}); err != nil {
 		internalError(w, r, err)
 		return
@@ -258,6 +263,10 @@ func (s *Server) MakeDecision(w http.ResponseWriter, r *http.Request, id gen.App
 	}
 	if workflow.Status(a.Status) != workflow.AnalystReview {
 		writeError(w, http.StatusConflict, "invalid_state", "По этой заявке решение сейчас не требуется")
+		return
+	}
+	if a.AssignedTo != nil && *a.AssignedTo != claims.UserID {
+		writeError(w, http.StatusConflict, "assigned_to_other", "Заявку рассматривает другой сотрудник. Чтобы решить её самому, возьмите её в работу.")
 		return
 	}
 	comment := ""
@@ -290,8 +299,13 @@ func (s *Server) MakeDecision(w http.ResponseWriter, r *http.Request, id gen.App
 		for _, fe := range products.ValidateRequest(prod, req.Offer.Amount, req.Offer.TermMonths) {
 			fes = append(fes, fieldErr{"offer." + fe.Field, fe.Message})
 		}
-		if req.Offer.RateBp < 100 || req.Offer.RateBp > 5000 {
-			fes = append(fes, fieldErr{"offer.rateBp", "Ставка должна быть от 1% до 50% годовых"})
+		// A counter-offer answers the request: it may lend less, never more than the client asked for. The base rate of
+		// the product prices the most reliable borrower, so a rate below it is outside an analyst's authority.
+		if req.Offer.Amount > a.Amount {
+			fes = append(fes, fieldErr{"offer.amount", fmt.Sprintf("Встречное предложение не может превышать запрошенную сумму (%s)", rubles(a.Amount))})
+		}
+		if req.Offer.RateBp < prod.BaseRateBP || req.Offer.RateBp > 5000 {
+			fes = append(fes, fieldErr{"offer.rateBp", fmt.Sprintf("Ставка должна быть от базовой ставки продукта (%s%%) до 50%% годовых", percent(prod.BaseRateBP))})
 		}
 		if len(fes) > 0 {
 			writeFieldErrors(w, http.StatusUnprocessableEntity, "Проверьте условия предложения", fes)

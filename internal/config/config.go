@@ -3,8 +3,10 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -20,7 +22,12 @@ type Config struct {
 	OllamaModel string
 	AIEnabled   bool
 	SeedOnStart bool
+	// TrustedProxies are the networks whose X-Forwarded-For header is believed (the reverse proxy in front of the API).
+	TrustedProxies []netip.Prefix
 }
+
+// privateNetworks is where the reverse proxy lives by default: loopback and private ranges (nginx in Docker Compose).
+const privateNetworks = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7"
 
 func Load() (Config, error) {
 	c := Config{
@@ -50,6 +57,9 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SEED_ON_START: %w", err)
 	}
 	c.SeedOnStart = seedStart
+	if c.TrustedProxies, err = parsePrefixes(get("TRUSTED_PROXIES", privateNetworks)); err != nil {
+		return Config{}, fmt.Errorf("TRUSTED_PROXIES: %w", err)
+	}
 	if c.JWTSecret == "" {
 		if c.Env == "prod" {
 			return Config{}, fmt.Errorf("JWT_SECRET is required when APP_ENV=prod")
@@ -64,6 +74,22 @@ func get(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// parsePrefixes reads a comma-separated list of networks; "none" is an empty list.
+func parsePrefixes(s string) ([]netip.Prefix, error) {
+	if strings.TrimSpace(s) == "none" {
+		return nil, nil
+	}
+	var out []netip.Prefix
+	for _, part := range strings.Split(s, ",") {
+		p, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("expected networks like 10.0.0.0/8, got %q", part)
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }
 
 func parseBool(s string) (bool, error) {

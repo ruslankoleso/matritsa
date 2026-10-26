@@ -79,9 +79,9 @@ func TestCriteria_Tiers(t *testing.T) {
 		{"medium risk industry", "okved_risk", func(in *Input) { in.OKVEDGroup = 2 }, 3},
 		{"high risk industry", "okved_risk", func(in *Input) { in.OKVEDGroup = 3 }, 0},
 		// 9. anomalies in the statement 5 / 2 / 0
-		{"no anomalies", "statement", stm(integrations.Statement{NOIMargin: 0.3, Anomaly: 0}), 5},
-		{"minor anomalies", "statement", stm(integrations.Statement{NOIMargin: 0.3, Anomaly: 1}), 2},
-		{"major anomalies", "statement", stm(integrations.Statement{NOIMargin: 0.3, Anomaly: 2}), 0},
+		{"no anomalies", "statement", stm(*integrations.StatementOfLevel(0.3, 0)), 5},
+		{"minor anomalies", "statement", stm(*integrations.StatementOfLevel(0.3, 1)), 2},
+		{"major anomalies", "statement", stm(*integrations.StatementOfLevel(0.3, 2)), 0},
 		// 10. reputation and court cases 5 / 2 / 0
 		{"clean reputation", "reputation", func(in *Input) { in.EGRUL.Litigation = 0 }, 5},
 		{"minor disputes", "reputation", func(in *Input) { in.EGRUL.Litigation = 1 }, 2},
@@ -227,5 +227,122 @@ func TestPurpose_ShortIsNotAGap_EmptyIs(t *testing.T) {
 	in.PurposeText = "  "
 	if f := factor(t, Score(in, cfg), "purpose"); !f.NoData {
 		t.Fatalf("%+v", f)
+	}
+}
+
+// Decision 5.2 of the analyst: where the bank has no information about the borrower at all, the loan is classified
+// no higher than the III quality category (590-P); the other stop factors mean IV-V.
+func TestQualityForStops_NoInformationIsNotHigherThanIII_OtherStopsAreIVV(t *testing.T) {
+	noInfo := [][]string{{StopNoRevenue}, {StopNotFound}, {StopNoRevenue, StopNotFound}}
+	for _, stops := range noInfo {
+		q := QualityForStops(GradeD, stops)
+		if !strings.Contains(q.Category, "не выше III") || q.Reserve != "21–100 %" {
+			t.Errorf("%v: %+v", stops, q)
+		}
+	}
+	other := [][]string{{StopInactive}, {StopBankrupt}, {StopDisqualified}, {StopUnreliable}, {StopOverduePrefix + " 90 дней"}, {StopNoRevenue, StopBankrupt}}
+	for _, stops := range other {
+		q := QualityForStops(GradeD, stops)
+		if !strings.HasPrefix(q.Category, "IV–V") || q.Reserve != "51–100 %" {
+			t.Errorf("%v: %+v", stops, q)
+		}
+	}
+	// no stop, or another class: the table of the grades
+	if QualityForStops(GradeD, nil) != QualityOf(GradeD) || QualityForStops(GradeB, []string{StopNoRevenue}) != QualityOf(GradeB) {
+		t.Error("only class D with stop factors is read by the reason")
+	}
+}
+
+func TestHardStops_AUnknownCompanyIsNotFound_NotInactive(t *testing.T) {
+	in := baseInput()
+	in.EGRUL.Status = "not_found"
+	got := Score(in, DefaultConfig()).HardStops
+	if len(got) != 1 || got[0] != StopNotFound {
+		t.Fatalf("a company the registry does not know gives no information: %v", got)
+	}
+	in.EGRUL.Status = "liquidated"
+	if got := Score(in, DefaultConfig()).HardStops; len(got) != 1 || got[0] != StopInactive {
+		t.Fatalf("a liquidated company is another reason: %v", got)
+	}
+}
+
+// The table of the analyst (question 10): what counts as a minor (2 points) and a major (0 points) anomaly of the statement.
+func TestStatementFindings_FollowTheAnalystsTable(t *testing.T) {
+	flat := flatRevenue(1_000_000 * rub)
+	spike := func(times int64) []int64 { // one month of `times` average months among eleven ordinary ones
+		r := flatRevenue(1_000_000 * rub)
+		r[5] = r[5] * times
+		return r
+	}
+	norm := func(mod func(*integrations.Statement)) *integrations.Statement {
+		st := integrations.NormalStatement(0.3)
+		mod(st)
+		return st
+	}
+	cases := []struct {
+		name string
+		st   *integrations.Statement
+		rev  []int64
+		want int
+	}{
+		{"clean", integrations.NormalStatement(0.3), flat, 0},
+		{"circular: a few cases within 5%", norm(func(s *integrations.Statement) { s.CircularShare, s.CircularMonths = 0.04, 2 }), flat, 1},
+		{"circular: more than 5% of turnover", norm(func(s *integrations.Statement) { s.CircularShare, s.CircularMonths = 0.08, 2 }), flat, 2},
+		{"circular: regular, in three months or more", norm(func(s *integrations.Statement) { s.CircularShare, s.CircularMonths = 0.03, 3 }), flat, 2},
+		{"cash: 15% is minor", norm(func(s *integrations.Statement) { s.CashShare = 0.15 }), flat, 1},
+		{"cash: just below 15% is normal", norm(func(s *integrations.Statement) { s.CashShare = 0.149 }), flat, 0},
+		{"cash: 30% is major", norm(func(s *integrations.Statement) { s.CashShare = 0.30 }), flat, 2},
+		{"tax: 2% is normal", norm(func(s *integrations.Statement) { s.TaxBurden = 0.02 }), flat, 0},
+		{"tax: 0,9-2% is minor", norm(func(s *integrations.Statement) { s.TaxBurden = 0.012 }), flat, 1},
+		{"tax: below 0,9% is major", norm(func(s *integrations.Statement) { s.TaxBurden = 0.008 }), flat, 2},
+		{"doubtful counterparties: single payments", norm(func(s *integrations.Statement) { s.DubiousPayments, s.DubiousShare = 2, 0.01 }), flat, 1},
+		{"doubtful counterparties: regular", norm(func(s *integrations.Statement) { s.DubiousPayments, s.DubiousShare = 3, 0.01 }), flat, 2},
+		{"doubtful counterparties: a large sum", norm(func(s *integrations.Statement) { s.DubiousPayments, s.DubiousShare = 1, 0.06 }), flat, 2},
+		{"turnover jump 2-3 times the average is minor", integrations.NormalStatement(0.3), spike(3), 1},
+		{"turnover jump 3 times and more is major", integrations.NormalStatement(0.3), spike(6), 2},
+		{"the worst finding decides", norm(func(s *integrations.Statement) { s.CashShare, s.TaxBurden = 0.2, 0.005 }), flat, 2},
+	}
+	for _, c := range cases {
+		level, notes := StatementFindings(c.st, c.rev)
+		if level != c.want {
+			t.Errorf("%s: level %d (%v), want %d", c.name, level, notes, c.want)
+		}
+		if (level == 0) != (len(notes) == 0) {
+			t.Errorf("%s: findings must be named exactly when there are any: %v", c.name, notes)
+		}
+	}
+}
+
+func TestStatementFactor_NamesWhatWasFound(t *testing.T) {
+	in := baseInput()
+	in.EGRUL.Statement = integrations.StatementOfLevel(0.3, 1)
+	f := factor(t, Score(in, DefaultConfig()), "statement")
+	if f.Points != 2 || !strings.Contains(f.Note, "наличных") {
+		t.Fatalf("a minor finding names its indicator: %+v", f)
+	}
+	in.EGRUL.Statement = integrations.StatementOfLevel(0.3, 2)
+	f = factor(t, Score(in, DefaultConfig()), "statement")
+	if f.Points != 0 || !strings.Contains(f.Note, "круговые") {
+		t.Fatalf("a major finding names its indicator: %+v", f)
+	}
+}
+
+// A product that asks for no confirming documents takes the described purpose of the application form as enough.
+func TestPurpose_ExpressTakesTheFormAsConfirmation(t *testing.T) {
+	cfg := DefaultConfig()
+	pts := func(mod func(*Input)) Factor {
+		in := baseInput()
+		in.PurposeDocs, in.PurposeFromForm = false, true
+		mod(&in)
+		return factor(t, Score(in, cfg), "purpose")
+	}
+	if f := pts(func(in *Input) { in.PurposeText = "Срочный ремонт печи в пекарне" }); f.Points != 5 || !strings.Contains(f.Note, "анкет") {
+		t.Errorf("a described purpose confirms by itself: %+v", f)
+	}
+	if f := pts(func(in *Input) { in.PurposeText = "Ремонт печи" }); f.Points != 2 {
+		t.Errorf("a brief purpose needs a clarification: %+v", f)
+	}
+	if f := pts(func(in *Input) { in.PurposeText = "" }); !f.NoData || f.Points != 0 {
+		t.Errorf("no purpose is a gap: %+v", f)
 	}
 }

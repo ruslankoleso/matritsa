@@ -408,3 +408,42 @@ func TestPipeline_GradeIgnoresRequestSize_ExpectedLossDoesNot(t *testing.T) {
 		t.Fatalf("PD and LGD must be recorded: %+v", ma)
 	}
 }
+
+func TestPipeline_SigningLeftUnfinished_IsDisbursedByTheWorker(t *testing.T) {
+	e := newEnv(t, &seedSources{})
+	ctx := context.Background()
+	app := e.submitted(t, "7701234501", products.WorkingCapital, 1_000_000*rub, 12, true)
+	_ = e.p.Process(ctx, app.ID)
+	// the client accepted, and the request broke off before the simulated disbursement
+	if err := e.p.Apply(ctx, app.ID, workflow.ClientAccept, "client", "", pipeline.AnyVersion); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.p.Process(ctx, app.ID); err != nil {
+		t.Fatal(err)
+	}
+	if st := e.status(t, app.ID); st != workflow.Disbursed {
+		t.Fatalf("an accepted offer must not get stuck in SIGNING, got %s", st)
+	}
+}
+
+func TestPipeline_NoDataToScore_GoesToStaff_NotRefused(t *testing.T) {
+	e := newEnv(t, &seedSources{})
+	ctx := context.Background()
+	app := e.submitted(t, "7701234501", products.WorkingCapital, 1_000_000*rub, 12, true)
+	// SUBMITTED -> INTAKE_CHECK -> ENRICHMENT -> SCORING without any registry data stored
+	for _, ev := range []workflow.Event{workflow.StartIntake, workflow.IntakePassed, workflow.EnrichmentDone} {
+		if err := e.p.Apply(ctx, app.ID, ev, "test", "", pipeline.AnyVersion); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.p.Process(ctx, app.ID); err != nil {
+		t.Fatal(err)
+	}
+	if st := e.status(t, app.ID); st != workflow.AnalystReview {
+		t.Fatalf("missing data is a reason for a manual check (ADR 0003), not a refusal: got %s", st)
+	}
+	a, _ := e.s.GetApplication(ctx, app.ID)
+	if d := appdata.Parse(a.Data); d.Review == nil || !d.Review.ManualCheck {
+		t.Fatalf("the analyst must see the manual-check mark: %+v", d.Review)
+	}
+}

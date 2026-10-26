@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"matritsa/internal/auth"
@@ -21,7 +22,7 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	login := strings.ToLower(strings.TrimSpace(req.Login))
 	// Attempts are counted per address and login, so a stranger guessing passwords
 	// blocks only themselves and cannot lock a demo account for everybody else.
-	key := clientIP(r) + "|" + login
+	key := s.clientIP(r) + "|" + login
 	if !s.LoginLimiter.Allowed(key) {
 		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "Слишком много попыток входа. Подождите минуту и попробуйте снова.")
 		return
@@ -40,16 +41,28 @@ func (s *Server) Login(w http.ResponseWriter, r *http.Request) {
 	s.issueTokens(w, r, user)
 }
 
-// clientIP is the address the request came from: nginx sets X-Forwarded-For to the real peer.
-func clientIP(r *http.Request) string {
-	if first, _, _ := strings.Cut(r.Header.Get("X-Forwarded-For"), ","); strings.TrimSpace(first) != "" {
-		return strings.TrimSpace(first)
-	}
+// clientIP is the address the request came from. X-Forwarded-For is taken only from a trusted proxy (nginx sets
+// it to the real peer); from anybody else it is ignored, or a caller could pick a new address for every attempt.
+func (s *Server) clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	if peer, err := netip.ParseAddr(host); err == nil && s.trusted(peer.Unmap()) {
+		if first, _, _ := strings.Cut(r.Header.Get("X-Forwarded-For"), ","); strings.TrimSpace(first) != "" {
+			return strings.TrimSpace(first)
+		}
 	}
 	return host
+}
+
+func (s *Server) trusted(peer netip.Addr) bool {
+	for _, p := range s.TrustedProxies {
+		if p.Contains(peer) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) RefreshToken(w http.ResponseWriter, r *http.Request) {

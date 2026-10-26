@@ -89,7 +89,7 @@ func run() error {
 	handler := httpapi.New(httpapi.Deps{
 		Store: st, Pipeline: pipe, Hub: hub, Issuer: auth.NewIssuer(cfg.JWTSecret), Lookup: client,
 		Assistant: ai.NewAssistant(llm), Chat: ai.NewChat(llm), Explainer: ai.NewExplainer(llm), DataDir: cfg.DataDir,
-		LoginLimiter: auth.NewLimiter(5, time.Minute),
+		LoginLimiter: auth.NewLimiter(5, time.Minute), TrustedProxies: cfg.TrustedProxies,
 	}).Handler()
 
 	// No WriteTimeout: Server-Sent Events streams are long-lived.

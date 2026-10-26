@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { eventsUrl } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
@@ -17,7 +17,10 @@ export function useLiveUpdates(onEvent?: (e: LiveEvent) => void) {
   const qc = useQueryClient()
   const retry = useRef(0)
   const handler = useRef(onEvent)
-  handler.current = onEvent
+  // The latest callback, without reopening the stream when it changes.
+  useLayoutEffect(() => {
+    handler.current = onEvent
+  })
 
   useEffect(() => {
     if (!session) return

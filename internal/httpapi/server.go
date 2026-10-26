@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -38,6 +39,9 @@ type Deps struct {
 	RegisterLimiter *auth.Limiter
 	Heartbeat       time.Duration
 	OfferTTL        time.Duration
+	// TrustedProxies are the peers whose X-Forwarded-For names the client (nginx in front of the API).
+	// From anyone else the header is ignored: a caller must not choose the address its attempts are counted by.
+	TrustedProxies []netip.Prefix
 }
 
 type Server struct {

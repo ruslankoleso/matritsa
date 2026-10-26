@@ -24,7 +24,7 @@ e2e:       ## Playwright end-to-end scenarios on a separate stack (site on :3100
 	$(E2E) up -d --build --wait
 	cd e2e && npm ci && BASE_URL=http://localhost:3100 npx playwright test; status=$$?; cd .. && $(E2E) down -v; exit $$status
 
-smoke:     ## quick check of the four main scenarios against the running stack
+smoke:     ## quick check of the three main scenarios against the running stack
 	BASE_URL=http://localhost:3000 go run ./cmd/smoke
 
 gen:       ## regenerate code from the contract and SQL

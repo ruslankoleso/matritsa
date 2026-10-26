@@ -242,7 +242,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Изменить черновик (автосохранение шагов мастера) */
+        /**
+         * Изменить черновик (автосохранение шагов мастера)
+         * @description Черновик и заявку, которую система вернула на дополнение, можно менять; каждое изменение увеличивает версию,
+         *     а после отправки записывается в журнал. Если уточнение запросил сотрудник, условия уже оценены: ответ 409 `terms_locked`.
+         */
         patch: operations["updateApplication"];
         trace?: never;
     };
@@ -578,7 +582,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Взять заявку в работу */
+        /**
+         * Взять заявку в работу
+         * @description Только заявку в статусе ANALYST_REVIEW; иначе 409. Взятую в работу заявку решает только назначенный сотрудник, коллега может забрать её себе этим же запросом.
+         */
         post: operations["claimApplication"];
         delete?: never;
         options?: never;
@@ -597,7 +604,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Принять решение по заявке */
+        /**
+         * Принять решение по заявке
+         * @description Встречное предложение не больше запрошенной суммы, ставка не ниже базовой ставки продукта (иначе 422).
+         *     Заявку, взятую в работу другим сотрудником, решить нельзя: 409 `assigned_to_other`.
+         */
         post: operations["makeDecision"];
         delete?: never;
         options?: never;
@@ -1184,12 +1195,22 @@ export interface components {
             /** @description Коэффициент текущей ликвидности */
             currentRatio: number;
         };
-        /** @description Результат анализа банковской выписки (смоделирован) */
+        /** @description Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика */
         StatementData: {
             /** @description (Поступления минус операционные списания) / поступления; долговые платежи не вычитаются */
             noiMargin: number;
-            /** @description Аномалии: 0 нет, 1 незначительные, 2 существенные */
-            anomaly: number;
+            /** @description Доля оборота: круговые переводы и транзит */
+            circularShare: number;
+            /** @description В скольких месяцах из последних 12 они были */
+            circularMonths: number;
+            /** @description Доля снятия наличных в обороте */
+            cashShare: number;
+            /** @description Налоги к обороту */
+            taxBurden: number;
+            /** @description Платежи сомнительным контрагентам за 12 месяцев */
+            dubiousPayments: number;
+            /** @description Их доля в обороте */
+            dubiousShare: number;
         };
         Enrichment: {
             egrul?: components["schemas"]["EGRULRecord"];
@@ -2154,6 +2175,7 @@ export interface operations {
             };
             403: components["responses"]["Error"];
             404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
         };
     };
     makeDecision: {

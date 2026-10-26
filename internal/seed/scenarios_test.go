@@ -18,9 +18,14 @@ func evaluate(t *testing.T, c seed.Company, pid products.ID, amount int64, term 
 	t.Helper()
 	p, _ := products.Get(pid)
 	age := int(time.Since(c.RegisteredAt).Hours() / 24 / 30)
+	// the demo applications attach the required documents only; which of them confirm the purpose is in the catalog
+	proof := false
+	for _, d := range p.Documents {
+		proof = proof || (d.Required && d.ConfirmsPurpose)
+	}
 	in := scoring.Input{
 		CompanyAgeMonths: age, MonthlyRevenue: c.Revenue, MonthlyObligations: c.MonthlyObligations,
-		BKI: c.BKI, EGRUL: c.EGRUL(), PurposeText: "Закупка сырья и материалов перед сезоном", PurposeDocs: pid == products.Equipment,
+		BKI: c.BKI, EGRUL: c.EGRUL(), PurposeText: "Закупка сырья и материалов перед сезоном", PurposeDocs: proof, PurposeFromForm: p.PurposeFromForm,
 		Amount: amount, TermMonths: term, RateBP: p.BaseRateBP, OKVEDGroup: c.OKVEDGroup, LGD: p.LGD,
 	}
 	cfg := scoring.DefaultConfig()

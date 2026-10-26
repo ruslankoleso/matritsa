@@ -687,7 +687,7 @@ type EGRULRecord struct {
 	Okved        *string    `json:"okved,omitempty"`
 	RegisteredAt *time.Time `json:"registeredAt,omitempty"`
 
-	// Statement Результат анализа банковской выписки (смоделирован)
+	// Statement Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика
 	Statement *StatementData `json:"statement,omitempty"`
 	Status    string         `json:"status"`
 
@@ -1067,13 +1067,28 @@ type StaffApplication struct {
 // StaffApplicationAllowedActions defines model for StaffApplication.AllowedActions.
 type StaffApplicationAllowedActions string
 
-// StatementData Результат анализа банковской выписки (смоделирован)
+// StatementData Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика
 type StatementData struct {
-	// Anomaly Аномалии: 0 нет, 1 незначительные, 2 существенные
-	Anomaly int `json:"anomaly"`
+	// CashShare Доля снятия наличных в обороте
+	CashShare float32 `json:"cashShare"`
+
+	// CircularMonths В скольких месяцах из последних 12 они были
+	CircularMonths int `json:"circularMonths"`
+
+	// CircularShare Доля оборота: круговые переводы и транзит
+	CircularShare float32 `json:"circularShare"`
+
+	// DubiousPayments Платежи сомнительным контрагентам за 12 месяцев
+	DubiousPayments int `json:"dubiousPayments"`
+
+	// DubiousShare Их доля в обороте
+	DubiousShare float32 `json:"dubiousShare"`
 
 	// NoiMargin (Поступления минус операционные списания) / поступления; долговые платежи не вычитаются
 	NoiMargin float32 `json:"noiMargin"`
+
+	// TaxBurden Налоги к обороту
+	TaxBurden float32 `json:"taxBurden"`
 }
 
 // Status defines model for Status.

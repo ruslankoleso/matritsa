@@ -129,3 +129,34 @@ func TestScorecard_RegistryMarks_RefuseByAHardStop(t *testing.T) {
 		}
 	}
 }
+
+// Decision 13.1 of the analyst, through the whole path: what confirms the purpose depends on the product.
+func TestScorecard_PurposeIsConfirmedByTheDocumentsOfTheProduct(t *testing.T) {
+	e := newEnv(t)
+	points := func(login string, pid products.ID, amount int64, term int, extra ...string) gen.Factor {
+		app := e.draft(login, pid, amount, term, true)
+		for _, kind := range extra {
+			if c, r := e.upload(e.token(login), app.Id.String(), kind, kind+".pdf", pdfBytes); c != 201 {
+				t.Fatalf("upload %s: %d %s", kind, c, r)
+			}
+		}
+		e.run(login, app)
+		f, ok := factorOf(e.staffCard(app.Id.String()), "purpose")
+		if !ok {
+			t.Fatal("purpose criterion missing")
+		}
+		return f
+	}
+	if f := points("client1", products.WorkingCapital, 1_000_000*rub, 12); f.Points != 2 {
+		t.Errorf("working capital without a contract, an invoice or an estimate: 2 of 5, got %+v", f)
+	}
+	if f := points("client7", products.WorkingCapital, 1_000_000*rub, 12, "purpose_doc"); f.Points != 5 {
+		t.Errorf("working capital with a supplier's contract: 5 of 5, got %+v", f)
+	}
+	if f := points("client8", products.Overdraft, 500_000*rub, 12); f.Points != 5 {
+		t.Errorf("overdraft: the statement proves the cash gaps, 5 of 5, got %+v", f)
+	}
+	if f := points("client11", products.Express, 100_000*rub, 6); f.Points != 5 {
+		t.Errorf("express: the described purpose of the form is enough, 5 of 5, got %+v", f)
+	}
+}

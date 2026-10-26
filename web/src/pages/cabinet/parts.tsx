@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import type { Application, ApplicationSummary, FeedCard } from '../../api/types'
 import { LinkButton } from '../../design/Button'
@@ -13,7 +13,7 @@ import { elapsedLabel, useNow } from '../../lib/time'
 export function FeedStories({ cards, seconds = 6 }: { cards: FeedCard[]; seconds?: number }) {
   const [i, setI] = useState(0)
   const [paused, setPaused] = useState(false)
-  const auto = useRef(!reducedMotion()).current
+  const [auto] = useState(() => !reducedMotion())
   const n = cards.length
   const idx = Math.min(i, Math.max(0, n - 1))
   const card = cards[idx]

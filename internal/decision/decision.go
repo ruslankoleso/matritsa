@@ -39,7 +39,7 @@ type Decision struct {
 	Reasons     []string `json:"reasons"`
 }
 
-// MakeOffer builds an offer for the grade; ok=false for grade E.
+// MakeOffer builds an offer for the grade; ok=false for grade D, which gets no offer.
 func MakeOffer(p products.Product, g scoring.Grade, amount int64, term int, source string) (Offer, bool) {
 	premium, ok := scoring.Premium(g, p.LGD, scoring.DefaultConfig())
 	if !ok {

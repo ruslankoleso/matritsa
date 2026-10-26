@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -142,7 +145,7 @@ func (s *Server) GetApplication(w http.ResponseWriter, r *http.Request, id gen.A
 }
 
 func (s *Server) UpdateApplication(w http.ResponseWriter, r *http.Request, id gen.ApplicationId) {
-	app, _, ok := s.own(w, r, id.String())
+	app, claims, ok := s.own(w, r, id.String())
 	if !ok {
 		return
 	}
@@ -152,6 +155,12 @@ func (s *Server) UpdateApplication(w http.ResponseWriter, r *http.Request, id ge
 	}
 	if st := workflow.Status(app.Status); st != workflow.Draft && st != workflow.NeedsInfo {
 		writeError(w, http.StatusConflict, "invalid_state", "Заявку уже нельзя менять")
+		return
+	}
+	// A question from the analyst comes after scoring: the terms were scored and reviewed as they are, and an answer
+	// returns the application straight to the analyst. Only the answer and documents may be added now.
+	if data := appdata.Parse(app.Data); workflow.Status(app.Status) == workflow.NeedsInfo && data.InfoRequest != nil && data.InfoRequest.RequestedBy == "staff" {
+		writeError(w, http.StatusConflict, "terms_locked", "Условия заявки уже оценены, менять их нельзя. Ответьте на вопрос банка и приложите документы; чтобы изменить сумму или срок, отзовите заявку и подайте новую.")
 		return
 	}
 	productID, amount, term, purpose := app.ProductID, app.Amount, int(app.TermMonths), app.Purpose
@@ -185,14 +194,49 @@ func (s *Server) UpdateApplication(w http.ResponseWriter, r *http.Request, id ge
 			data.Fields[k] = v
 		}
 	}
-	_, err := s.Store.UpdateApplicationDraft(r.Context(), db.UpdateApplicationDraftParams{
-		ID: app.ID, ProductID: string(prod.ID), Amount: amount, TermMonths: int32(term), Purpose: purpose, Data: data.Marshal(),
+	err := s.Store.WithTx(r.Context(), func(q *db.Queries) error {
+		updated, err := q.UpdateApplicationDraft(r.Context(), db.UpdateApplicationDraftParams{
+			ID: app.ID, ProductID: string(prod.ID), Amount: amount, TermMonths: int32(term), Purpose: purpose, Data: data.Marshal(),
+		})
+		if err != nil || workflow.Status(app.Status) == workflow.Draft {
+			return err
+		}
+		// After submission every change is part of the history of the application.
+		_, err = q.InsertEvent(r.Context(), db.InsertEventParams{
+			ApplicationID: app.ID, Actor: "client:" + claims.UserID, Event: "ClientUpdated", FromStatus: app.Status, ToStatus: app.Status,
+			Comment: changesText(app, updated), Payload: []byte(`{}`),
+		})
+		return err
 	})
 	if err != nil {
 		s.applyError(w, r, err)
 		return
 	}
 	s.respondApplication(w, r, app.ID, http.StatusOK)
+}
+
+// changesText names in plain words what the client changed in the application.
+func changesText(before, after db.Application) string {
+	var parts []string
+	if before.ProductID != after.ProductID {
+		parts = append(parts, fmt.Sprintf("продукт: %s → %s", productTitle(before.ProductID), productTitle(after.ProductID)))
+	}
+	if before.Amount != after.Amount {
+		parts = append(parts, fmt.Sprintf("сумма: %s → %s", rubles(before.Amount), rubles(after.Amount)))
+	}
+	if before.TermMonths != after.TermMonths {
+		parts = append(parts, fmt.Sprintf("срок: %d → %d мес.", before.TermMonths, after.TermMonths))
+	}
+	if before.Purpose != after.Purpose {
+		parts = append(parts, "цель кредита")
+	}
+	if !bytes.Equal(before.Data, after.Data) {
+		parts = append(parts, "сведения анкеты")
+	}
+	if len(parts) == 0 {
+		return "Клиент сохранил заявку без изменений"
+	}
+	return "Клиент изменил заявку: " + strings.Join(parts, "; ")
 }
 
 func isUniqueViolation(err error) bool {
@@ -321,9 +365,11 @@ func (s *Server) AcceptOffer(w http.ResponseWriter, r *http.Request, id gen.Appl
 		return
 	}
 	// Signing and disbursement are simulated: no real documents or money move.
-	if err := s.Pipeline.Apply(r.Context(), app.ID, workflow.Disburse, "system", "Документы подписаны, деньги перечислены", pipeline.AnyVersion); err != nil {
-		s.applyError(w, r, err)
-		return
+	// If this step fails, the application stays in SIGNING and the background worker disburses it.
+	if err := s.Pipeline.Apply(r.Context(), app.ID, workflow.Disburse, "system", pipeline.Disbursed, pipeline.AnyVersion); err != nil &&
+		!errors.Is(err, workflow.ErrInvalidTransition) {
+		slog.Error("disbursement deferred to the worker", "app", app.ID, "err", err)
+		_ = s.Pipeline.Start(r.Context(), app.ID)
 	}
 	s.respondApplication(w, r, app.ID, http.StatusOK)
 }

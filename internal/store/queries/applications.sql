@@ -14,7 +14,7 @@ SELECT * FROM applications WHERE user_id = $1 ORDER BY created_at DESC;
 
 -- name: UpdateApplicationDraft :one
 UPDATE applications
-SET product_id = $2, amount = $3, term_months = $4, purpose = $5, data = $6, updated_at = now()
+SET product_id = $2, amount = $3, term_months = $4, purpose = $5, data = $6, version = version + 1, updated_at = now()
 WHERE id = $1 AND status IN ('DRAFT', 'NEEDS_INFO')
 RETURNING *;
 

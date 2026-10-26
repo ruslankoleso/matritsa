@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/textproto"
 	"sync"
 	"sync/atomic"
@@ -68,7 +69,8 @@ type testEnv struct {
 	tok  map[string]string
 }
 
-func newEnv(t *testing.T) *testEnv {
+// newEnv starts the API on a fresh database. opts adjust the dependencies before the server starts.
+func newEnv(t *testing.T, opts ...func(*httpapi.Deps)) *testEnv {
 	t.Helper()
 	s := storetest.New(t)
 	if err := store.Seed(context.Background(), s); err != nil {
@@ -79,11 +81,17 @@ func newEnv(t *testing.T) *testEnv {
 	cfg := pipeline.DefaultConfig()
 	cfg.RetryDelay = 0
 	pipe := pipeline.New(s, src, hub, cfg)
-	h := httpapi.New(httpapi.Deps{
+	deps := httpapi.Deps{
 		Store: s, Pipeline: pipe, Hub: hub, Issuer: auth.NewIssuer("test-secret-test-secret-test-1234"),
 		Lookup: src, Assistant: ai.NewAssistant(nil), Explainer: ai.NewExplainer(nil),
 		DataDir: t.TempDir(), LoginLimiter: auth.NewLimiter(5, time.Minute), Heartbeat: 50 * time.Millisecond,
-	}).Handler()
+		// The test client connects from loopback and plays the part of nginx.
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("::1/128")},
+	}
+	for _, o := range opts {
+		o(&deps)
+	}
+	h := httpapi.New(deps).Handler()
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return &testEnv{t: t, s: s, srv: srv, pipe: pipe, hub: hub, src: src, tok: map[string]string{}}

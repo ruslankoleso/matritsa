@@ -15,6 +15,7 @@ import { useCountUp } from '../../lib/useCountUp'
 import Affordability from './Affordability'
 import Conclusion from './Conclusion'
 import DecisionBanner from './DecisionBanner'
+import { decisionErrorText } from './decisionError'
 
 /** True one frame after mount, so CSS transitions can run from the initial state. */
 function useMounted() {
@@ -151,7 +152,10 @@ function Enrichment({ card }: { card: StaffApplication }) {
       {e.egrul?.statement ? (
         <>
           <div className="kv-row"><span>Выписка: денежный поток к поступлениям</span><b>{formatPercent(e.egrul.statement.noiMargin)}</b></div>
-          <div className="kv-row"><span>Выписка: аномалии</span><b>{['нет', 'незначительные', 'существенные'][e.egrul.statement.anomaly] ?? '—'}</b></div>
+          <div className="kv-row"><span>Выписка: снятие наличных</span><b>{formatPercent(e.egrul.statement.cashShare)}</b></div>
+          <div className="kv-row"><span>Выписка: налоги к обороту</span><b>{formatPercent(e.egrul.statement.taxBurden)}</b></div>
+          <div className="kv-row"><span>Выписка: круговые переводы</span><b>{e.egrul.statement.circularShare > 0 ? `${formatPercent(e.egrul.statement.circularShare)}, ${e.egrul.statement.circularMonths} мес.` : 'нет'}</b></div>
+          <div className="kv-row"><span>Выписка: сомнительные контрагенты</span><b>{e.egrul.statement.dubiousPayments > 0 ? `${e.egrul.statement.dubiousPayments} платежей, ${formatPercent(e.egrul.statement.dubiousShare)}` : 'нет'}</b></div>
         </>
       ) : (
         e.egrul && <div className="kv-row"><span>Анализ выписки</span><b><span className="dash">нет данных</span></b></div>
@@ -200,10 +204,8 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
       setComment('')
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 409) {
-        void qc.invalidateQueries({ queryKey: ['staffApp', app.id] })
-        setError('Заявка была изменена другим пользователем. Карточка обновлена: проверьте данные и повторите действие.')
-      } else setError(e instanceof ApiError ? (e.fields[0]?.message ?? e.message) : 'Не удалось сохранить решение.')
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: ['staffApp', app.id] })
+      setError(decisionErrorText(e))
     },
   })
 
@@ -244,6 +246,7 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
           <div className="field"><span className="field-label">Платёж в месяц</span><div className="input num" style={{ display: 'flex', alignItems: 'center', background: 'var(--tone-1)' }}>{payment ? formatMoney(payment) : '—'}</div></div>
         </div>
       )}
+      {action === 'counter' && <p className="field-hint" style={{ marginBottom: 12 }}>Сумма не больше запрошенной ({formatMoney(app.amount)}), ставка не ниже базовой ставки продукта.</p>}
       <div className="field">
         <label htmlFor="comment">{action === 'request_info' ? 'Что нужно уточнить' : action === 'reject' ? 'Причина отказа (увидит клиент)' : 'Комментарий (необязательно)'}</label>
         <textarea id="comment" className="textarea" value={comment} onChange={(e) => setComment(e.target.value)} />

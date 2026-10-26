@@ -52,7 +52,7 @@ func isUniqueOn(err error, constraint string) bool {
 
 // Register creates a client account and the company behind it, then signs the person in.
 func (s *Server) Register(w http.ResponseWriter, r *http.Request) {
-	key := clientIP(r)
+	key := s.clientIP(r)
 	if !s.RegisterLimiter.Allowed(key) {
 		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "Слишком много регистраций с вашего адреса. Попробуйте позже.")
 		return

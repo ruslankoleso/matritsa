@@ -155,7 +155,7 @@ func Synthesize(inn string) (Company, bool) {
 	noi := map[int]float64{1: 0.35, 2: 0.30, 3: 0.25}[act.group] + float64(between(-2, 2))/100
 	fin := func(gross, current float64, anomaly int) {
 		c.Finance = &integrations.Finance{GrossMargin: gross + float64(between(0, 4))/100, CurrentRatio: current}
-		c.Statement = &integrations.Statement{NOIMargin: noi, Anomaly: anomaly}
+		c.Statement = integrations.StatementOfLevel(noi, anomaly)
 	}
 
 	switch a {

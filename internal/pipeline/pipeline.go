@@ -23,6 +23,9 @@ import (
 	"matritsa/internal/workflow"
 )
 
+// Disbursed is the journal comment of the simulated signing and disbursement.
+const Disbursed = "Документы подписаны, деньги перечислены"
+
 // AnyVersion skips the optimistic-lock check (system actors only).
 const AnyVersion int32 = -1
 
@@ -153,7 +156,7 @@ func (p *Pipeline) Run(ctx context.Context) {
 
 func (p *Pipeline) scan(ctx context.Context) {
 	apps, err := p.s.ListApplicationsByStatus(ctx, db.ListApplicationsByStatusParams{
-		Column1: []string{string(workflow.Submitted), string(workflow.IntakeCheck), string(workflow.Enrichment), string(workflow.Scoring)}, Limit: 50,
+		Column1: []string{string(workflow.Submitted), string(workflow.IntakeCheck), string(workflow.Enrichment), string(workflow.Scoring), string(workflow.Signing)}, Limit: 50,
 	})
 	if err != nil {
 		slog.Error("scan failed", "err", err)
@@ -217,6 +220,10 @@ func (p *Pipeline) Step(ctx context.Context, appID string) (more bool, err error
 		return p.enrich(ctx, app)
 	case workflow.Scoring:
 		return true, p.score(ctx, app)
+	case workflow.Signing:
+		// Signing and disbursement are simulated. The request that accepted the offer disburses at once;
+		// if it broke off in between, the worker finishes the job instead of leaving the loan half-issued.
+		return false, p.Apply(ctx, appID, workflow.Disburse, "system", Disbursed, app.Version)
 	}
 	return false, nil
 }

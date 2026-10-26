@@ -141,9 +141,10 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 	data := appdata.Parse(app.Data)
 	prod, ok := products.Get(products.ID(app.ProductID))
 	if !ok || data.Enrichment == nil || data.Enrichment.EGRUL == nil {
-		return p.Apply(ctx, app.ID, workflow.AutoReject, "system", "Недостаточно данных для оценки", app.Version,
+		// A gap in the data is never a reason for the machine to refuse (ADR 0003): a person checks the company.
+		return p.Apply(ctx, app.ID, workflow.SendToReview, "system", "Недостаточно данных для оценки — нужна ручная проверка", app.Version,
 			mutateData(func(d *appdata.Data) {
-				d.Rejection = &appdata.Rejection{By: "system", Reasons: []string{"Не удалось получить данные для оценки заявки"}}
+				d.Review = &appdata.Review{ManualCheck: true, Reasons: []string{"Не удалось получить данные для автоматической оценки — проверьте компанию вручную"}}
 			}))
 	}
 	co, err := p.s.GetCompany(ctx, app.CompanyID)
@@ -162,15 +163,22 @@ func (p *Pipeline) score(ctx context.Context, app db.Application) error {
 	if err != nil {
 		return err
 	}
+	// Which documents confirm the purpose depends on the product (the catalog says it).
+	confirming := map[string]bool{}
+	for _, d := range prod.Documents {
+		if d.ConfirmsPurpose {
+			confirming[d.Kind] = true
+		}
+	}
 	purposeDocs := false
 	for _, d := range docs {
-		purposeDocs = purposeDocs || d.Kind == "invoice" // an invoice or a contract backs the purpose and the amount
+		purposeDocs = purposeDocs || confirming[d.Kind]
 	}
 	age := int(p.now().Sub(co.RegisteredAt.Time).Hours() / 24 / 30)
 	in := scoring.Input{
 		CompanyAgeMonths: age, MonthlyRevenue: revenue, MonthlyObligations: co.MonthlyObligations,
 		BKI: data.Enrichment.BKI, EGRUL: *data.Enrichment.EGRUL,
-		Collateral: data.Fields["collateral"], PurposeText: app.Purpose, PurposeDocs: purposeDocs,
+		Collateral: data.Fields["collateral"], PurposeText: app.Purpose, PurposeDocs: purposeDocs, PurposeFromForm: prod.PurposeFromForm,
 		Amount: app.Amount, TermMonths: int(app.TermMonths), RateBP: prod.BaseRateBP, OKVEDGroup: int(co.OkvedGroup), LGD: prod.LGD,
 	}
 	res := scoring.Score(in, p.cfg.Scoring)

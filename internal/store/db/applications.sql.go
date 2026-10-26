@@ -763,7 +763,7 @@ func (q *Queries) TransitionApplication(ctx context.Context, arg TransitionAppli
 
 const updateApplicationDraft = `-- name: UpdateApplicationDraft :one
 UPDATE applications
-SET product_id = $2, amount = $3, term_months = $4, purpose = $5, data = $6, updated_at = now()
+SET product_id = $2, amount = $3, term_months = $4, purpose = $5, data = $6, version = version + 1, updated_at = now()
 WHERE id = $1 AND status IN ('DRAFT', 'NEEDS_INFO')
 RETURNING id, company_id, user_id, product_id, amount, term_months, purpose, status, data, version, idempotency_key, assigned_to, created_at, updated_at
 `

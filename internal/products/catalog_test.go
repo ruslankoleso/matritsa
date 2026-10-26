@@ -73,3 +73,46 @@ func hasField(errs []FieldError, f string) bool {
 	}
 	return false
 }
+
+// Decision 13.1 of the analyst: which documents confirm the purpose of the loan, product by product.
+func TestCatalog_PurposeIsConfirmedByTheDocumentsOfTheAnalyst(t *testing.T) {
+	confirming := func(id ID) map[string]bool {
+		p, _ := Get(id)
+		out := map[string]bool{}
+		for _, d := range p.Documents {
+			if d.ConfirmsPurpose {
+				out[d.Kind] = true
+			}
+		}
+		return out
+	}
+	if got := confirming(WorkingCapital); !got["purpose_doc"] || len(got) != 1 {
+		t.Errorf("working capital: a contract with a supplier, an invoice for payment or a cost estimate: %v", got)
+	}
+	if got := confirming(Equipment); !got["invoice"] || !got["specification"] {
+		t.Errorf("equipment: an invoice or a purchase contract and the specification: %v", got)
+	}
+	if got := confirming(Overdraft); !got["bank_statement"] || !got["cash_plan"] {
+		t.Errorf("overdraft: the statement and the schedule of receipts and write-offs prove the cash gaps: %v", got)
+	}
+	if got := confirming(Express); len(got) != 0 {
+		t.Errorf("express asks for no confirming documents: %v", got)
+	}
+	if ex, _ := Get(Express); !ex.PurposeFromForm {
+		t.Error("express: the described purpose in the application form is enough")
+	}
+	for _, id := range []ID{WorkingCapital, Equipment, Overdraft} {
+		if p, _ := Get(id); p.PurposeFromForm {
+			t.Errorf("%s needs documents, not just the form", id)
+		}
+	}
+	// what proves the purpose beyond the required set is optional: the client may attach it, a missing one costs points
+	for _, id := range []ID{WorkingCapital, Equipment, Overdraft} {
+		p, _ := Get(id)
+		for _, d := range p.Documents {
+			if (d.Kind == "purpose_doc" || d.Kind == "specification" || d.Kind == "cash_plan") && d.Required {
+				t.Errorf("%s: %s must stay optional", id, d.Kind)
+			}
+		}
+	}
+}

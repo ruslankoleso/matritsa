@@ -273,6 +273,9 @@ paths:
       tags: [client]
       operationId: updateApplication
       summary: Изменить черновик (автосохранение шагов мастера)
+      description: |
+        Черновик и заявку, которую система вернула на дополнение, можно менять; каждое изменение увеличивает версию,
+        а после отправки записывается в журнал. Если уточнение запросил сотрудник, условия уже оценены: ответ 409 `terms_locked`.
       requestBody:
         required: true
         content:
@@ -568,6 +571,7 @@ paths:
       tags: [staff]
       operationId: claimApplication
       summary: Взять заявку в работу
+      description: Только заявку в статусе ANALYST_REVIEW; иначе 409. Взятую в работу заявку решает только назначенный сотрудник, коллега может забрать её себе этим же запросом.
       responses:
         '200':
           description: Карточка
@@ -576,6 +580,7 @@ paths:
               schema: { $ref: '#/components/schemas/StaffApplication' }
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /staff/applications/{id}/decision:
     parameters:
       - { $ref: '#/components/parameters/ApplicationId' }
@@ -583,6 +588,9 @@ paths:
       tags: [staff]
       operationId: makeDecision
       summary: Принять решение по заявке
+      description: |
+        Встречное предложение не больше запрошенной суммы, ставка не ниже базовой ставки продукта (иначе 422).
+        Заявку, взятую в работу другим сотрудником, решить нельзя: 409 `assigned_to_other`.
       requestBody:
         required: true
         content:
@@ -1146,11 +1154,16 @@ components:
         currentRatio: { type: number, description: "Коэффициент текущей ликвидности" }
     StatementData:
       type: object
-      description: "Результат анализа банковской выписки (смоделирован)"
-      required: [noiMargin, anomaly]
+      description: "Показатели банковской выписки (смоделированы): по ним считаются аномалии по таблице аналитика"
+      required: [noiMargin, circularShare, circularMonths, cashShare, taxBurden, dubiousPayments, dubiousShare]
       properties:
         noiMargin: { type: number, description: "(Поступления минус операционные списания) / поступления; долговые платежи не вычитаются" }
-        anomaly: { type: integer, description: "Аномалии: 0 нет, 1 незначительные, 2 существенные" }
+        circularShare: { type: number, description: "Доля оборота: круговые переводы и транзит" }
+        circularMonths: { type: integer, description: "В скольких месяцах из последних 12 они были" }
+        cashShare: { type: number, description: "Доля снятия наличных в обороте" }
+        taxBurden: { type: number, description: "Налоги к обороту" }
+        dubiousPayments: { type: integer, description: "Платежи сомнительным контрагентам за 12 месяцев" }
+        dubiousShare: { type: number, description: "Их доля в обороте" }
     Enrichment:
       type: object
       required: [attempts]

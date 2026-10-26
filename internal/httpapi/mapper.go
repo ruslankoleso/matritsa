@@ -56,6 +56,11 @@ func rubles(kopecks int64) string {
 	return string(out) + " ₽"
 }
 
+// percent writes a rate in basis points as a percentage: 1650 -> "16,5".
+func percent(bp int) string {
+	return strings.Replace(fmt.Sprintf("%.1f", float64(bp)/100), ".", ",", 1)
+}
+
 func toSummary(a db.Application) gen.ApplicationSummary {
 	return gen.ApplicationSummary{
 		Id: uid(a.ID), ProductId: a.ProductID, ProductTitle: productTitle(a.ProductID), Amount: a.Amount, TermMonths: int(a.TermMonths),

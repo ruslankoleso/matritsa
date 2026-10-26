@@ -55,6 +55,22 @@ func QualityOf(g Grade) Quality {
 	}
 }
 
+// QualityForStops reads the category by the reason of a hard stop (decision 5.2 of the analyst). Where the bank has
+// no information about the borrower at all (no confirmed revenue, the company is not in the registry), a loan
+// is classified no higher than the III category; any other stop factor means IV-V. The category of other grades
+// does not depend on the reasons.
+func QualityForStops(g Grade, stops []string) Quality {
+	if g != GradeD || len(stops) == 0 {
+		return QualityOf(g)
+	}
+	for _, s := range stops {
+		if s != StopNoRevenue && s != StopNotFound {
+			return QualityOf(g)
+		}
+	}
+	return Quality{"не выше III категории (нет информации о заёмщике: ссуды III–V категорий)", "21–100 %", "критический риск"}
+}
+
 // Collateral levels of the request.
 const (
 	CollateralNone    = "none"
@@ -77,7 +93,10 @@ type Input struct {
 	// Request, apart from its size.
 	Collateral  string // none | partial | full ("" counts as none)
 	PurposeText string
-	PurposeDocs bool // a document that backs the purpose is attached (invoice, contract)
+	PurposeDocs bool // a document that backs the purpose is attached (invoice, contract, estimate), see products
+	// PurposeFromForm: the product asks for no confirming documents, so the purpose described in the application
+	// form is what confirms it.
+	PurposeFromForm bool
 	// Request size.
 	Amount     int64
 	TermMonths int
@@ -106,7 +125,7 @@ type Result struct {
 	PD            float64 `json:"pd"`           // annual probability of default for the grade
 	CumulativePD  float64 `json:"cumulativePd"` // probability of default within the loan term
 	LGD           float64 `json:"lgd"`
-	EAD           int64   `json:"ead"`              // exposure at default, kopecks (the requested amount)
+	EAD           int64   `json:"ead"`              // exposure at default, kopecks: the average debt over the schedule
 	ExpectedLoss  int64   `json:"expectedLoss"`     // EL = cumulative PD x LGD x EAD, kopecks
 	ELRate        float64 `json:"expectedLossRate"` // EL / EAD
 	RiskPremiumBP int     `json:"riskPremiumBp"`    // rate surcharge over a grade-A borrower, basis points
@@ -153,7 +172,7 @@ func Score(in Input, cfg Config) Result {
 		obligationsFactor(in, cfg),
 		ageFactor(in.CompanyAgeMonths, cfg),
 		okvedFactor(in.OKVEDGroup, cfg),
-		statementFactor(in.EGRUL.Statement, cfg),
+		statementFactor(in.EGRUL.Statement, in.MonthlyRevenue, cfg),
 		reputationFactor(in.EGRUL, cfg),
 		collateralFactor(in.Collateral, cfg),
 		purposeFactor(in, cfg),
@@ -245,6 +264,7 @@ func Premium(g Grade, lgd float64, cfg Config) (int, bool) {
 // them back to tell the client what to do next.
 const (
 	StopInactive      = "Компания не является действующей по данным реестра (ЕГРЮЛ/ЕГРИП)"
+	StopNotFound      = "Компания не найдена в реестре: информации о заёмщике нет"
 	StopBankrupt      = "В отношении компании ведётся процедура банкротства"
 	StopDisqualified  = "Руководитель компании дисквалифицирован"
 	StopUnreliable    = "В реестре отмечена недостоверность сведений о компании"
@@ -271,7 +291,10 @@ func AverageExposure(amount int64, rateBP, months int) int64 {
 
 func hardStops(in Input, avg int64, cfg Config) []string {
 	var stops []string
-	if in.EGRUL.Status != "" && in.EGRUL.Status != "active" {
+	switch {
+	case in.EGRUL.Status == "not_found":
+		stops = append(stops, StopNotFound)
+	case in.EGRUL.Status != "" && in.EGRUL.Status != "active":
 		stops = append(stops, StopInactive)
 	}
 	if in.EGRUL.Bankrupt {
@@ -512,19 +535,74 @@ func okvedFactor(group int, cfg Config) Factor {
 }
 
 // 9. Anomalies found in the bank statement.
-func statementFactor(st *integrations.Statement, cfg Config) Factor {
+func statementFactor(st *integrations.Statement, revenue []int64, cfg Config) Factor {
 	f := Factor{Key: "statement", Title: "Аномалии в выписке", Max: cfg.MaxStatement}
-	switch {
-	case st == nil:
+	if st == nil {
 		f.NoData, f.Note = true, "Нет данных: выписка не проанализирована"
-	case st.Anomaly == 0:
+		return f
+	}
+	level, notes := StatementFindings(st, revenue)
+	switch level {
+	case 0:
 		f.Points, f.Note = cfg.MaxStatement, "Аномалий в выписке не найдено"
-	case st.Anomaly == 1:
-		f.Points, f.Note = cfg.MaxStatement*2/5, "Незначительные аномалии: единичные скачки оборотов"
+	case 1:
+		f.Points, f.Note = cfg.MaxStatement*2/5, "Незначительные аномалии: "+strings.Join(notes, "; ")
 	default:
-		f.Note = "Существенные аномалии: круговые переводы или сомнительные контрагенты"
+		f.Note = "Существенные аномалии: " + strings.Join(notes, "; ")
 	}
 	return f
+}
+
+// StatementFindings applies the analyst's table of anomalies to the statement: the level is 0 (none), 1 (minor,
+// 2 points) or 2 (major, 0 points), the worst finding decides, and every finding is named. Where the table
+// says "more than 5-10%" the lower figure is taken, the cautious reading.
+func StatementFindings(st *integrations.Statement, revenue []int64) (level int, notes []string) {
+	add := func(l int, note string) {
+		notes = append(notes, note)
+		if l > level {
+			level = l
+		}
+	}
+	switch {
+	case st.CircularShare > 0.05 || st.CircularMonths >= 3:
+		add(2, fmt.Sprintf("круговые переводы и транзит: %d%% оборота в %d мес. (регулярно или больше 5%%)", pct(st.CircularShare), st.CircularMonths))
+	case st.CircularShare > 0 || st.CircularMonths > 0:
+		add(1, fmt.Sprintf("единичные круговые переводы: %d%% оборота", pct(st.CircularShare)))
+	}
+	if avg := averageRevenue(revenue); avg > 0 && len(revenue) >= 3 {
+		var max int64
+		for _, v := range revenue {
+			if v > max {
+				max = v
+			}
+		}
+		times := float64(max) / float64(avg)
+		switch {
+		case times >= 3:
+			add(2, fmt.Sprintf("скачок месячного оборота: в %s раза выше среднего (от 3 раз)", ratio(times)))
+		case times >= 2:
+			add(1, fmt.Sprintf("скачок месячного оборота: в %s раза выше среднего (2–3 раза)", ratio(times)))
+		}
+	}
+	switch {
+	case st.CashShare >= 0.30:
+		add(2, fmt.Sprintf("снятие наличных %d%% оборота (от 30%%)", pct(st.CashShare)))
+	case st.CashShare >= 0.15:
+		add(1, fmt.Sprintf("снятие наличных %d%% оборота (15–30%%)", pct(st.CashShare)))
+	}
+	switch {
+	case st.TaxBurden < 0.009:
+		add(2, fmt.Sprintf("налоговая нагрузка %s%% оборота (меньше 0,9%%)", ratio(st.TaxBurden*100)))
+	case st.TaxBurden < 0.02:
+		add(1, fmt.Sprintf("налоговая нагрузка %s%% оборота (0,9–2%%)", ratio(st.TaxBurden*100)))
+	}
+	switch {
+	case st.DubiousPayments >= 3 || st.DubiousShare >= 0.05:
+		add(2, fmt.Sprintf("операции с сомнительными контрагентами: %d платежей, %d%% оборота (регулярные или значительные)", st.DubiousPayments, pct(st.DubiousShare)))
+	case st.DubiousPayments > 0:
+		add(1, fmt.Sprintf("единичные платежи сомнительным контрагентам: %d", st.DubiousPayments))
+	}
+	return level, notes
 }
 
 // 10. Reputation and court cases.
@@ -566,7 +644,11 @@ func purposeFactor(in Input, cfg Config) Factor {
 	f := Factor{Key: "purpose", Title: "Соответствие цели и суммы", Max: cfg.MaxPurpose}
 	switch {
 	case in.PurposeDocs:
-		f.Points, f.Note = cfg.MaxPurpose, "Цель и сумма подтверждены документом (счёт или договор)"
+		f.Points, f.Note = cfg.MaxPurpose, "Цель и сумма подтверждены документом (договор, счёт или смета)"
+	case in.PurposeFromForm && utf8.RuneCountInString(strings.TrimSpace(in.PurposeText)) >= 20:
+		f.Points, f.Note = cfg.MaxPurpose, "Цель описана в заявке-анкете: для этого продукта подтверждающих документов не требуется"
+	case in.PurposeFromForm && strings.TrimSpace(in.PurposeText) != "":
+		f.Points, f.Note = cfg.MaxPurpose*2/5, "Цель названа кратко: опишите подробнее, чтобы она считалась подтверждённой"
 	case utf8.RuneCountInString(strings.TrimSpace(in.PurposeText)) >= 20:
 		f.Points, f.Note = cfg.MaxPurpose*2/5, "Цель названа, но документов, подтверждающих сумму, нет: нужно уточнение"
 	case strings.TrimSpace(in.PurposeText) != "":
