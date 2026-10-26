@@ -58,6 +58,16 @@
 | Playwright (e2e) | Apache-2.0 |
 | Шрифт Onest (`@fontsource-variable/onest`) | SIL Open Font License 1.1 |
 
+## Презентация, образцы документов и видео
+
+| Компонент | Лицензия | Где |
+|---|---|---|
+| Шрифты Unbounded, Caveat, Onest (статические начертания) | SIL Open Font License 1.1 | `presentation/fonts/` вместе с текстами лицензий; Onest также встроен в PDF образцов документов |
+| ReportLab (BSD-3-Clause) | BSD-3-Clause | Только при подготовке PDF в `sample-documents/`; в репозиторий не входит |
+| FFmpeg | LGPL/GPL | Только для `make demo-video` (склейка видео); в поставку не входит |
+
+Образцы в `sample-documents/` и презентация созданы командой, данные в них вымышленные.
+
 ## Образы Docker
 
 | Образ | Назначение |
