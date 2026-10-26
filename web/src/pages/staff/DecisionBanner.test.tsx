@@ -7,7 +7,7 @@ const app = (over: Partial<Application>) => ({ status: 'ANALYST_REVIEW', ...over
 
 describe('DecisionBanner', () => {
   it('shows an automatic rejection with its reasons and says no analyst saw it', () => {
-    render(<DecisionBanner app={app({ status: 'REJECTED', rejection: { by: 'system', reasons: ['В кредитной истории есть просрочка более 90 дней'] } })} />)
+    render(<DecisionBanner app={app({ status: 'REJECTED', rejection: { by: 'system', reasons: ['В кредитной истории есть просрочка более 90 дней'], advice: '', canReapply: false } })} />)
     expect(screen.getByText('Автоматический отказ')).toBeInTheDocument()
     expect(screen.getByText(/не передавалась сотруднику/i)).toBeInTheDocument()
     expect(screen.getByText(/просрочка более 90 дней/)).toBeInTheDocument()
@@ -20,7 +20,7 @@ describe('DecisionBanner', () => {
   })
 
   it('stays silent for a decision made by a person', () => {
-    const { container } = render(<DecisionBanner app={app({ status: 'REJECTED', rejection: { by: 'staff', reasons: ['x'] } })} />)
+    const { container } = render(<DecisionBanner app={app({ status: 'REJECTED', rejection: { by: 'staff', reasons: ['x'], advice: '', canReapply: true } })} />)
     expect(container).toBeEmptyDOMElement()
   })
 

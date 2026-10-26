@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { annuity, formatMoney, formatPercent, formatRate, formatTerm, pluralRu, formatFullDate, formatFullDateTime } from './format'
+import { annuity, formatMoney, formatPercent, formatRate, formatTerm, pluralRu, formatFullDate, formatFullDateTime, formatDate } from './format'
 
 const NB = ' '
 
@@ -66,5 +66,12 @@ describe('dates with a year', () => {
   it('writes the year, which a profile needs for dates in the past', () => {
     expect(formatFullDate('2019-03-04T12:00:00Z')).toMatch(/4 марта 2019/)
     expect(formatFullDateTime('2026-10-24T10:30:00Z')).toMatch(/24 октября 2026/)
+  })
+})
+
+describe('dates', () => {
+  it('shows Moscow time whatever the browser zone is', () => {
+    // 22:30 UTC on 1 November is 2 November in Moscow, as the server writes it in the feed.
+    expect(formatDate('2026-11-01T22:30:00Z')).toBe('2 ноября')
   })
 })

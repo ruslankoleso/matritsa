@@ -42,6 +42,9 @@ export default function Home() {
   const list = apps.data ?? []
   const active = list.find((a) => a.status !== 'DRAFT' && !isFinal(a.status)) ?? list.find((a) => a.status === 'DRAFT') ?? list[0]
   const detail = useApplication(active?.id ?? '')
+  // The lead card already shows the current application with its action: the list and the feed skip it.
+  const others = list.filter((a) => a.id !== active?.id)
+  const cards = (feed.data ?? []).filter((c) => !active || c.applicationId !== active.id)
 
   return (
     <>
@@ -53,27 +56,27 @@ export default function Home() {
         {list.length > 0 && <LinkButton to="/cabinet/new">Новая заявка</LinkButton>}
       </div>
 
-      <div className="grid">
-        <div className="col-8">
+      <div className="home-grid">
+        <div className="home-lead">
           {apps.isLoading ? <Loading rows={2} /> : apps.isError ? <ErrorBox error={apps.error} onRetry={() => void apps.refetch()} /> : active && detail.data ? (
             <LeadApplication app={detail.data} />
           ) : active ? <Loading rows={1} /> : <StartWindow />}
-
-          {(apps.isLoading || list.length > 0) && (
-          <section className="card" style={{ marginTop: 24 }} aria-labelledby="my-apps">
-            <div className="card-head">
-              <h2 id="my-apps">Мои заявки</h2>
-              {list.length > 5 && <Link className="more" to="/cabinet/applications">Все заявки ({list.length})</Link>}
-            </div>
-            {apps.isLoading ? <Loading rows={2} /> : <ApplicationsAccordion items={list} limit={5} />}
-          </section>
-          )}
         </div>
 
-        <aside className="col-4" aria-labelledby="feed-h">
+        {(apps.isLoading || others.length > 0) && (
+          <section className="card home-list" aria-labelledby="my-apps">
+            <div className="card-head">
+              <h2 id="my-apps">{active ? 'Другие заявки' : 'Мои заявки'}</h2>
+              {list.length > 6 && <Link className="more" to="/cabinet/applications">Все заявки ({list.length})</Link>}
+            </div>
+            {apps.isLoading ? <Loading rows={2} /> : <ApplicationsAccordion items={others} limit={5} />}
+          </section>
+        )}
+
+        <aside className="home-feed" aria-labelledby="feed-h">
           <section className="card stories-card">
             <div className="card-head"><h2 id="feed-h">Для вашего бизнеса</h2></div>
-            {feed.isLoading ? <Loading rows={2} /> : feed.isError ? <ErrorBox error={feed.error} onRetry={() => void feed.refetch()} /> : feed.data && feed.data.length ? <FeedStories cards={feed.data} /> : <Empty title="Пока подсказок нет" />}
+            {feed.isLoading ? <Loading rows={2} /> : feed.isError ? <ErrorBox error={feed.error} onRetry={() => void feed.refetch()} /> : cards.length ? <FeedStories cards={cards} /> : <Empty title="Пока подсказок нет" />}
           </section>
         </aside>
       </div>

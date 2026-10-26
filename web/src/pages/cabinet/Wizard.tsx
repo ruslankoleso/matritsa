@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '../../api/client'
@@ -55,6 +55,9 @@ export function validateStep1(f: Form, products: Product[]): Record<string, stri
   return errs
 }
 
+/** A year, or the nearest term the product allows: the shortest term gives a frightening first payment. */
+export const defaultTerm = (p: Pick<Product, 'minTerm' | 'maxTerm'>) => Math.min(Math.max(12, p.minTerm), p.maxTerm)
+
 /** "1000000" → "1 000 000" for display; the form keeps digits only. */
 export const groupDigits = (s: string) => s.replace(/\D/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 
@@ -101,6 +104,11 @@ export default function Wizard({ app }: { app?: Application }) {
 
   const step = Math.min(4, Math.max(1, Number(params.get('step')) || (app ? (app.purpose ? 3 : 1) : 1)))
   const goStep = (n: number) => setParams({ step: String(n) }, { replace: true })
+  // A draft opened from the list has no step in the address; writing it there keeps the menu on "Новая заявка".
+  useEffect(() => {
+    if (app && !params.get('step')) goStep(step)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app?.id])
   const product = products.data?.find((p) => p.id === form.productId)
   const errs = useMemo(() => (products.data ? validateStep1(form, products.data) : {}), [form, products.data])
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }))
@@ -109,7 +117,7 @@ export default function Wizard({ app }: { app?: Application }) {
     set({
       productId: p.id,
       amount: form.amount && Number(form.amount) * 100 >= p.minAmount && Number(form.amount) * 100 <= p.maxAmount ? form.amount : String(Math.round(p.minAmount / 100)),
-      term: form.term && Number(form.term) >= p.minTerm && Number(form.term) <= p.maxTerm ? form.term : String(p.minTerm),
+      term: form.term && Number(form.term) >= p.minTerm && Number(form.term) <= p.maxTerm ? form.term : String(defaultTerm(p)),
     })
 
   const save = async (fn: () => Promise<Application>): Promise<Application | null> => {
@@ -182,13 +190,39 @@ export default function Wizard({ app }: { app?: Application }) {
   const amountN = Number(form.amount.replace(/\s/g, '')) || 0
   const termN = Number(form.term) || 0
   const payment = product && !errs.amount && !errs.term ? annuity(amountN * 100, product.baseRateBp, termN) : 0
+  // From step 2 on, the saved draft is the source: the summary stays in view until the application is sent.
+  const sumAmount = step === 1 ? amountN * 100 : (app?.amount ?? 0)
+  const sumTerm = step === 1 ? termN : (app?.termMonths ?? 0)
+  const sumPayment = step === 1 ? payment : product && app ? annuity(app.amount, product.baseRateBp, app.termMonths) : 0
+  const summary = (
+    <aside className="col-4">
+      <section className="card wizard-summary" aria-label="Ориентир по платежу">
+        <h2 style={{ marginBottom: 10 }}>Ориентир по платежу</h2>
+        {sumPayment > 0 && product ? (
+          <>
+            <div className="offer-figure"><small>Платёж в месяц</small><RollingNumber value={sumPayment} /></div>
+            {step > 1 && (
+              <div className="kv" style={{ marginTop: 12 }}>
+                <div className="kv-row"><span>Продукт</span><b>{product.title}</b></div>
+                <div className="kv-row"><span>Сумма</span><b>{formatMoney(sumAmount)}</b></div>
+                <div className="kv-row"><span>Срок</span><b>{formatTerm(sumTerm)}</b></div>
+              </div>
+            )}
+            <p className="field-hint" style={{ marginTop: 10 }}>По базовой ставке {formatRate(product.baseRateBp)}. Точные условия банк назовёт после проверки — ставка зависит от оценки.</p>
+          </>
+        ) : (
+          <p className="field-hint">Выберите продукт, сумму и срок: здесь отобразится ориентировочный платёж.</p>
+        )}
+      </section>
+    </aside>
+  )
 
   return (
     <>
       <div className="page-head">
         <div>
           <div className="crumbs"><Link to="/cabinet">Главная</Link><span>/</span><span>Новая заявка</span></div>
-          <h1>{app ? 'Заявка' : 'Новая заявка'}</h1>
+          <h1>Новая заявка</h1>
         </div>
       </div>
       <Stepper step={step} />
@@ -203,7 +237,7 @@ export default function Wizard({ app }: { app?: Application }) {
               onApply={(r, text) => {
                 const p = products.data!.find((x) => x.id === r.productId)
                 if (!p) return
-                set({ productId: p.id, amount: String(Math.round((r.amount ?? p.minAmount) / 100)), term: String(r.termMonths ?? p.minTerm), purpose: form.purpose || text })
+                set({ productId: p.id, amount: String(Math.round((r.amount ?? p.minAmount) / 100)), term: String(r.termMonths ?? defaultTerm(p)), purpose: form.purpose || text })
               }}
             />
             <section className="card" aria-labelledby="s1">
@@ -263,19 +297,7 @@ export default function Wizard({ app }: { app?: Application }) {
               <Button onClick={() => void step1Next()} busy={busy}>Далее</Button>
             </div>
           </div>
-          <aside className="col-4">
-            <section className="card" aria-label="Ориентир по платежу">
-              <h2 style={{ marginBottom: 10 }}>Ориентир по платежу</h2>
-              {payment > 0 && product ? (
-                <>
-                  <div className="offer-figure"><small>Платёж в месяц</small><RollingNumber value={payment} /></div>
-                  <p className="field-hint" style={{ marginTop: 10 }}>По базовой ставке {formatRate(product.baseRateBp)}. Точные условия банк назовёт после проверки — ставка зависит от оценки.</p>
-                </>
-              ) : (
-                <p className="field-hint">Выберите продукт, сумму и срок: здесь отобразится ориентировочный платёж.</p>
-              )}
-            </section>
-          </aside>
+          {summary}
         </div>
       )}
 
@@ -310,6 +332,7 @@ export default function Wizard({ app }: { app?: Application }) {
               <Button onClick={() => void step2Next()} busy={busy}>Далее</Button>
             </div>
           </div>
+          {summary}
         </div>
       )}
 
@@ -328,6 +351,7 @@ export default function Wizard({ app }: { app?: Application }) {
               <Button onClick={() => goStep(4)}>Далее</Button>
             </div>
           </div>
+          {summary}
         </div>
       )}
 
@@ -360,6 +384,7 @@ export default function Wizard({ app }: { app?: Application }) {
               <Button size="lg" morph busy={busy} done={done} onClick={() => void submit()} disabled={app.missingItems.length > 0}>Отправить заявку</Button>
             </div>
           </div>
+          {summary}
         </div>
       )}
     </>

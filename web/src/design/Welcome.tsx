@@ -6,7 +6,8 @@ import { reducedMotion } from '../lib/motion'
 /** Set by sign-in and sign-up; read once, so a reload of the page does not greet again. */
 export const WELCOME_FLAG = 'matritsa.welcome'
 
-const SHOW_MS = 2800
+// Short: the person signed in to do something, the greeting must not hold them up.
+const SHOW_MS = 1600
 const FADE_MS = 450
 
 function flagged(): boolean {
@@ -55,6 +56,7 @@ export function Welcome({ company }: { company?: string }) {
         <small>Матрица</small>
         <h2>{text}</h2>
         <p>{company ?? 'Рады видеть вас'}</p>
+        <small className="welcome-skip">Нажмите, чтобы продолжить</small>
       </div>
     </div>
   )

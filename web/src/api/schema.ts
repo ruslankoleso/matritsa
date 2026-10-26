@@ -286,6 +286,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/applications/{id}/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /** Файл документа своей заявки */
+        get: operations["downloadDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{id}/respond": {
         parameters: {
             query?: never;
@@ -434,6 +454,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Билет на открытие потока событий (действует 30 секунд)
+         * @description EventSource не умеет отправлять заголовки, поэтому учётные данные потока идут в адресе и попадают в журналы прокси. Вместо токена доступа там передаётся билет: он открывает только поток событий и истекает через 30 секунд.
+         */
+        post: operations["issueEventsTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -441,7 +481,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Поток событий (Server-Sent Events). Токен допускается в ?access_token= */
+        /** Поток событий (Server-Sent Events) по билету из POST /events/ticket */
         get: operations["streamEvents"];
         put?: never;
         post?: never;
@@ -460,6 +500,46 @@ export interface paths {
         };
         /** Очередь заявок (сначала ожидающие решения сотрудника) */
         get: operations["getQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/staff/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Показатели кредитного процесса по журналу заявок
+         * @description Доля автоматических решений, время до решения по режимам, доля возвратов на уточнение, доля принятых предложений.
+         */
+        get: operations["getProcessMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/staff/applications/{id}/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        /** Файл документа заявки для проверки сотрудником */
+        get: operations["downloadStaffDocument"];
         put?: never;
         post?: never;
         delete?: never;
@@ -888,6 +968,10 @@ export interface components {
         Rejection: {
             reasons: string[];
             comment?: string;
+            /** @description Что клиент может сделать дальше; зависит от причины отказа */
+            advice: string;
+            /** @description Имеет ли смысл новая заявка сейчас: при жёстком стопе (компания не действует, банкротство) — нет */
+            canReapply: boolean;
             /**
              * @description Кто принял решение: правила системы (автоматический отказ) или сотрудник банка
              * @enum {string}
@@ -1113,6 +1197,48 @@ export interface components {
             attempts: number;
             lastError?: string;
         };
+        ProcessMetrics: {
+            /** @description Отправлено заявок */
+            submitted: number;
+            /** @description Принято решений (первое решение по заявке) */
+            decided: number;
+            /** @description Из них правилами системы без сотрудника */
+            decidedAuto: number;
+            /**
+             * Format: double
+             * @description Доля автоматических решений, от 0 до 1
+             */
+            autoShare: number;
+            /**
+             * Format: double
+             * @description Медиана времени от отправки до автоматического решения
+             */
+            medianAutoSeconds: number;
+            /**
+             * Format: double
+             * @description Медиана времени от отправки до решения сотрудника
+             */
+            medianAnalystSeconds: number;
+            /** @description Заявок, возвращённых на уточнение */
+            askedInfo: number;
+            /**
+             * Format: double
+             * @description Доля возвратов на уточнение от отправленных, от 0 до 1
+             */
+            infoShare: number;
+            /** @description Решений с предложением */
+            offered: number;
+            accepted: number;
+            declined: number;
+            expired: number;
+            /**
+             * Format: double
+             * @description Доля принятых среди предложений, по которым клиент уже ответил или срок истёк, от 0 до 1
+             */
+            acceptanceShare: number;
+            /** @description Сейчас ждут решения сотрудника */
+            waitingAnalyst: number;
+        };
         QueueItem: {
             /** Format: uuid */
             id: string;
@@ -1182,6 +1308,7 @@ export interface components {
     };
     parameters: {
         ApplicationId: string;
+        DocumentId: string;
     };
     requestBodies: never;
     headers: never;
@@ -1651,6 +1778,32 @@ export interface operations {
             422: components["responses"]["Error"];
         };
     };
+    downloadDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Файл в исходном формате */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                    "image/png": string;
+                    "image/jpeg": string;
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
     respondToInfoRequest: {
         parameters: {
             query?: never;
@@ -1835,10 +1988,36 @@ export interface operations {
             };
         };
     };
+    issueEventsTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Билет */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ticket: string;
+                        /** @description Секунд до истечения */
+                        expiresIn: number;
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+        };
+    };
     streamEvents: {
         parameters: {
             query?: {
-                access_token?: string;
+                /** @description Билет из POST /events/ticket; без него 401 */
+                ticket?: string;
             };
             header?: never;
             path?: never;
@@ -1881,6 +2060,52 @@ export interface operations {
                 };
             };
             403: components["responses"]["Error"];
+        };
+    };
+    getProcessMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Показатели */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessMetrics"];
+                };
+            };
+        };
+    };
+    downloadStaffDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["ApplicationId"];
+                documentId: components["parameters"]["DocumentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Файл в исходном формате */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                    "image/png": string;
+                    "image/jpeg": string;
+                };
+            };
+            404: components["responses"]["Error"];
         };
     };
     getStaffApplication: {

@@ -12,8 +12,12 @@ function Wizard() {
   return <div>мастер: {(loc.state as { need?: string } | null)?.need ?? 'без текста'}</div>
 }
 
-function setup(applications: unknown[]) {
-  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(json(url.endsWith('/applications') ? applications : []))))
+function setup(applications: ({ id: string } & Record<string, unknown>)[]) {
+  const detail = (url: string) => {
+    const a = applications.find((x) => url.endsWith(`/applications/${x.id}`))
+    return a ? { allowedActions: [], documents: [], missingItems: [], statusMessage: 'Черновик', ...a } : []
+  }
+  vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve(json(url.endsWith('/applications') ? applications : detail(url)))))
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={['/cabinet']}>
@@ -55,6 +59,16 @@ describe('Home for a person without applications', () => {
     setup([])
     await userEvent.click(await screen.findByRole('button', { name: 'Нужно купить станок' }))
     expect(await screen.findByText('мастер: Нужно купить станок')).toBeInTheDocument()
+  })
+
+  it('shows the current application once: in the lead card, not again in the list', async () => {
+    setup([
+      { id: 'a1', productId: 'overdraft', productTitle: 'Овердрафт', amount: 100000000, termMonths: 12, status: 'ANALYST_REVIEW', createdAt: '2026-10-20T10:00:00Z', updatedAt: '2026-10-20T10:00:00Z' },
+      { id: 'a2', productId: 'express', productTitle: 'Экспресс-кредит', amount: 30000000, termMonths: 6, status: 'DISBURSED', createdAt: '2026-10-01T10:00:00Z', updatedAt: '2026-10-01T10:00:00Z' },
+    ])
+    expect(await screen.findByRole('heading', { name: 'Другие заявки' })).toBeInTheDocument()
+    expect(await screen.findAllByText(/Овердрафт/)).toHaveLength(1)
+    expect(screen.getByText(/Экспресс-кредит/)).toBeInTheDocument()
   })
 
   it('does not show the start window to a person who already has applications', async () => {

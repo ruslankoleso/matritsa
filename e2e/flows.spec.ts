@@ -49,7 +49,11 @@ test.describe('credit pipeline, end to end', () => {
     await expect(page.getByRole('heading', { name: 'Автоматический отказ' })).toBeVisible()
     await expect(page.getByText(/Сотрудник банка её не рассматривал/)).toBeVisible()
     await expect(page.getByText(/не является действующей/)).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Подать новую заявку' })).toBeVisible()
+    // A liquidated company would be refused again: no push to reapply, and the advice says why.
+    await expect(page.getByText(/будет отклонена по той же причине/)).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Подать новую заявку' })).toHaveCount(0)
+    // The bank's working note with the points stays out of the client's history.
+    await expect(page.getByText(/баллов из 100/)).toHaveCount(0)
   })
 
   test('the analyst asks a question, the client answers, and it returns to the analyst', async ({ browser }) => {
@@ -278,7 +282,7 @@ test.describe('credit pipeline, end to end', () => {
     await loginAs(page, /Тёплый хлеб/)
     const id = await fillAndSubmit(page, { product: /оборотные средства/, amount: '500000', term: '12', fileName: 'Альфа_Хак_Умный_кредитный_кабинет_261023_204023_очень_длинное_имя_файла_без_пробелов.pdf' })
     await page.goto(`/cabinet/applications/${id}`)
-    const name = page.locator('.file-name').first()
+    const name = page.locator('.doc-name').first()
     await expect(name).toBeVisible()
     const card = page.locator('section.card', { has: name })
     const [n, c] = [await name.boundingBox(), await card.boundingBox()]

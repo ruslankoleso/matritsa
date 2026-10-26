@@ -66,14 +66,9 @@ describe('Conclusion', () => {
     expect(within(neutral).getByText('5 из 10')).toBeInTheDocument()
   })
 
-  it('shows the recommendation as separate figures, not as a sentence', () => {
+  it('leaves the recommendation to the decision panel instead of repeating it', () => {
     setup()
-    const rec = screen.getByRole('region', { name: 'Рекомендация системы' })
-    expect(within(rec).getByText('Сумма')).toBeInTheDocument()
-    expect(within(rec).getByText(/500\s?000\s?₽/)).toBeInTheDocument()
-    expect(within(rec).getByText('Ставка')).toBeInTheDocument()
-    expect(within(rec).getByText(/25,5\s?%/)).toBeInTheDocument()
-    expect(within(rec).getByText('Платёж в месяц')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Рекомендация системы' })).not.toBeInTheDocument()
   })
 
   it('names the class and the score in the header', () => {

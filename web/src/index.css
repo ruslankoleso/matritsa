@@ -188,7 +188,7 @@ img, svg { display: block; max-width: 100%; }
 /* ---------- rolling digits ---------- */
 .roll { display: inline-flex; height: 1.1em; line-height: 1.1; overflow: hidden; font-variant-numeric: tabular-nums; vertical-align: bottom; }
 .roll-col { display: inline-block; height: 1.1em; overflow: hidden; }
-.roll-col > span { display: block; transition: transform 0.75s var(--ease); }
+.roll-col > span { display: block; text-align: center; transition: transform 0.75s var(--ease); } /* the font has no tabular figures: a narrow "1" is centred in a column as wide as "0" */
 .roll-col > span::before { content: '0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9'; display: block; white-space: pre; line-height: 1.1; }
 .roll-sep { display: inline-block; white-space: pre; }
 .roll-sep.sp { width: 0.26em; overflow: hidden; }

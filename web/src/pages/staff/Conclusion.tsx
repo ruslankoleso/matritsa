@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import type { Factor, StaffApplication } from '../../api/types'
 import { IconCheck, IconWarn } from '../../design/icons'
-import { formatMoney, formatPercent, formatRate, formatTerm } from '../../lib/format'
+import { formatMoney, formatPercent } from '../../lib/format'
 
 /**
  * A criterion is a strength at 80% of its maximum or more, a risk below 50%, otherwise neutral.
@@ -41,13 +41,12 @@ function Block({ title, tone, factors, id: blockId }: { title: string; tone: 'ok
   )
 }
 
-/** The analyst's summary of the score: strengths, risks and the system's recommendation, each in its own block. */
+/** The analyst's summary of the score: strengths, risks, loan quality and repayment experience. The system's recommendation is in the decision panel, next to the buttons that act on it. */
 export default function Conclusion({ card, id }: { card: StaffApplication; id: string }) {
   const s = card.scoring
   const ex = useQuery({ queryKey: ['explanation', id], queryFn: () => api.explanation(id, 'staff'), enabled: !!s })
   if (!s) return null
   const { strengths, risks, neutral, gaps } = groupFactors(s.factors)
-  const rec = card.recommended
   return (
     <section className="card concl" aria-labelledby="concl-h">
       <div className="card-head">
@@ -89,18 +88,6 @@ export default function Conclusion({ card, id }: { card: StaffApplication; id: s
         </section>
       )}
 
-      {rec && (
-        <section className="concl-rec" role="region" aria-labelledby="concl-rec-h">
-          <h3 id="concl-rec-h">Рекомендация системы</h3>
-          <div className="concl-tiles">
-            <div><small>Сумма</small><b className="num">{formatMoney(rec.amount)}</b></div>
-            <div><small>Срок</small><b className="num">{formatTerm(rec.termMonths)}</b></div>
-            <div><small>Ставка</small><b className="num">{formatRate(rec.rateBp)}</b></div>
-            <div><small>Платёж в месяц</small><b className="num">{formatMoney(rec.monthlyPayment)}</b></div>
-          </div>
-          <p className="field-hint">Окончательное решение принимает сотрудник банка.</p>
-        </section>
-      )}
 
       {ex.data?.source === 'ai' && (
         <div className="concl-ai">

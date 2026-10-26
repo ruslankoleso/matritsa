@@ -35,8 +35,8 @@ function Cabinet() {
 
   const sections: NavEntry[] = [
     { to: '/cabinet', label: 'Главная', icon: <IconHome />, end: true },
-    { to: '/cabinet/new', label: 'Новая заявка', icon: <IconPlus /> },
-    { to: '/cabinet/applications', label: 'Мои заявки', icon: <IconList /> },
+    { to: '/cabinet/new', label: 'Новая заявка', icon: <IconPlus />, match: (path, q) => path === '/cabinet/new' || (path.startsWith('/cabinet/applications/') && q.has('step')) },
+    { to: '/cabinet/applications', label: 'Мои заявки', icon: <IconList />, match: (path, q) => path.startsWith('/cabinet/applications') && !q.has('step') },
   ]
   const bell: BellInfo = {
     count: unread,

@@ -444,7 +444,7 @@ function Showcase() {
 
 const FEATURES: { sentence: string; more: string; on: boolean }[] = [
   { sentence: 'Статус заявки отображается в реальном времени', more: 'Он обновляется сам, без звонков и писем: всё происходит внутри кабинета.', on: true },
-  { sentence: 'Решение сопровождается пояснением', more: 'Оценка заёмщика складывается из 6 факторов, а ожидаемые потери считаются отдельно — у каждого шага есть пояснение.', on: true },
+  { sentence: 'Решение сопровождается пояснением', more: 'Оценка складывается из 12 критериев, а ожидаемые потери считаются отдельно — у каждого шага есть пояснение.', on: true },
   { sentence: 'Документы загружаются один раз', more: 'Список зависит от продукта: для овердрафта нужна только выписка по счёту.', on: false },
   { sentence: 'Вместо отказа — другие условия', more: 'Если заявка не проходит как есть, сотрудник может предложить меньшую сумму или другой срок.', on: false },
   { sentence: 'Подсказки подбираются под ваш бизнес', more: 'Лента предложений меняется от отрасли, оборотов и этапа заявки.', on: false },
@@ -467,9 +467,12 @@ function Features() {
         >
           <div>
             <p className="band-text" id={`f${i}`}>{f.sentence}</p>
-            <div className="band-more"><div><p>{f.more}</p></div></div>
+            <div className="band-more" id={`f${i}-more`}><div><p>{f.more}</p></div></div>
           </div>
-          <button type="button" role="switch" aria-checked={on[i]} aria-labelledby={`f${i}`} className="switch" onClick={() => toggle(i)} data-ui />
+          {/* An expander, not a switch: a switch that is "off" reads as "this feature is off". */}
+          <button type="button" aria-expanded={on[i]} aria-controls={`f${i}-more`} aria-labelledby={`f${i}`} className="band-toggle" onClick={() => toggle(i)} data-ui>
+            <span className="plus" aria-hidden />
+          </button>
         </motion.div>
       ))}
     </section>

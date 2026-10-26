@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, eventsUrl } from '../api/client'
+import { eventsUrl } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 
 export interface LiveEvent {
@@ -47,21 +47,33 @@ export function useLiveUpdates(onEvent?: (e: LiveEvent) => void) {
       }
     }
 
-    const connect = () => {
+    const retryLater = () => {
+      const wait = Math.min(15_000, 1000 * 2 ** retry.current++)
+      timer = window.setTimeout(() => void connect(), wait)
+    }
+
+    // Every connection gets a fresh ticket: the request for it also refreshes an expired access token.
+    const connect = async () => {
       if (stopped) return
-      es = new EventSource(eventsUrl())
+      let url: string
+      try {
+        url = await eventsUrl()
+      } catch {
+        retryLater()
+        return
+      }
+      if (stopped) return
+      es = new EventSource(url)
       es.onopen = () => {
         retry.current = 0
       }
       ['status', 'notification', 'queue', 'chat'].forEach((t) => es!.addEventListener(t, touch as EventListener))
       es.onerror = () => {
         es?.close()
-        const wait = Math.min(15_000, 1000 * 2 ** retry.current++)
-        // A cheap authenticated call also refreshes an expired access token before we reconnect.
-        timer = window.setTimeout(() => void api.me().catch(() => {}).finally(connect), wait)
+        retryLater()
       }
     }
-    connect()
+    void connect()
     return () => {
       stopped = true
       window.clearTimeout(timer)

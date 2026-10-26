@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '../../api/client'
 import type { Factor, Offer, StaffApplication } from '../../api/types'
 import { Button } from '../../design/Button'
+import { DocumentList } from '../../design/DocumentList'
 import { StatusPill } from '../../design/Pill'
 import { Route } from '../../design/Route'
 import { Empty, ErrorBox, Loading } from '../../design/states'
@@ -46,43 +47,61 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
   )
 }
 
-function Breakdown({ card }: { card: StaffApplication }) {
-  const on = useMounted()
+function NoScoring() {
+  return (
+    <div className="callout callout-warn">
+      <div><b>Автоматическая оценка не проводилась.</b><p style={{ marginTop: 4 }}>Внешние источники данных были недоступны. Проверьте компанию вручную и примите решение.</p></div>
+    </div>
+  )
+}
+
+/** The headline of the score: class, affordability, hard stops and expected loss. The criteria are on their own tab. */
+function ScoreSummary({ card }: { card: StaffApplication }) {
   const s = card.scoring
-  if (!s) {
-    return (
-      <div className="callout callout-warn">
-        <div><b>Автоматическая оценка не проводилась.</b><p style={{ marginTop: 4 }}>Внешние источники данных были недоступны. Проверьте компанию вручную и примите решение.</p></div>
-      </div>
-    )
-  }
-  const sum = s.factors.reduce((a, f) => a + f.points, 0)
+  if (!s) return <NoScoring />
   return (
     <>
       <div className="score-line">
         <ScoreRing score={s.score} grade={s.grade} />
         <div className="score-facts">
           <b>Класс {s.grade}: оценка заёмщика</b>
-          <span>Класс относится к этой заявке: чем больше сумма и срок, тем ниже покрытие платежей (DSCR) и баллы. Длина шкалы показывает вклад критерия.</span>
+          <span>
+            {s.hardStops.length > 0
+              ? 'Сработал жёсткий стоп: класс D назначен без учёта баллов.'
+              : 'Класс относится к этой заявке: чем больше сумма и срок, тем ниже покрытие платежей (DSCR) и баллы.'}
+          </span>
         </div>
       </div>
-      <Affordability s={s} />
       {s.hardStops.length > 0 && (
         <div className="callout callout-bad" style={{ marginBottom: 16 }}>
           <div><b>Жёсткие стопы</b><ul>{s.hardStops.map((h) => <li key={h}>{h}</li>)}</ul></div>
         </div>
       )}
+      <Affordability s={s} />
+      <ExpectedLoss s={s} />
+    </>
+  )
+}
+
+/** Every criterion with its points; the bar length shows its weight. */
+function Criteria({ card }: { card: StaffApplication }) {
+  const on = useMounted()
+  const s = card.scoring
+  if (!s) return <NoScoring />
+  const sum = s.factors.reduce((a, f) => a + f.points, 0)
+  return (
+    <>
+      <p className="field-hint" style={{ marginBottom: 12 }}>Длина шкалы показывает вклад критерия. Критерий без данных получает 0 баллов и отправляет заявку сотруднику.</p>
       {s.factors.map((f: Factor, i: number) => (
         <div className="factor" key={f.key} data-nodata={f.noData ? 'true' : undefined}>
           <div className="factor-head"><span>{f.title}</span><span>{f.points} <small>из {f.max}</small></span></div>
-          <div className="bar" role="img" aria-label={`${f.points} из ${f.max}`}><i style={{ width: on ? `${f.max ? (f.points / f.max) * 100 : 0}%` : 0, transitionDelay: `${500 + i * 160}ms` }} data-low={f.points * 2 < f.max} /></div>
+          <div className="bar" role="img" aria-label={`${f.points} из ${f.max}`}><i style={{ width: on ? `${f.max ? (f.points / f.max) * 100 : 0}%` : 0, transitionDelay: `${200 + i * 80}ms` }} data-low={f.points * 2 < f.max} /></div>
           <p>{f.note}</p>
         </div>
       ))}
       <div className="kv" style={{ marginTop: 12 }}>
         <div className="kv-row"><span>Сумма баллов</span><b>{sum}</b></div>
       </div>
-      <ExpectedLoss s={s} />
     </>
   )
 }
@@ -97,7 +116,7 @@ function ExpectedLoss({ s }: { s: NonNullable<StaffApplication['scoring']> }) {
         <div><small>PD за год</small><b className="num">{formatPercent(s.pd)}</b><span>класс {s.grade}</span></div>
         <div><small>PD за срок</small><b className="num">{formatPercent(s.cumulativePd)}</b><span>растёт со сроком</span></div>
         <div><small>LGD</small><b className="num">{formatPercent(s.lgd)}</b><span>зависит от продукта</span></div>
-        <div><small>EAD</small><b className="num">{formatMoney(s.ead)}</b><span>запрошенная сумма</span></div>
+        <div><small>EAD</small><b className="num">{formatMoney(s.ead)}</b><span>средний долг за срок</span></div>
       </div>
       <div className="el-result">
         <div><small>EL</small><b className="num">{formatMoney(s.expectedLoss)}</b></div>
@@ -161,7 +180,8 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
   const [comment, setComment] = useState('')
   const [amount, setAmount] = useState(String(Math.round((rec?.amount ?? app.amount) / 100)))
   const [term, setTerm] = useState(String(rec?.termMonths ?? app.termMonths))
-  const [rate, setRate] = useState(String((rec?.rateBp ?? 1650) / 100))
+  // Russian decimal comma: "18,3", the server gets basis points either way.
+  const [rate, setRate] = useState(String((rec?.rateBp ?? 1650) / 100).replace('.', ','))
   const [error, setError] = useState('')
 
   const m = useMutation({
@@ -220,7 +240,7 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
         <div className="form-grid" style={{ marginBottom: 12 }}>
           <div className="field"><label htmlFor="c-amount">Сумма, ₽</label><input id="c-amount" className="input num" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))} /></div>
           <div className="field"><label htmlFor="c-term">Срок, мес.</label><input id="c-term" className="input num" inputMode="numeric" value={term} onChange={(e) => setTerm(e.target.value.replace(/\D/g, ''))} /></div>
-          <div className="field"><label htmlFor="c-rate">Ставка, % годовых</label><input id="c-rate" className="input num" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} /></div>
+          <div className="field"><label htmlFor="c-rate">Ставка, % годовых</label><input id="c-rate" className="input num" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value.replace('.', ',').replace(/[^\d,]/g, ''))} /></div>
           <div className="field"><span className="field-label">Платёж в месяц</span><div className="input num" style={{ display: 'flex', alignItems: 'center', background: 'var(--tone-1)' }}>{payment ? formatMoney(payment) : '—'}</div></div>
         </div>
       )}
@@ -238,10 +258,22 @@ function DecisionPanel({ card }: { card: StaffApplication }) {
   )
 }
 
+type Tab = 'score' | 'criteria' | 'sources' | 'log'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'score', label: 'Оценка' },
+  { id: 'criteria', label: 'Все критерии' },
+  { id: 'sources', label: 'Источники и документы' },
+  { id: 'log', label: 'Журнал' },
+]
+
 export default function StaffApplicationPage() {
   const { id = '' } = useParams()
   const qc = useQueryClient()
+  const [params, setParams] = useSearchParams()
+  const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'score') as Tab
+  const setTab = (t: Tab) => setParams(t === 'score' ? {} : { tab: t }, { replace: true })
   const q = useQuery({ queryKey: ['staffApp', id], queryFn: () => api.staffApplication(id), enabled: !!id })
+  const products = useQuery({ queryKey: ['products'], queryFn: api.products })
   const claim = useMutation({ mutationFn: () => api.claim(id), onSuccess: (c) => { qc.setQueryData(['staffApp', id], c); void qc.invalidateQueries({ queryKey: ['queue'] }) } })
 
   if (q.isLoading) return <Loading rows={3} />
@@ -251,6 +283,15 @@ export default function StaffApplicationPage() {
   const card = q.data
   const app = card.application
   const co = app.company
+  const docTitles = Object.fromEntries((products.data?.find((p) => p.id === app.productId)?.documents ?? []).map((d) => [d.kind, d.title]))
+
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    const next = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i - 1 + TABS.length) % TABS.length : -1
+    if (next < 0) return
+    e.preventDefault()
+    setTab(TABS[next].id)
+    document.getElementById(`tab-${TABS[next].id}`)?.focus()
+  }
 
   return (
     <>
@@ -262,7 +303,11 @@ export default function StaffApplicationPage() {
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <StatusPill status={app.status} />
-          {card.assignedTo ? <span className="pill">{card.assignedTo.split(',')[0]}</span> : app.status !== 'ANALYST_REVIEW' ? null : <Button variant="outline" size="sm" busy={claim.isPending} onClick={() => claim.mutate()}>Взять в работу</Button>}
+          {card.assignedTo ? (
+            <span className="pill" title="Аналитик, за которым закреплена заявка">Ведёт: {card.assignedTo.split(',')[0]}</span>
+          ) : app.status === 'ANALYST_REVIEW' ? (
+            <Button variant="outline" size="sm" busy={claim.isPending} onClick={() => claim.mutate()} title="Коллеги увидят в очереди, что заявку ведёте вы">Закрепить за мной</Button>
+          ) : null}
         </div>
       </div>
 
@@ -270,43 +315,70 @@ export default function StaffApplicationPage() {
 
       <div className="grid">
         <div className="col-7">
-          <section className="card" aria-labelledby="sc-h">
-            <h2 id="sc-h" style={{ marginBottom: 14 }}>Из чего сложилась оценка</h2>
-            <Breakdown card={card} />
-          </section>
-          <Conclusion card={card} id={app.id} />
-          <section className="card" aria-labelledby="hist-h">
-            <h2 id="hist-h" style={{ marginBottom: 14 }}>Журнал заявки</h2>
-            <ol className="timeline">
-              {card.events.map((e, i) => (
-                <li className="tl-item" key={`${e.at}-${i}`}>
-                  <b>{e.fromStatus === e.toStatus ? e.message : transitionText(e.fromStatus, e.toStatus)}</b>
-                  <span>{formatDateTime(e.at)} · {e.actor === 'client' ? 'клиент' : e.actor === 'staff' ? 'сотрудник' : 'система'}</span>
-                  {e.comment && <p>{e.comment}</p>}
-                </li>
-              ))}
-            </ol>
-          </section>
+          <div role="tablist" aria-label="Разделы заявки" className="tabs">
+            {TABS.map((t, i) => (
+              <button key={t.id} id={`tab-${t.id}`} role="tab" aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} tabIndex={tab === t.id ? 0 : -1}
+                className="tab" onClick={() => setTab(t.id)} onKeyDown={(e) => onTabKey(e, i)}>{t.label}</button>
+            ))}
+          </div>
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+            {tab === 'score' && (
+              <>
+                <section className="card" aria-labelledby="sc-h">
+                  <h2 id="sc-h" style={{ marginBottom: 14 }}>Из чего сложилась оценка</h2>
+                  <ScoreSummary card={card} />
+                </section>
+                <Conclusion card={card} id={app.id} />
+              </>
+            )}
+            {tab === 'criteria' && (
+              <section className="card" aria-labelledby="cr-h">
+                <h2 id="cr-h" style={{ marginBottom: 14 }}>Баллы по критериям</h2>
+                <Criteria card={card} />
+              </section>
+            )}
+            {tab === 'sources' && (
+              <>
+                <section className="card" aria-labelledby="req-h">
+                  <h2 id="req-h" style={{ marginBottom: 12 }}>Заявка клиента</h2>
+                  <div className="kv">
+                    <div className="kv-row"><span>Цель</span><b style={{ maxWidth: '34ch' }}>{app.purpose || '—'}</b></div>
+                    <div className="kv-row"><span>Руководитель</span><b>{co.director}</b></div>
+                    {app.offer && <div className="kv-row"><span>Действует предложение</span><b>{formatMoney(app.offer.amount)}, {formatRate(app.offer.rateBp)}</b></div>}
+                  </div>
+                  <h3 style={{ margin: '18px 0 8px' }}>Документы</h3>
+                  <DocumentList appId={app.id} docs={app.documents} titles={docTitles} asStaff />
+                </section>
+                <section className="card" aria-labelledby="ext-h">
+                  <h2 id="ext-h" style={{ marginBottom: 12 }}>Проверки по внешним источникам</h2>
+                  <Enrichment card={card} />
+                </section>
+              </>
+            )}
+            {tab === 'log' && (
+              <>
+                <section className="card" aria-labelledby="route-h">
+                  <h2 id="route-h" style={{ marginBottom: 14 }}>Маршрут</h2>
+                  <Route states={routeStatesOf(app)} />
+                </section>
+                <section className="card" aria-labelledby="hist-h">
+                  <h2 id="hist-h" style={{ marginBottom: 14 }}>Журнал заявки</h2>
+                  <ol className="timeline">
+                    {card.events.map((e, i) => (
+                      <li className="tl-item" key={`${e.at}-${i}`}>
+                        <b>{e.fromStatus === e.toStatus ? e.message : transitionText(e.fromStatus, e.toStatus)}</b>
+                        <span>{formatDateTime(e.at)} · {e.actor === 'client' ? 'клиент' : e.actor === 'staff' ? 'сотрудник' : 'система'}</span>
+                        {e.comment && <p>{e.comment}</p>}
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              </>
+            )}
+          </div>
         </div>
-        <aside className="col-5">
+        <aside className="col-5 decision-aside">
           <DecisionPanel key={`${app.id}-${app.version}`} card={card} />
-          <section className="card" aria-labelledby="route-h">
-            <h2 id="route-h" style={{ marginBottom: 14 }}>Маршрут</h2>
-            <Route states={routeStatesOf(app)} vertical />
-          </section>
-          <section className="card" aria-labelledby="ext-h">
-            <h2 id="ext-h" style={{ marginBottom: 12 }}>Проверки по внешним источникам</h2>
-            <Enrichment card={card} />
-          </section>
-          <section className="card" aria-labelledby="req-h">
-            <h2 id="req-h" style={{ marginBottom: 12 }}>Заявка клиента</h2>
-            <div className="kv">
-              <div className="kv-row"><span>Цель</span><b style={{ maxWidth: '26ch' }}>{app.purpose || '—'}</b></div>
-              <div className="kv-row"><span>Руководитель</span><b>{co.director}</b></div>
-              <div className="kv-row"><span>Документы</span><b>{app.documents.length ? `${app.documents.length} шт.` : '—'}</b></div>
-              {app.offer && <div className="kv-row"><span>Действует предложение</span><b>{formatMoney(app.offer.amount)}, {formatRate(app.offer.rateBp)}</b></div>}
-            </div>
-          </section>
         </aside>
       </div>
     </>

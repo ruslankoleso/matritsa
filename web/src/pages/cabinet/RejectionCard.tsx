@@ -19,8 +19,13 @@ export default function RejectionCard({ rejection }: { rejection?: Application['
           <div><b>Комментарий сотрудника банка</b><p style={{ marginTop: 4 }}>{rejection.comment}</p></div>
         </div>
       )}
-      <p className="field-hint" style={{ marginTop: 12 }}>Возможные действия: подать заявку на меньшую сумму или выбрать другой продукт.</p>
-      <div className="offer-actions"><LinkButton to="/cabinet/new" variant="dark">Подать новую заявку</LinkButton></div>
+      {rejection?.advice && (
+        <>
+          <h3 style={{ margin: '14px 0 6px' }}>Что можно сделать</h3>
+          <p style={{ margin: 0, lineHeight: 1.6 }}>{rejection.advice}</p>
+        </>
+      )}
+      {(rejection?.canReapply ?? true) && <div className="offer-actions"><LinkButton to="/cabinet/new" variant="dark">Подать новую заявку</LinkButton></div>}
     </section>
   )
 }

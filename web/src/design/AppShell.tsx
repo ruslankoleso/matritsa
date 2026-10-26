@@ -15,6 +15,8 @@ export interface NavEntry {
   icon: ReactElement
   end?: boolean
   count?: number
+  /** Overrides the path match: a draft lives under /applications/:id, but the person is still filling in a new application. */
+  match?: (path: string, search: URLSearchParams) => boolean
 }
 
 export interface BellItem {
@@ -93,13 +95,19 @@ export function AppShell({ variant, nav, bell, children }: Props) {
   const company = me.data?.company
   const toggle = (p: Exclude<Pop, null>) => setPop((cur) => (cur === p ? null : p))
 
-  const links = nav.map((n) => (
-    <NavLink key={n.to} to={n.to} end={n.end} className="nav-item">
-      <span className="nav-ico">{n.icon}</span>
-      <span className="nav-label">{n.label}</span>
-      {n.count ? <span className="nav-count" aria-label={`${n.count} новых`}>{n.count}</span> : null}
-    </NavLink>
-  ))
+  const search = new URLSearchParams(loc.search)
+  const links = nav.map((n) => {
+    const inner = (
+      <>
+        <span className="nav-ico">{n.icon}</span>
+        <span className="nav-label">{n.label}</span>
+        {n.count ? <span className="nav-count" aria-label={`${n.count} новых`}>{n.count}</span> : null}
+      </>
+    )
+    if (!n.match) return <NavLink key={n.to} to={n.to} end={n.end} className="nav-item">{inner}</NavLink>
+    const active = n.match(loc.pathname, search)
+    return <Link key={n.to} to={n.to} className={`nav-item${active ? ' active' : ''}`} aria-current={active ? 'page' : undefined}>{inner}</Link>
+  })
 
   return (
     <div className="app" data-variant={variant} data-theme={theme} data-rail={railOpen ? 'open' : 'closed'}>

@@ -5,6 +5,7 @@ import { api, ApiError } from '../../api/client'
 import type { Application } from '../../api/types'
 import { Button, LinkButton } from '../../design/Button'
 import { DocUpload } from '../../design/DocUpload'
+import { DocumentList } from '../../design/DocumentList'
 import { RollingNumber } from '../../design/RollingNumber'
 import { StatusPill } from '../../design/Pill'
 import { Route } from '../../design/Route'
@@ -15,6 +16,7 @@ import { formatDate, formatDateTime, formatMoney, formatRate, formatTerm } from 
 import { celebrate } from '../../lib/celebrate'
 import { reducedMotion } from '../../lib/motion'
 import { routeStatesOf } from '../../lib/status'
+import { paymentSchedule, scheduleTotals } from '../../lib/schedule'
 import { useApplication, useProducts, useTimeline } from './queries'
 import { Waiting } from './parts'
 import Wizard from './Wizard'
@@ -54,6 +56,8 @@ function OfferCard({ app }: { app: Application }) {
   const btn = useRef<HTMLButtonElement>(null)
   const o = app.offer!
   const canAct = app.allowedActions.includes('accept')
+  const schedule = paymentSchedule(o.amount, o.rateBp, o.termMonths, o.monthlyPayment)
+  const { total, overpayment } = scheduleTotals(schedule)
 
   const accept = async () => {
     setAccepting('busy')
@@ -85,8 +89,34 @@ function OfferCard({ app }: { app: Application }) {
           <div className="kv-row"><span>Сумма</span><b>{formatMoney(o.amount)}</b></div>
           <div className="kv-row"><span>Срок</span><b>{formatTerm(o.termMonths)}</b></div>
           <div className="kv-row"><span>Ставка</span><b>{formatRate(o.rateBp)}</b></div>
+          <div className="kv-row"><span>Переплата за весь срок</span><b>{formatMoney(overpayment)}</b></div>
+          <div className="kv-row"><span>Всего выплатите</span><b>{formatMoney(total)}</b></div>
         </div>
       </div>
+      <details className="schedule">
+        <summary>График платежей</summary>
+        <div className="table-scroll">
+          <table className="table schedule-table">
+            <thead><tr><th>Месяц</th><th className="r">Платёж</th><th className="r">Проценты</th><th className="r">Основной долг</th><th className="r">Остаток</th></tr></thead>
+            <tbody>
+              {schedule.map((r) => (
+                <tr key={r.n}><td>{r.n}</td><td className="r">{formatMoney(r.payment)}</td><td className="r">{formatMoney(r.interest)}</td><td className="r">{formatMoney(r.principal)}</td><td className="r">{formatMoney(r.balance)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="field-hint" style={{ marginTop: 8 }}>Аннуитетный график: платёж одинаковый каждый месяц, последний может отличаться на копейки.</p>
+      </details>
+      {canAct && (
+        <div className="next-steps">
+          <b>Что будет после подписания</b>
+          <ol>
+            <li>Вы подписываете договор здесь, в кабинете. Ехать в отделение не нужно.</li>
+            <li>Деньги поступают на расчётный счёт компании. В прототипе подписание и перевод смоделированы.</li>
+            <li>Первый платёж — через месяц после выдачи, график останется в этой заявке.</li>
+          </ol>
+        </div>
+      )}
       {o.changes && o.changes.length > 0 && (
         <div className="callout callout-info" style={{ marginTop: 18 }}>
           <div>
@@ -162,6 +192,8 @@ function InfoCard({ app }: { app: Application }) {
 }
 
 function Details({ app }: { app: Application }) {
+  const products = useProducts()
+  const docTitles = Object.fromEntries((products.data?.find((p) => p.id === app.productId)?.documents ?? []).map((d) => [d.kind, d.title]))
   return (
     <section className="card" aria-labelledby="det-h">
       <h2 id="det-h" style={{ marginBottom: 12 }}>Условия заявки</h2>
@@ -175,9 +207,7 @@ function Details({ app }: { app: Application }) {
       {app.documents.length > 0 && (
         <>
           <h3 style={{ margin: '16px 0 6px' }}>Документы</h3>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
-            {app.documents.map((d) => <li key={d.id} className="file-name">{d.filename}</li>)}
-          </ul>
+          <DocumentList appId={app.id} docs={app.documents} titles={docTitles} />
         </>
       )}
     </section>

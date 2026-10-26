@@ -46,11 +46,13 @@ export function formatTerm(months: number): string {
   return `${months}${NB}${pluralRu(months, ['месяц', 'месяца', 'месяцев'])}`
 }
 
-const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' })
-const dateTimeFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+/** Dates are shown in Moscow time, the same zone the server writes into the feed texts, so a deadline reads the same everywhere. */
+const TZ = 'Europe/Moscow'
+const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: TZ })
+const dateTimeFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: TZ })
 
-const fullDateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-const fullDateTimeFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+const fullDateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ })
+const fullDateTimeFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: TZ })
 /** With the year: for things in the past, such as a registration date. */
 export const formatFullDate = (iso: string | Date) => fullDateFmt.format(new Date(iso))
 export const formatFullDateTime = (iso: string | Date) => fullDateTimeFmt.format(new Date(iso))

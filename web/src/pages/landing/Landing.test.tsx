@@ -55,15 +55,15 @@ describe('Landing', () => {
     expect(within(calc).getAllByText(money('1 000 000 ₽')).length).toBeGreaterThan(0)
   })
 
-  it('feature switches toggle with the keyboard', async () => {
+  it('feature explanations open with the keyboard, as expanders rather than on/off switches', async () => {
     setup()
-    const sw = screen.getAllByRole('switch')
-    expect(sw.length).toBeGreaterThanOrEqual(4)
-    const third = sw[2]
-    expect(third).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryAllByRole('switch')).toHaveLength(0)
+    const toggles = screen.getAllByRole('button', { expanded: false }).filter((b) => b.classList.contains('band-toggle'))
+    expect(toggles.length).toBeGreaterThanOrEqual(3)
+    const third = toggles[0]
     third.focus()
     await userEvent.keyboard(' ')
-    expect(third).toHaveAttribute('aria-checked', 'true')
+    expect(third).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('the INN blank refuses a malformed INN and says how to fix it', async () => {

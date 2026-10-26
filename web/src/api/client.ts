@@ -1,6 +1,6 @@
 import type {
   Application, ApplicationInput, ApplicationSummary, ApiErrorBody, ChatThread, CompanyLookup, DecisionRequest, Document, Explanation,
-  FeedCard, Me, Notification, Product, Queue, Recommendation, RegisterRequest, RegistrationExample, Role, StaffApplication, SupportChat, SupportChatList, TimelineEntry,
+  FeedCard, Me, Notification, ProcessMetrics, Product, Queue, Recommendation, RegisterRequest, RegistrationExample, Role, StaffApplication, SupportChat, SupportChatList, TimelineEntry,
 } from './types'
 
 const BASE = '/api/v1'
@@ -110,6 +110,22 @@ async function request<T>(method: string, path: string, body?: unknown, headers:
   return data as T
 }
 
+/** A file behind authorisation: the browser cannot send the token with a plain link, so it is fetched as a blob. */
+async function requestBlob(path: string, retry = true): Promise<Blob> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, { headers: memory ? { Authorization: `Bearer ${memory.accessToken}` } : {} })
+  } catch {
+    throw new ApiError(0, { code: 'network', message: 'Нет связи с сервером. Проверьте интернет и попробуйте снова.' })
+  }
+  if (res.status === 401 && retry && memory && (await refreshTokens())) return requestBlob(path, false)
+  if (!res.ok) {
+    const text = await res.text()
+    throw new ApiError(res.status, (text ? safeJSON(text) : undefined) as Partial<ApiErrorBody> | undefined)
+  }
+  return res.blob()
+}
+
 function safeJSON(text: string): unknown {
   try {
     return JSON.parse(text)
@@ -178,6 +194,8 @@ export const api = {
     fd.set('file', file)
     return onProgress ? uploadWithProgress(`/applications/${id}/documents`, fd, onProgress) : request<Document>('POST', `/applications/${id}/documents`, fd)
   },
+  /** The file of a document; staff read it through their own path, which checks the role instead of the owner. */
+  document: (appId: string, docId: string, asStaff = false) => requestBlob(`${asStaff ? '/staff' : ''}/applications/${appId}/documents/${docId}`),
   respond: (id: string, text: string) => request<Application>('POST', `/applications/${id}/respond`, { text }),
   accept: (id: string) => request<Application>('POST', `/applications/${id}/offer/accept`),
   decline: (id: string) => request<Application>('POST', `/applications/${id}/offer/decline`),
@@ -187,6 +205,7 @@ export const api = {
   notifications: () => request<Notification[]>('GET', '/notifications'),
   markRead: (id: string) => request<void>('POST', `/notifications/${id}/read`),
 
+  metrics: () => request<ProcessMetrics>('GET', '/staff/metrics'),
   queue: (status?: string, search?: string) => request<Queue>('GET', `/staff/queue${q({ status, q: search })}`),
   staffApplication: (id: string) => request<StaffApplication>('GET', `/staff/applications/${id}`),
   claim: (id: string) => request<StaffApplication>('POST', `/staff/applications/${id}/claim`),
@@ -194,4 +213,11 @@ export const api = {
   explanation: (id: string, audience: 'staff' | 'client') => request<Explanation>('GET', `/staff/applications/${id}/explanation${q({ audience })}`),
 }
 
-export const eventsUrl = () => `${BASE}/events?access_token=${encodeURIComponent(memory?.accessToken ?? '')}`
+/**
+ * The address of the event stream. EventSource cannot send the Authorization header, so it gets a 30-second
+ * ticket that opens only the stream: the access token itself never appears in an address or a proxy log.
+ */
+export async function eventsUrl(): Promise<string> {
+  const { ticket } = await request<{ ticket: string; expiresIn: number }>('POST', '/events/ticket')
+  return `${BASE}/events?ticket=${encodeURIComponent(ticket)}`
+}
