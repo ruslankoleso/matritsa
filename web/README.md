@@ -1,32 +1,30 @@
-# React + TypeScript + Vite
+# web — сайт и кабинеты «Матрицы»
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + TypeScript + Vite. Лендинг, вход и регистрация, кабинет предпринимателя (`/cabinet`), рабочее место кредитного аналитика (`/staff`) и специалиста поддержки (`/support`). В Docker собирается в статику и раздаётся nginx (`deploy/web.Dockerfile`), запросы `/api` проксируются в Go-сервис.
 
-Currently, two official plugins are available:
+## Команды
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Команда | Что делает |
+|---|---|
+| `npm ci` | установить зависимости по `package-lock.json` |
+| `npm run dev` | dev-сервер Vite; API ожидается на `http://localhost:8080` (прокси в `vite.config.ts`) |
+| `npm test` | юнит-тесты (Vitest + Testing Library) |
+| `npm run typecheck` | проверка типов |
+| `npm run lint` | oxlint |
+| `npm run gen:api` | перегенерировать `src/api/schema.ts` из `../api/openapi.yaml` |
+| `npm run build` | сборка в `dist/` |
 
-## React Compiler
+## Устройство
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Папка | Что внутри |
+|---|---|
+| `src/api` | клиент API: типы из OpenAPI-контракта, обновление токена, билет для потока событий |
+| `src/auth` | сессия и охрана маршрутов по ролям |
+| `src/design` | общие компоненты: оболочка с меню, кнопки, поля, маршрут заявки, чат, список документов |
+| `src/lib` | форматы денег и дат (московское время), график платежей, статусы, поток событий (SSE) |
+| `src/pages/cabinet` | кабинет клиента: главная, мастер заявки, заявка с предложением и историей |
+| `src/pages/staff` | очередь, карточка заявки с вкладками и панелью решения, показатели процесса |
+| `src/pages/support` | чаты поддержки |
+| `src/pages/landing` | лендинг |
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Типы API не пишутся руками: они генерируются из контракта, и CI проверяет, что `schema.ts` с ним совпадает.
